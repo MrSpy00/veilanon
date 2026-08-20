@@ -1084,7 +1084,7 @@ textarea,
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 0 8px;
+  padding: 2px 0 6px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1094,26 +1094,26 @@ textarea,
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: 2px var(--space-4);
-  margin-top: 2px;
+  padding: 1px var(--space-4);
+  margin-top: 1px;
   position: relative;
   border-radius: var(--radius-sm);
   transition: background var(--t-fast);
-  min-height: 26px;
+  min-height: 20px;
 }
 .veil-message:first-child {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .veil-message.group-start {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
 .veil-message.grouped {
   margin-top: 0;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  min-height: 22px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  min-height: 18px;
 }
 
 /* Message actions appear on hover */
@@ -1135,7 +1135,7 @@ textarea,
 .veil-message-avatar {
   width: 38px;
   flex-shrink: 0;
-  padding-top: 2px;
+  padding-top: 1px;
 }
 .veil-message.grouped .veil-message-avatar {
   width: 38px;
@@ -1159,8 +1159,8 @@ textarea,
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  margin-bottom: 1px;
-  line-height: 1.3;
+  margin-bottom: 0px;
+  line-height: 1.25;
 }
 
 .veil-message-author {
@@ -1169,19 +1169,19 @@ textarea,
   color: var(--veil-text-primary);
   cursor: pointer;
   transition: color var(--t-fast);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 .veil-message-author:hover { color: var(--veil-brand); }
 
 .veil-message-time {
   font-size: var(--text-xs);
   color: var(--veil-text-disabled);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .veil-message-content {
   font-size: 0.9375rem;
-  line-height: 1.375;
+  line-height: 1.3;
   letter-spacing: -0.005em;
   color: var(--veil-text-primary);
   word-break: break-word;
@@ -1189,9 +1189,11 @@ textarea,
   margin: 0;
   padding: 0;
 }
-.veil-message-content p {
-  margin: 0;
-  padding: 0;
+.veil-message-content p,
+.veil-markdown p {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.3 !important;
 }
 .veil-message-content.deleted {
   color: var(--veil-text-muted);
@@ -2676,19 +2678,38 @@ select:-webkit-autofill {
 }
 
 .veil-app.veil-has-custom-bg .veil-messages,
-.veil-app[data-has-custom-bg="true"] .veil-messages {
+.veil-app[data-has-custom-bg="true"] .veil-messages,
+[data-has-custom-bg="true"] .veil-messages {
   background: transparent !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-home,
-.veil-app[data-has-custom-bg="true"] .veil-home {
+.veil-app[data-has-custom-bg="true"] .veil-home,
+[data-has-custom-bg="true"] .veil-home {
   background: transparent !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-bottom-user-unified,
-.veil-app[data-has-custom-bg="true"] .veil-bottom-user-unified {
+.veil-app[data-has-custom-bg="true"] .veil-bottom-user-unified,
+[data-has-custom-bg="true"] .veil-bottom-user-unified {
   background: color-mix(in srgb, var(--veil-bg-elevated, #1e1f22) 85%, transparent) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+[data-has-custom-bg="true"] .veil-input-area {
+  background: transparent !important;
+}
+
+[data-has-custom-bg="true"] .veil-message-box {
+  background: color-mix(in srgb, var(--veil-bg-surface, #2b2d31) 85%, transparent) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-has-custom-bg="true"] .veil-empty-state,
+[data-has-custom-bg="true"] .veil-loading-messages {
+  background: transparent !important;
 }
 

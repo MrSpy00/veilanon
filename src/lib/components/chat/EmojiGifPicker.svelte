@@ -52,7 +52,8 @@
     } catch {
       gifFavorites = [];
     }
-    if (tab === 'gif') void loadTrending();
+    // Eagerly prefetch trending GIFs on picker mount
+    void loadTrending();
   });
 
   function pickEmoji(entry: EmojiEntry) {
@@ -134,7 +135,9 @@
 
   function switchTab(t: Tab) {
     tab = t;
-    if (t === 'gif' && !gifSearched && gifs.length === 0 && !gifLoading) void loadTrending();
+    if (t === 'gif' && gifs.length === 0 && !gifLoading) {
+      void loadTrending();
+    }
   }
 </script>
 

@@ -536,7 +536,7 @@
     align-items: center;
     justify-content: center;
     padding: var(--space-6, 1.5rem);
-    background: var(--veil-bg-void, #08090f);
+    background: transparent;
   }
   .veil-voice-lobby-card {
     display: flex;
@@ -545,10 +545,12 @@
     text-align: center;
     max-width: 420px;
     padding: var(--space-6, 1.5rem);
-    background: var(--veil-bg-elevated, #171b26);
-    border: 1px solid var(--veil-border, #242b3d);
+    background: color-mix(in srgb, var(--veil-bg-elevated, #171b26) 80%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--veil-border, rgba(255, 255, 255, 0.1));
     border-radius: var(--radius-xl, 1rem);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
     gap: var(--space-3, 0.75rem);
   }
   .veil-voice-lobby-icon {

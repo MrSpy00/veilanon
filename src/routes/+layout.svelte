@@ -50,6 +50,13 @@
     } else {
       document.documentElement.removeAttribute('data-streamer-blur-media');
     }
+
+    const ui = $uiStore;
+    if (ui.customBgImage || ui.customBgVideo) {
+      document.documentElement.setAttribute('data-has-custom-bg', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-has-custom-bg');
+    }
   });
 
   $effect(() => {

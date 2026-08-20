@@ -5,6 +5,7 @@
 
 -- ── 1. spaces ──────────────────────────────────────────────────────────────
 ALTER TABLE public.spaces ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "spaces_select_all" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_select_member" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_select_public" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_insert_owner" ON public.spaces;
@@ -30,6 +31,7 @@ CREATE POLICY "spaces_delete_owner" ON public.spaces
 
 -- ── 2. memberships ──────────────────────────────────────────────────────────
 ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "memberships_select_all" ON public.memberships;
 DROP POLICY IF EXISTS "memberships_select_own" ON public.memberships;
 DROP POLICY IF EXISTS "memberships_select_member" ON public.memberships;
 DROP POLICY IF EXISTS "memberships_insert_own" ON public.memberships;
@@ -54,9 +56,13 @@ CREATE POLICY "memberships_delete_own" ON public.memberships
 
 -- ── 3. channels ────────────────────────────────────────────────────────────
 ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "channels_select_all" ON public.channels;
 DROP POLICY IF EXISTS "channels_select_member" ON public.channels;
+DROP POLICY IF EXISTS "channels_insert_all" ON public.channels;
 DROP POLICY IF EXISTS "channels_insert_member" ON public.channels;
+DROP POLICY IF EXISTS "channels_update_all" ON public.channels;
 DROP POLICY IF EXISTS "channels_update_member" ON public.channels;
+DROP POLICY IF EXISTS "channels_delete_all" ON public.channels;
 DROP POLICY IF EXISTS "channels_delete_member" ON public.channels;
 
 CREATE POLICY "channels_select_all" ON public.channels
@@ -78,10 +84,14 @@ CREATE POLICY "channels_delete_all" ON public.channels
 
 -- ── 4. channel_members ─────────────────────────────────────────────────────
 ALTER TABLE public.channel_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "channel_members_select_all" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_select_own" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_select_member" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_insert_all" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_insert_own" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_update_all" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_update_own" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_delete_all" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_delete_own" ON public.channel_members;
 
 CREATE POLICY "channel_members_select_all" ON public.channel_members
@@ -103,9 +113,13 @@ CREATE POLICY "channel_members_delete_all" ON public.channel_members
 
 -- ── 5. messages ────────────────────────────────────────────────────────────
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "messages_select_all" ON public.messages;
 DROP POLICY IF EXISTS "messages_select_member" ON public.messages;
+DROP POLICY IF EXISTS "messages_insert_all" ON public.messages;
 DROP POLICY IF EXISTS "messages_insert_member" ON public.messages;
+DROP POLICY IF EXISTS "messages_update_all" ON public.messages;
 DROP POLICY IF EXISTS "messages_update_member" ON public.messages;
+DROP POLICY IF EXISTS "messages_delete_all" ON public.messages;
 DROP POLICY IF EXISTS "messages_delete_member" ON public.messages;
 
 CREATE POLICY "messages_select_all" ON public.messages
@@ -127,10 +141,14 @@ CREATE POLICY "messages_delete_all" ON public.messages
 
 -- ── 6. devices ─────────────────────────────────────────────────────────────
 ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "devices_select_all" ON public.devices;
 DROP POLICY IF EXISTS "devices_select_own" ON public.devices;
 DROP POLICY IF EXISTS "devices_select_authenticated" ON public.devices;
+DROP POLICY IF EXISTS "devices_insert_all" ON public.devices;
 DROP POLICY IF EXISTS "devices_insert_own" ON public.devices;
+DROP POLICY IF EXISTS "devices_update_all" ON public.devices;
 DROP POLICY IF EXISTS "devices_update_own" ON public.devices;
+DROP POLICY IF EXISTS "devices_delete_all" ON public.devices;
 DROP POLICY IF EXISTS "devices_delete_own" ON public.devices;
 
 CREATE POLICY "devices_select_all" ON public.devices
@@ -152,8 +170,11 @@ CREATE POLICY "devices_delete_all" ON public.devices
 
 -- ── 7. presence ────────────────────────────────────────────────────────────
 ALTER TABLE public.presence ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "presence_select_all" ON public.presence;
 DROP POLICY IF EXISTS "presence_select_any" ON public.presence;
+DROP POLICY IF EXISTS "presence_insert_all" ON public.presence;
 DROP POLICY IF EXISTS "presence_insert_own" ON public.presence;
+DROP POLICY IF EXISTS "presence_update_all" ON public.presence;
 DROP POLICY IF EXISTS "presence_update_own" ON public.presence;
 
 CREATE POLICY "presence_select_all" ON public.presence
@@ -171,9 +192,13 @@ CREATE POLICY "presence_update_all" ON public.presence
 
 -- ── 8. roles & role_members ────────────────────────────────────────────────
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "roles_select_all" ON public.roles;
 DROP POLICY IF EXISTS "roles_select_member" ON public.roles;
+DROP POLICY IF EXISTS "roles_insert_all" ON public.roles;
 DROP POLICY IF EXISTS "roles_insert_member" ON public.roles;
+DROP POLICY IF EXISTS "roles_update_all" ON public.roles;
 DROP POLICY IF EXISTS "roles_update_member" ON public.roles;
+DROP POLICY IF EXISTS "roles_delete_all" ON public.roles;
 DROP POLICY IF EXISTS "roles_delete_member" ON public.roles;
 
 CREATE POLICY "roles_select_all" ON public.roles
@@ -194,8 +219,11 @@ CREATE POLICY "roles_delete_all" ON public.roles
     USING (true);
 
 ALTER TABLE public.role_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "role_members_select_all" ON public.role_members;
 DROP POLICY IF EXISTS "role_members_select_member" ON public.role_members;
+DROP POLICY IF EXISTS "role_members_insert_all" ON public.role_members;
 DROP POLICY IF EXISTS "role_members_insert_member" ON public.role_members;
+DROP POLICY IF EXISTS "role_members_delete_all" ON public.role_members;
 DROP POLICY IF EXISTS "role_members_delete_member" ON public.role_members;
 
 CREATE POLICY "role_members_select_all" ON public.role_members
@@ -212,9 +240,13 @@ CREATE POLICY "role_members_delete_all" ON public.role_members
 
 -- ── 9. friendships ─────────────────────────────────────────────────────────
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "friendships_select_all" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_select_own" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_insert_all" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_insert_own" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_update_all" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_update_own" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_delete_all" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_delete_own" ON public.friendships;
 
 CREATE POLICY "friendships_select_all" ON public.friendships
@@ -236,8 +268,11 @@ CREATE POLICY "friendships_delete_all" ON public.friendships
 
 -- ── 10. invites & bans ─────────────────────────────────────────────────────
 ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "invites_select_all" ON public.invites;
 DROP POLICY IF EXISTS "invites_select_member" ON public.invites;
+DROP POLICY IF EXISTS "invites_insert_all" ON public.invites;
 DROP POLICY IF EXISTS "invites_insert_member" ON public.invites;
+DROP POLICY IF EXISTS "invites_delete_all" ON public.invites;
 DROP POLICY IF EXISTS "invites_delete_member" ON public.invites;
 
 CREATE POLICY "invites_select_all" ON public.invites
@@ -253,6 +288,7 @@ CREATE POLICY "invites_delete_all" ON public.invites
     USING (true);
 
 ALTER TABLE public.bans ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "bans_all" ON public.bans;
 DROP POLICY IF EXISTS "owner_manages_bans" ON public.bans;
 
 CREATE POLICY "bans_all" ON public.bans
@@ -262,8 +298,11 @@ CREATE POLICY "bans_all" ON public.bans
 
 -- ── 11. files ──────────────────────────────────────────────────────────────
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "files_select_all" ON public.files;
 DROP POLICY IF EXISTS "files_select_own" ON public.files;
+DROP POLICY IF EXISTS "files_insert_all" ON public.files;
 DROP POLICY IF EXISTS "files_insert_own" ON public.files;
+DROP POLICY IF EXISTS "files_delete_all" ON public.files;
 DROP POLICY IF EXISTS "files_delete_own" ON public.files;
 
 CREATE POLICY "files_select_all" ON public.files
