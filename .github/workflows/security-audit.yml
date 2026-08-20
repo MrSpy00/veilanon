@@ -1,0 +1,53 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, Monday 03:00 UTC — catches newly published advisories.
+    - cron: "0 3 * * 1"
+
+jobs:
+  rust-advisories:
+    name: Rust advisory scan (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Prebuilt binary instead of `cargo install` — cargo-audit compiles ~375
+      # crates from source, which exceeds the 5 min job budget on fresh runners.
+      - name: Install cargo-audit (prebuilt binary)
+        run: |
+          curl -sSL "https://github.com/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz" -o /tmp/cargo-audit.tgz
+          tar -xzf /tmp/cargo-audit.tgz -C /tmp
+          echo "/tmp/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2" >> "$GITHUB_PATH"
+      - name: cargo-audit (RustSec advisories, locked deps)
+        working-directory: src-tauri
+        run: cargo audit
+
+  npm-audit:
+    name: npm audit (high + critical)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit production dependencies
+        run: npm audit --audit-level=high
+
+  secrets-scan:
+    name: Gitleaks secrets scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan full history, not just the tip
+      - name: Install gitleaks (prebuilt binary)
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          echo "/tmp" >> "$GITHUB_PATH"
+      - name: Run Gitleaks
+        run: gitleaks git --config .gitleaks.toml --redact --exit-code 1

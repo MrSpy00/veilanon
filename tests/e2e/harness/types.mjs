@@ -1,0 +1,70 @@
+/**
+ * VeilAnon E2E Test Harness — Types & Feature Definitions
+ * Matches PRD, PROJECT.md and TEST_INFRA.md contracts.
+ */
+
+export const FEATURES = {
+  TOR_CHECK: { id: 1, name: 'Tor & Relay Anonymity Check', req: 'ORIGINAL_REQUEST §1' },
+  IP_LEAK: { id: 2, name: 'IP Leak & Network Diagnostic', req: 'ORIGINAL_REQUEST §1' },
+  DOH_TEST: { id: 3, name: 'Encrypted DoH Test', req: 'ORIGINAL_REQUEST §1' },
+  PASSWORD_CHECK: { id: 4, name: 'k-Anonymity Password Leak Check', req: 'ORIGINAL_REQUEST §1' },
+  URL_SCANNER: { id: 5, name: 'Real-Time Malicious URL Scanner', req: 'ORIGINAL_REQUEST §1' },
+  MULTI_DOH_BENCHMARK: { id: 6, name: 'Multi-Resolver DoH & Tamper Benchmark', req: 'ORIGINAL_REQUEST §1' },
+  AVATAR_GEN: { id: 7, name: 'Deterministic Privacy Avatar Generator', req: 'ORIGINAL_REQUEST §1' },
+  CLOCK_SKEW: { id: 8, name: 'Cryptographic Clock Skew Detector', req: 'ORIGINAL_REQUEST §1' },
+  DISAPPEARING_MSGS: { id: 9, name: 'Disappearing Messages Visual Countdown', req: 'ORIGINAL_REQUEST §3' },
+  SETTINGS_AUDIT: { id: 10, name: 'Complete Settings Panels & UX Audit', req: 'ORIGINAL_REQUEST §2' },
+  KEYBOARD_NAV: { id: 11, name: 'Keyboard Navigation & Empty States', req: 'ORIGINAL_REQUEST §2' },
+  ROADMAP_DOCS: { id: 12, name: 'Roadmap & Docs Completion', req: 'ORIGINAL_REQUEST §3, §4' },
+  BACKEND_TESTS: { id: 13, name: 'Backend Rust Test Expansion', req: 'Survey / ORIGINAL_REQUEST §4' },
+  E2E_SUITE: { id: 14, name: 'E2E Testing Suite (Tiers 1-4)', req: 'ORIGINAL_REQUEST §4' },
+  ADVERSARIAL_HARDENING: { id: 15, name: 'Adversarial Coverage Hardening', req: 'ORIGINAL_REQUEST §4' },
+};
+
+export const TIERS = {
+  TIER1: { id: 1, name: 'Tier 1: Feature Coverage', minTests: 75 },
+  TIER2: { id: 2, name: 'Tier 2: Boundary & Corner Cases', minTests: 75 },
+  TIER3: { id: 3, name: 'Tier 3: Pairwise Combinations', minTests: 15 },
+  TIER4: { id: 4, name: 'Tier 4: Application Scenarios', minTests: 8 },
+};
+
+export const DEFAULT_APP_SETTINGS = {
+  presenceVisibility: 'everyone',
+  showReadReceipts: true,
+  showTypingIndicator: true,
+  autoDownloadMedia: false,
+  linkPreviews: false,
+  notificationPreview: 'full',
+  telemetryEnabled: false,
+  localAiEnabled: false,
+  discordBridgeEnabled: false,
+  showJoinDate: false,
+  theme: 'dark',
+  fontSize: 14,
+  reduceMotion: false,
+  compactMode: false,
+  accentColor: null,
+  desktopNotifications: true,
+  notificationSound: true,
+  mentionOnly: false,
+  notificationVolume: 80,
+  soundMessages: true,
+  soundMentions: true,
+  soundFriends: true,
+  soundCalls: true,
+  dndSuppressNotifications: true,
+  inputDeviceId: null,
+  outputDeviceId: null,
+  videoDeviceId: null,
+  noiseSuppression: true,
+  echoCancellation: true,
+  pushToTalk: false,
+  pushToTalkKey: null,
+  startOnLogin: false,
+  minimizeToTray: true,
+  closeToTray: true,
+  hardwareAcceleration: true,
+  language: 'tr',
+  autoUpdateCheck: true,
+  autoUnlock: false,
+};

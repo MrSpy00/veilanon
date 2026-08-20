@@ -1,0 +1,43 @@
+name: SBOM
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-sbom:
+    name: Generate SPDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM (SPDX JSON, Syft)
+        uses: anchore/sbom-action@v0
+        continue-on-error: true
+        with:
+          format: spdx-json
+          output-file: ./veilanon-sbom.spdx.json
+          path: .
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Attach SBOM to release via GitHub CLI
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in {1..5}; do
+            echo "Attempt $i uploading SBOM to release ${{ github.event.release.tag_name }}..."
+            if gh release upload "${{ github.event.release.tag_name }}" ./veilanon-sbom.spdx.json --clobber; then
+              echo "SBOM successfully uploaded to release!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Warning: could not attach SBOM to release, but workflow artifact is saved."
+          exit 0
+

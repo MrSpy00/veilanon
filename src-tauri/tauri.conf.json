@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "veilanon",
+  "version": "0.0.1",
+  "identifier": "com.aegissoft.veilanon",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "veilanon",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false,
+        "resizable": true,
+        "center": true,
+        "additionalBrowserArgs": "--auto-select-desktop-capture-source=Entire screen --auto-accept-this-tab-capture"
+      }
+    ],
+      "security": {
+        "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' wss: https: https://cdn.jsdelivr.net https://unpkg.com; worker-src 'self' blob:; frame-src 'none'; object-src 'none'"
+      }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "SocialNetworking",
+    "copyright": "Copyright © 2026 aegisSoft",
+    "longDescription": "veilanon is a privacy-first, open-source desktop communication platform with end-to-end encryption.",
+    "shortDescription": "Privacy-first communication",
+    "publisher": "aegisSoft",
+    "homepage": "https://github.com/MrSpy00/veilanon",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": true,
+        "languages": ["English", "Turkish"],
+        "startMenuFolder": "veilanon",
+        "compression": "lzma",
+        "template": "installer/installer.nsi",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["veilanon"]
+      }
+    },
+    "updater": {
+      "active": false,
+      "pubkey": "",
+      "endpoints": ["https://github.com/MrSpy00/veilanon/releases/latest/download/latest.json"]
+    }
+  }
+}

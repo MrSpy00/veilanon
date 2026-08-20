@@ -1,0 +1,261 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish (e.g. v0.0.1)'
+        required: false
+        default: 'v0.0.1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  VEILANON_SUPABASE_URL: ${{ secrets.VEILANON_SUPABASE_URL }}
+  VEILANON_SUPABASE_ANON_KEY: ${{ secrets.VEILANON_SUPABASE_ANON_KEY }}
+  VEILANON_LIVEKIT_URL: ${{ secrets.VEILANON_LIVEKIT_URL }}
+  VEILANON_LIVEKIT_API_KEY: ${{ secrets.VEILANON_LIVEKIT_API_KEY }}
+  VEILANON_LIVEKIT_API_SECRET: ${{ secrets.VEILANON_LIVEKIT_API_SECRET }}
+  VEILANON_R2_ACCOUNT_ID: ${{ secrets.VEILANON_R2_ACCOUNT_ID }}
+  VEILANON_R2_BUCKET: ${{ secrets.VEILANON_R2_BUCKET }}
+  VEILANON_UPSTASH_REDIS_REST_URL: ${{ secrets.VEILANON_UPSTASH_REDIS_REST_URL }}
+  VEILANON_QDRANT_URL: ${{ secrets.VEILANON_QDRANT_URL }}
+  VEILANON_OLLAMA_URL: ${{ secrets.VEILANON_OLLAMA_URL }}
+  VEILANON_TENOR_API_KEY: ${{ secrets.VEILANON_TENOR_API_KEY }}
+  VEILANON_GIPHY_API_KEY: ${{ secrets.VEILANON_GIPHY_API_KEY }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    if: "!startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch'"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Optimize Windows runner (Defender exclusions)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "C:\Users\runneradmin\.cargo" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "$PWD" -ErrorAction SilentlyContinue
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          prefix-key: "v1-rust-${{ matrix.os }}"
+
+      - name: Install Linux system dependencies (Tauri)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build frontend (SvelteKit)
+        run: npm run build
+
+      - name: Check Rust workspace
+        working-directory: src-tauri
+        run: cargo check
+
+  # ---------------------------------------------------------------------------
+  # Release: triggered ONLY on `v*` tags or manual workflow_dispatch.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release (${{ matrix.os }})
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Optimize Windows runner (Defender exclusions)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "C:\Users\runneradmin\.cargo" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "$PWD" -ErrorAction SilentlyContinue
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          prefix-key: "v1-rust-${{ matrix.os }}"
+
+      - name: Install Linux system dependencies (Tauri)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build frontend (SvelteKit)
+        run: npm run build
+
+      - name: Build and publish Tauri release
+        id: tauri_build
+        continue-on-error: true
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VEILANON_SUPABASE_URL: ${{ secrets.VEILANON_SUPABASE_URL }}
+          VEILANON_SUPABASE_ANON_KEY: ${{ secrets.VEILANON_SUPABASE_ANON_KEY }}
+          VEILANON_LIVEKIT_URL: ${{ secrets.VEILANON_LIVEKIT_URL }}
+          VEILANON_LIVEKIT_API_KEY: ${{ secrets.VEILANON_LIVEKIT_API_KEY }}
+          VEILANON_LIVEKIT_API_SECRET: ${{ secrets.VEILANON_LIVEKIT_API_SECRET }}
+          VEILANON_R2_ACCOUNT_ID: ${{ secrets.VEILANON_R2_ACCOUNT_ID }}
+          VEILANON_R2_BUCKET: ${{ secrets.VEILANON_R2_BUCKET }}
+          VEILANON_UPSTASH_REDIS_REST_URL: ${{ secrets.VEILANON_UPSTASH_REDIS_REST_URL }}
+          VEILANON_QDRANT_URL: ${{ secrets.VEILANON_QDRANT_URL }}
+          VEILANON_TENOR_API_KEY: ${{ secrets.VEILANON_TENOR_API_KEY }}
+          VEILANON_GIPHY_API_KEY: ${{ secrets.VEILANON_GIPHY_API_KEY }}
+          VEILANON_OLLAMA_URL: ${{ secrets.VEILANON_OLLAMA_URL }}
+        with:
+          tagName: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.0.1' }}
+          releaseName: "veilanon ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.0.1' }}"
+          releaseBody: "Official release binaries for veilanon."
+          releaseDraft: false
+          prerelease: false
+
+      - name: Publish bundles to release via GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TARGET_TAG="${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.0.1' }}"
+          # Ensure release exists
+          gh release view "$TARGET_TAG" || gh release create "$TARGET_TAG" --title "veilanon $TARGET_TAG" --notes "Official release assets for veilanon." || true
+          
+          find src-tauri/target/release/bundle -type f \( \
+            -name "*.deb" -o \
+            -name "*.rpm" -o \
+            -name "*.AppImage" -o \
+            -name "*.dmg" -o \
+            -name "*.app.tar.gz" -o \
+            -name "*.tar.gz" -o \
+            -name "*.msi" -o \
+            -name "*_x64-setup.exe" -o \
+            -name "*_x64_en-US.msi" \
+          \) | while IFS= read -r f; do
+            if [ -f "$f" ]; then
+              base=$(basename "$f")
+              if [ "$base" = "control.tar.gz" ] || [ "$base" = "data.tar.gz" ]; then
+                continue
+              fi
+              echo "Uploading $f to release $TARGET_TAG..."
+              for i in {1..5}; do
+                if gh release upload "$TARGET_TAG" "$f" --clobber; then
+                  echo "Successfully uploaded $f"
+                  break
+                fi
+                sleep 5
+              done
+            fi
+          done
+
+      - name: Upload release artifacts (workflow archive)
+        uses: actions/upload-artifact@v4
+        with:
+          name: veilanon-release-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app.tar.gz
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.rpm
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*_x64-setup.exe
+
+  # ---------------------------------------------------------------------------
+  # Finalize: cleans redundant release assets & uploads single SHA256SUMS.txt
+  # ---------------------------------------------------------------------------
+  finalize-release:
+    name: Finalize Release (Checksums & Asset Cleanup)
+    needs: release
+    if: always() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cleanup redundant files and generate unified SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TARGET_TAG="${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.0.1' }}"
+          mkdir -p release_assets
+          cd release_assets
+          
+          echo "Downloading assets for $TARGET_TAG..."
+          gh release download "$TARGET_TAG" --dir . || true
+          
+          # Delete known redundant or intermediate files from release
+          for unwanted in *.sha256 Trust-Certificate.bat veilanon-ca.cer veilanon-setup.exe veilanon.app.tar.gz veilanon_aarch64.app.tar.gz veilanon_0.0.1_x64.exe veilanon_0.0.1_x64.tar.gz veilanon_0.0.1_x64.zip veilanon_0.0.2_x64.exe veilanon_0.0.2_x64.tar.gz veilanon_0.0.2_x64.zip; do
+            if [ -f "$unwanted" ]; then
+              echo "Removing unwanted asset from release: $unwanted"
+              gh release delete-asset "$TARGET_TAG" "$unwanted" -y || true
+              rm -f "$unwanted"
+            fi
+          done
+          
+          # Exclude SBOM and existing SHA256SUMS from hash generation
+          rm -f SHA256SUMS.txt
+          
+          count=$(ls -1 | wc -l)
+          if [ "$count" -gt 0 ]; then
+            echo "Generating SHA256SUMS.txt for remaining valid packages..."
+            sha256sum * > SHA256SUMS.txt
+            cat SHA256SUMS.txt
+            gh release upload "$TARGET_TAG" SHA256SUMS.txt --clobber
+            echo "SHA256SUMS.txt successfully updated on release!"
+          fi

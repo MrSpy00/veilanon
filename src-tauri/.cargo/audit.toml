@@ -1,0 +1,38 @@
+[advisories]
+# Upstream/transitive advisories with no known exploit path for veilanon.
+# RUSTSEC-2025-0080/0098/0100: unic-ucd-* unmaintained (pulled by tauri-utils -> urlpattern).
+# RUSTSEC-2024-0429: glib 0.18.5 unsound VariantStrIter (Linux-only tray chain; not compiled on Windows).
+#
+# RUSTSEC-2024-0411..0420: gtk-rs GTK3 bindings unmaintained (atk/gdk/gdkwayland/gdkx11/gtk/gtk3-macros).
+#   Linux-only chain (tray icon + secret-service); never compiled on Windows, macOS, or wasm.
+#
+# RUSTSEC-2026-0207/0208/0209/0211/0212/0124: libcrux-* (0.0.x) advisories.
+#   These crates enter Cargo.lock ONLY via hpke-rs's OPTIONAL `hpke-rs-libcrux` provider
+#   (feature-disabled; openmls_rust_crypto 0.5.1 uses hpke-rs-rust-crypto 0.6.1, which has
+#   zero advisories). Verified not in the compiled graph for ANY target:
+#   `cargo tree -i libcrux-aesgcm --target all` -> "nothing to print".
+#   No patched versions are reachable: hpke-rs-libcrux 0.6.1 (latest) pins the old
+#   libcrux 0.0.x versions exactly, and openmls_rust_crypto 0.5.1 caps hpke-rs at <0.7.
+#   The vulnerable code is never compiled into the veilanon binary.
+ignore = [
+  "RUSTSEC-2025-0080",
+  "RUSTSEC-2025-0098",
+  "RUSTSEC-2025-0100",
+  "RUSTSEC-2024-0429",
+  "RUSTSEC-2024-0411",
+  "RUSTSEC-2024-0412",
+  "RUSTSEC-2024-0413",
+  "RUSTSEC-2024-0414",
+  "RUSTSEC-2024-0415",
+  "RUSTSEC-2024-0416",
+  "RUSTSEC-2024-0417",
+  "RUSTSEC-2024-0418",
+  "RUSTSEC-2024-0419",
+  "RUSTSEC-2024-0420",
+  "RUSTSEC-2026-0207",
+  "RUSTSEC-2026-0208",
+  "RUSTSEC-2026-0209",
+  "RUSTSEC-2026-0211",
+  "RUSTSEC-2026-0212",
+  "RUSTSEC-2026-0124",
+]

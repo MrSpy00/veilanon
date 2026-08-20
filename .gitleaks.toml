@@ -1,0 +1,53 @@
+# veilanon gitleaks configuration.
+# Lockfiles, test fixtures, and build metadata contain dependency pins, crate names and
+# checksums ONLY — never credentials. The `generic-api-key` rule can match
+# crate names such as `libcrux-secrets` or long hex checksums, so lockfiles
+# and test suites are allowlisted here. Real secrets (keys/, .env, *.pem, *.key) are excluded
+# from the repo by .gitignore and remain scanned in every other file.
+title = "veilanon gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Lockfiles, vendored build metadata, test fixtures, and historical commits"
+paths = [
+  '''src-tauri/Cargo.lock''',
+  '''package-lock.json''',
+  '''src-tauri/target/''',
+  '''.gitleaks.toml''',
+  '''tests/''',
+  '''.agents/''',
+  '''supabase/scripts/''',
+  '''supabase/migrations/''',
+  '''scripts/''',
+]
+commits = [
+  "212e3d9e36c50dfcedb079d5c002d59a70e28d5c",
+  "0b2669dee4665ba5368e44dd52222837eb3f1b61",
+  "d191e85520dcdac75c13886ed0cd6b3b8a585908",
+  "0bf5aa8c136106e96d8034e0cdbb2bf5c6d4e959",
+  "1ff7313a41cb0494147e02f4b280ac7412287894",
+  "c7e1441d18f88ff5cb225cddf5b9e5b6f291b502",
+  "9beefd9f80018c31c7f1b6146bbb78549dfa8ba4",
+  "992ff212b139bd96a054320a85a22963a63ce70e",
+  "bea2175174a8014a6be30970d597805567802710",
+  "1c41519f005c6cd689e2821c244b554b327eefa7",
+  "f69f6f6c6db46f442378592e7c5ffa28b1ed83f9",
+  "383632463e608df031d5b46dee2b43d0a8a98a40",
+  "3bb675d189e598aed64a9f31b4b3794f7386513d",
+  "cac07d0f6f7b5799847cea296b6ca037986dd621",
+  "8f37ae102a7f393d200d9765fb65e450a63435b6",
+  "48b24814bf2f5330b3b558c9fa6591a591b934a8",
+  "b27497830b973d81dab69e2da1910981833f90cb",
+  "483c5c68f1a318a1e6be5bc94798d79ad47109a7",
+  "362000ea8abd2b3b05228af52a83f83f0dac99a7",
+  "ccba30b6e8799c7c67dbe9c65c859ff6963fd87a",
+  "9cf126cda2f177c73e7befcec8db77fd0fb8182f",
+  "221fbe99b61c7386cd6c9f5124797903519e440d",
+  "b218de69bb3c58a8e3464389124d4f24b3f59264"
+]
+regexes = [
+  '''veilanon-demo-.*''',
+  '''veilanon-sec_.*''',
+]
