@@ -161,20 +161,19 @@ pub async fn mls_add_member(input: MlsAddMemberInput, state: State<'_, AppState>
     }
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .upsert(
-                    "mls_welcomes",
-                    &serde_json::json!({
-                        "channel_id": channel_id.to_string(),
-                        "user_id": member_id.to_string(),
-                        "envelope": envelope,
-                    }),
-                    "channel_id,user_id",
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upsert(
+                "mls_welcomes",
+                &serde_json::json!({
+                    "channel_id": channel_id.to_string(),
+                    "user_id": member_id.to_string(),
+                    "envelope": envelope,
+                }),
+                "channel_id,user_id",
+            )
+            .await;
     }
 
     info!("MLS member added");

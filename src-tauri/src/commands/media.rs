@@ -189,7 +189,8 @@ pub async fn join_voice_channel(
     let mut e2ee_key = None;
     let _channel_uuid = Uuid::parse_str(&input.channel_id)
         .map_err(|_| VeilError::InvalidInput("Invalid channel ID".into()))?;
-    if let Ok(db) = state.db.try_read() {
+    {
+        let db = state.db.read().await;
         let e2ee: i64 = db
             .query_row(
                 "SELECT is_e2ee FROM channels WHERE id = ?1",
@@ -273,7 +274,8 @@ pub async fn get_livekit_token(
 
     let mut is_e2ee = false;
     let mut e2ee_key = None;
-    if let Ok(db) = state.db.try_read() {
+    {
+        let db = state.db.read().await;
         let e2ee: i64 = db
             .query_row(
                 "SELECT is_e2ee FROM channels WHERE id = ?1",
@@ -290,17 +292,16 @@ pub async fn get_livekit_token(
     }
 
     // Ephemeral signal over realtime so non-connected users in the space can see who is in the voice channel
-    if let Ok(network) = state.network.try_read() {
-        network.realtime.broadcast(serde_json::json!({
-            "type": "voice_presence",
-            "action": "join",
-            "channel_id": input.channel_id,
-            "user_id": identity.id.to_string(),
-            "username": identity.username,
-            "display_name": identity.display_name,
-            "avatar_hash": identity.avatar_hash,
-        }));
-    }
+    let network = state.network.read().await;
+    network.realtime.broadcast(serde_json::json!({
+        "type": "voice_presence",
+        "action": "join",
+        "channel_id": input.channel_id,
+        "user_id": identity.id.to_string(),
+        "username": identity.username,
+        "display_name": identity.display_name,
+        "avatar_hash": identity.avatar_hash,
+    }));
 
     Ok(LiveKitTokenResponse {
         token,

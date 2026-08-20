@@ -27,8 +27,15 @@
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let pickerOpen = $state(false);
   let uploadMenuOpen = $state(false);
-  let pendingFiles = $state<Array<{ name: string; fileId: string; r2Key: string; sizeBytes: number; mimeTypeHint: string | null }>>([]);
+  let pendingFiles = $state<Array<{ name: string; fileId: string; r2Key: string; sizeBytes: number; mimeTypeHint: string | null; contentKeyCiphertext?: string | null }>>([]);
   let uploading = $state(false);
+
+  // Voice recording state
+  let mediaRecorder = $state<MediaRecorder | null>(null);
+  let audioChunks = $state<Blob[]>([]);
+  let isRecordingVoice = $state(false);
+  let voiceDuration = $state(0);
+  let voiceInterval: ReturnType<typeof setInterval> | null = null;
 
   let activeTrackedChannel = $state('');
 
@@ -159,7 +166,7 @@
         fileId: f.fileId,
         r2Key: f.r2Key,
         sizeBytes: f.sizeBytes,
-        contentKeyCiphertext: '',
+        contentKeyCiphertext: f.contentKeyCiphertext ?? '',
         mimeTypeHint: f.mimeTypeHint,
         fileName: f.name,
       }));
@@ -272,6 +279,7 @@
             r2Key: info.r2Key ?? '',
             sizeBytes: info.sizeBytes,
             mimeTypeHint: inferMime(fileName) || imgFile.type || 'image/png',
+            contentKeyCiphertext: info.contentKeyCiphertext ?? null,
           },
         ];
         syncDraft();
@@ -321,6 +329,7 @@
             r2Key: info.r2Key ?? '',
             sizeBytes: info.sizeBytes,
             mimeTypeHint: inferMime(fileName),
+            contentKeyCiphertext: info.contentKeyCiphertext ?? null,
           },
         ];
       }
@@ -337,17 +346,147 @@
     e.preventDefault();
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
-    const paths: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      const p = (f as any).path || (f as any).webkitRelativePath;
-      if (p) paths.push(p);
+    uploading = true;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const p = (f as any).path;
+        if (p && typeof p === 'string' && p.length > 0) {
+          const info = await fileApi.upload({ path: p, channelId });
+          const fileName = p.split(/[\\/]/).pop() ?? f.name ?? 'dosya';
+          pendingFiles = [
+            ...pendingFiles,
+            {
+              name: fileName,
+              fileId: info.fileId,
+              r2Key: info.r2Key ?? '',
+              sizeBytes: info.sizeBytes,
+              mimeTypeHint: inferMime(fileName) || f.type || null,
+              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+            },
+          ];
+        } else {
+          const arrayBuf = await f.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuf);
+          const fileName = f.name || `dosya-${Date.now()}`;
+          const info = await fileApi.uploadBytes({ bytes, channelId });
+          pendingFiles = [
+            ...pendingFiles,
+            {
+              name: fileName,
+              fileId: info.fileId,
+              r2Key: info.r2Key ?? '',
+              sizeBytes: info.sizeBytes,
+              mimeTypeHint: inferMime(fileName) || f.type || null,
+              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+            },
+          ];
+        }
+      }
+      syncDraft();
+      if (!content.trim()) textareaEl?.focus();
+    } catch {
+      toastStore.error('Dosya yüklenemedi.');
+    } finally {
+      uploading = false;
     }
-    if (paths.length > 0) {
-      await uploadPaths(paths);
-    } else {
-      toastStore.info('Dosyaları eklemek için sol alttaki "+" butonunu kullanabilirsiniz.');
+  }
+
+  async function startVoiceRecording() {
+    if (isRecordingVoice || uploading) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : 'audio/ogg';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunks.push(e.data);
+        }
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (voiceInterval) {
+          clearInterval(voiceInterval);
+          voiceInterval = null;
+        }
+        if (audioChunks.length === 0) return;
+        const blob = new Blob(audioChunks, { type: mimeType });
+        audioChunks = [];
+        uploading = true;
+        try {
+          const arrayBuf = await blob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuf);
+          const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'mp4' : 'ogg';
+          const fileName = `ses-kaydi-${Date.now()}.${ext}`;
+          const info = await fileApi.uploadBytes({ bytes, channelId });
+          pendingFiles = [
+            ...pendingFiles,
+            {
+              name: fileName,
+              fileId: info.fileId,
+              r2Key: info.r2Key ?? '',
+              sizeBytes: info.sizeBytes,
+              mimeTypeHint: mimeType,
+              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+            },
+          ];
+          syncDraft();
+          toastStore.success('Ses kaydı eklendi.');
+        } catch {
+          toastStore.error('Ses kaydı yüklenemedi.');
+        } finally {
+          uploading = false;
+        }
+      };
+      mediaRecorder = recorder;
+      recorder.start(250);
+      isRecordingVoice = true;
+      voiceDuration = 0;
+      voiceInterval = setInterval(() => {
+        voiceDuration += 1;
+      }, 1000);
+    } catch {
+      toastStore.error('Mikrofon erişimi sağlanamadı.');
     }
+  }
+
+  function stopVoiceRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    isRecordingVoice = false;
+    if (voiceInterval) {
+      clearInterval(voiceInterval);
+      voiceInterval = null;
+    }
+  }
+
+  function cancelVoiceRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.ondataavailable = null;
+      mediaRecorder.onstop = () => {
+        mediaRecorder?.stream?.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorder.stop();
+    }
+    audioChunks = [];
+    isRecordingVoice = false;
+    if (voiceInterval) {
+      clearInterval(voiceInterval);
+      voiceInterval = null;
+    }
+    toastStore.info('Ses kaydı iptal edildi.');
+  }
+
+  function formatDuration(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 
   function insertEmoji(emoji: string) {
@@ -483,24 +622,50 @@
     {/if}
   </div>
 
-  <textarea
-    bind:this={textareaEl}
-    bind:value={content}
-    class="veil-message-textarea"
-    {placeholder}
-    rows={1}
-    aria-label="Mesaj içeriği"
-    aria-multiline="true"
-    maxlength={4000}
-    onkeydown={onKeydown}
-    oninput={onInput}
-    onpaste={onPaste}
-    ondrop={onDrop}
-  ></textarea>
+  {#if isRecordingVoice}
+    <div class="veil-voice-recording-bar" role="region" aria-label="Ses kaydı yapılıyor">
+      <div class="veil-recording-pulse" aria-hidden="true"></div>
+      <span class="veil-recording-time">{formatDuration(voiceDuration)}</span>
+      <span class="veil-recording-label">Ses kaydediliyor…</span>
+      <button
+        type="button"
+        class="btn-icon veil-voice-cancel-btn"
+        title="Kaydı iptal et"
+        aria-label="Kaydı iptal et"
+        onclick={cancelVoiceRecording}
+      >
+        <Icon name="trash" size={16} />
+      </button>
+      <button
+        type="button"
+        class="btn-send veil-voice-stop-btn"
+        title="Kaydı tamamla ve ekle"
+        aria-label="Kaydı tamamla"
+        onclick={stopVoiceRecording}
+      >
+        <Icon name="check" size={16} />
+      </button>
+    </div>
+  {:else}
+    <textarea
+      bind:this={textareaEl}
+      bind:value={content}
+      class="veil-message-textarea"
+      {placeholder}
+      rows={1}
+      aria-label="Mesaj içeriği"
+      aria-multiline="true"
+      maxlength={4000}
+      onkeydown={onKeydown}
+      oninput={onInput}
+      onpaste={onPaste}
+      ondrop={onDrop}
+    ></textarea>
+  {/if}
 
   <div class="veil-input-actions">
     <!-- Rich Character Counter with Radial Progress Ring -->
-    {#if charCount > 0}
+    {#if charCount > 0 && !isRecordingVoice}
       <div
         class="veil-char-counter {counterLevel}"
         class:near-limit={charCount >= 3400}
@@ -532,37 +697,50 @@
       </div>
     {/if}
 
-    <div class="veil-eg-wrap">
+    {#if !isRecordingVoice}
+      <div class="veil-eg-wrap">
+        <button
+          class="btn-icon"
+          title="Emoji ve GIF"
+          aria-label="Emoji ve GIF ekle"
+          aria-expanded={pickerOpen}
+          onclick={() => (pickerOpen = !pickerOpen)}
+        >
+          <Icon name="sparkle" size={17} />
+        </button>
+        {#if pickerOpen}
+          <EmojiGifPicker
+            onPickEmoji={insertEmoji}
+            onPickGif={insertGif}
+            onClose={() => (pickerOpen = false)}
+          />
+        {/if}
+      </div>
+
       <button
         class="btn-icon"
-        title="Emoji ve GIF"
-        aria-label="Emoji ve GIF ekle"
-        aria-expanded={pickerOpen}
-        onclick={() => (pickerOpen = !pickerOpen)}
+        title="Sesli mesaj kaydet"
+        aria-label="Sesli mesaj kaydet"
+        onclick={startVoiceRecording}
+        disabled={uploading || !canAttach}
       >
-        <Icon name="sparkle" size={17} />
+        <Icon name="mic" size={17} />
       </button>
-      {#if pickerOpen}
-        <EmojiGifPicker
-          onPickEmoji={insertEmoji}
-          onPickGif={insertGif}
-          onClose={() => (pickerOpen = false)}
-        />
-      {/if}
-    </div>
-    <button
-      class="btn-send"
-      onclick={send}
-      disabled={(!content.trim() && pendingFiles.length === 0) || sending || uploading}
-      aria-label="Mesaj gönder"
-      title="Gönder (Enter)"
-    >
-      {#if sending}
-        <div class="veil-spinner" style="width:16px;height:16px;border-width:2px;"></div>
-      {:else}
-        <Icon name="arrow-right" size={18} />
-      {/if}
-    </button>
+
+      <button
+        class="btn-send"
+        onclick={send}
+        disabled={(!content.trim() && pendingFiles.length === 0) || sending || uploading}
+        aria-label="Mesaj gönder"
+        title="Gönder (Enter)"
+      >
+        {#if sending}
+          <div class="veil-spinner" style="width:16px;height:16px;border-width:2px;"></div>
+        {:else}
+          <Icon name="arrow-right" size={18} />
+        {/if}
+      </button>
+    {/if}
   </div>
 </div>
 {/if}
@@ -786,5 +964,62 @@
   @keyframes char-pulse {
     0%, 100% { transform: scale(1); box-shadow: 0 0 10px hsl(0 84% 60% / 0.3); }
     50% { transform: scale(1.05); box-shadow: 0 0 16px hsl(0 84% 60% / 0.6); }
+  }
+
+  .veil-voice-recording-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, hsl(0 84% 60%) 12%, var(--veil-bg-surface));
+    border: 1px solid color-mix(in srgb, hsl(0 84% 60%) 35%, transparent);
+    border-radius: var(--radius-xl);
+    min-height: 40px;
+  }
+  .veil-recording-pulse {
+    width: 10px;
+    height: 10px;
+    background: hsl(0 84% 60%);
+    border-radius: 50%;
+    animation: rec-pulse 1s infinite ease-in-out;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.4; }
+  }
+  .veil-recording-time {
+    font-weight: 700;
+    font-size: var(--text-sm);
+    color: hsl(0 84% 60%);
+    font-family: var(--font-mono, monospace);
+  }
+  .veil-recording-label {
+    flex: 1;
+    font-size: var(--text-xs);
+    color: var(--veil-text-secondary);
+  }
+  .veil-voice-cancel-btn {
+    color: var(--veil-text-muted);
+  }
+  .veil-voice-cancel-btn:hover {
+    color: hsl(0 84% 60%);
+    background: color-mix(in srgb, hsl(0 84% 60%) 15%, transparent);
+  }
+  .veil-voice-stop-btn {
+    background: var(--veil-brand);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-full);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform var(--t-fast);
+  }
+  .veil-voice-stop-btn:hover {
+    transform: scale(1.08);
   }
 </style>

@@ -434,13 +434,12 @@ async fn best_effort_insert(state: &AppState, table: &str, payload: serde_json::
         }
         other => other,
     };
-    if let Ok(network) = state.network.try_read() {
-        // Plain insert, not upsert: PostgREST `on_conflict` + RLS rejects
-        // rows where the conflict column differs from auth.uid() (403) —
-        // e.g. spaces.id vs owner_id. Clients always mint fresh UUIDs, so
-        // the 409 collision window is effectively zero.
-        let _ = network.api.insert(table, &payload).await;
-    }
+    let network = state.network.read().await;
+    // Plain insert, not upsert: PostgREST `on_conflict` + RLS rejects
+    // rows where the conflict column differs from auth.uid() (403) —
+    // e.g. spaces.id vs owner_id. Clients always mint fresh UUIDs, so
+    // the 409 collision window is effectively zero.
+    let _ = network.api.insert(table, &payload).await;
 }
 
 /// Best-effort Supabase update — never fails the command.
@@ -448,9 +447,8 @@ async fn best_effort_update(state: &AppState, table: &str, payload: &serde_json:
     if !config::configured("VEILANON_SUPABASE_URL") {
         return;
     }
-    if let Ok(network) = state.network.try_read() {
-        let _ = network.api.update(table, filter, payload).await;
-    }
+    let network = state.network.read().await;
+    let _ = network.api.update(table, filter, payload).await;
 }
 
 /// Best-effort Supabase delete — never fails the command.
@@ -458,9 +456,8 @@ async fn best_effort_delete(state: &AppState, table: &str, filter: &str) {
     if !config::configured("VEILANON_SUPABASE_URL") {
         return;
     }
-    if let Ok(network) = state.network.try_read() {
-        let _ = network.api.delete(table, filter).await;
-    }
+    let network = state.network.read().await;
+    let _ = network.api.delete(table, filter).await;
 }
 
 // ── Spaces ──────────────────────────────────────────────────────────────────
@@ -475,8 +472,8 @@ pub async fn spaces_list(state: State<'_, AppState>) -> Result<Vec<SpaceInfo>, V
 
     // Remote sync: üye olunan veya sahip olunan sunucuları Supabase'den çek
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("user_id=eq.{}&select=space_id", user_id);
+        let network = state.network.read().await;
+        let filter = format!("user_id=eq.{}&select=space_id", user_id);
             let owner_filter = format!("owner_id=eq.{}&select=id", user_id);
 
             let mut all_space_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -648,7 +645,6 @@ pub async fn spaces_list(state: State<'_, AppState>) -> Result<Vec<SpaceInfo>, V
                 }
             }
         }
-    }
 
     let db = state.db.read().await;
     let rows = db.list_spaces()?;
@@ -851,14 +847,13 @@ pub async fn spaces_transfer_ownership(
     drop(db);
 
     if !is_member && config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("space_id=eq.{}&user_id=eq.{}", space_id, new_owner_id);
-            if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &filter, None, Some(1)).await {
-                if !memberships.is_empty() {
-                    let db = state.db.read().await;
-                    let _ = db.add_space_member(&space_id, &new_owner_id);
-                    is_member = true;
-                }
+        let network = state.network.read().await;
+        let filter = format!("space_id=eq.{}&user_id=eq.{}", space_id, new_owner_id);
+        if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &filter, None, Some(1)).await {
+            if !memberships.is_empty() {
+                let db = state.db.read().await;
+                let _ = db.add_space_member(&space_id, &new_owner_id);
+                is_member = true;
             }
         }
     }
@@ -962,16 +957,15 @@ pub async fn spaces_set_banner(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .upload_blob(&format!("banners/{}", hash), bytes.clone())
-                .await;
-            let _ = network
-                .api
-                .upload_blob(&format!("avatars/{}", hash), bytes.clone())
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upload_blob(&format!("banners/{}", hash), bytes.clone())
+            .await;
+        let _ = network
+            .api
+            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .await;
     }
 
     best_effort_update(
@@ -1021,12 +1015,11 @@ pub async fn spaces_set_icon(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .upload_blob(&format!("avatars/{}", hash), bytes.clone())
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .await;
     }
 
     best_effort_update(
@@ -1094,10 +1087,9 @@ pub async fn spaces_leave(space_id: String, state: State<'_, AppState>) -> Resul
     }
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("space_id=eq.{}&user_id=eq.{}", space_id, identity.id);
-            let _ = network.api.delete("memberships", &filter).await;
-        }
+        let network = state.network.read().await;
+        let filter = format!("space_id=eq.{}&user_id=eq.{}", space_id, identity.id);
+        let _ = network.api.delete("memberships", &filter).await;
     }
 
     let _ = state.app.emit("space:deleted", serde_json::json!({ "spaceId": space_id.to_string() }));
@@ -1273,20 +1265,19 @@ pub async fn roles_list(space_id: String, state: State<'_, AppState>) -> Result<
     let space_id = parse_space_id(&space_id)?;
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("space_id=eq.{}&select=id,space_id,name,color,permissions,position", space_id);
-            if let Ok(remote_roles) = network.api.select::<serde_json::Value>("roles", &filter, Some("position.asc"), Some(100)).await {
-                let db = state.db.read().await;
-                for r in remote_roles {
-                    if let (Some(id_str), Some(name)) = (r.get("id").and_then(|v| v.as_str()), r.get("name").and_then(|v| v.as_str())) {
-                        if let Ok(id) = Uuid::parse_str(id_str) {
-                            let color = r.get("color").and_then(|v| v.as_str());
-                            let position = r.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                            let perms: Permissions = r.get("permissions")
-                                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                                .unwrap_or_default();
-                            let _ = db.upsert_role(&id, &space_id, name, color, &perms, position);
-                        }
+        let network = state.network.read().await;
+        let filter = format!("space_id=eq.{}&select=id,space_id,name,color,permissions,position", space_id);
+        if let Ok(remote_roles) = network.api.select::<serde_json::Value>("roles", &filter, Some("position.asc"), Some(100)).await {
+            let db = state.db.read().await;
+            for r in remote_roles {
+                if let (Some(id_str), Some(name)) = (r.get("id").and_then(|v| v.as_str()), r.get("name").and_then(|v| v.as_str())) {
+                    if let Ok(id) = Uuid::parse_str(id_str) {
+                        let color = r.get("color").and_then(|v| v.as_str());
+                        let position = r.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                        let perms: Permissions = r.get("permissions")
+                            .and_then(|v| serde_json::from_value(v.clone()).ok())
+                            .unwrap_or_default();
+                        let _ = db.upsert_role(&id, &space_id, name, color, &perms, position);
                     }
                 }
             }
@@ -1686,32 +1677,31 @@ pub async fn invites_redeem(code: String, state: State<'_, AppState>) -> Result<
 
     // 2. Yerelde bulunamadıysa Supabase üzerinden sorgula
     if space_id_opt.is_none() && config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            // A. invites tablosunda ara
-            let inv_filter = format!("code=eq.{}&select=space_id", clean_code.to_uppercase());
-            if let Ok(rows) = network.api.select::<serde_json::Value>("invites", &inv_filter, None, Some(1)).await {
-                if let Some(row) = rows.first() {
-                    if let Some(sid_str) = row.get("space_id").and_then(|v| v.as_str()) {
-                        if let Ok(sid) = Uuid::parse_str(sid_str) {
-                            space_id_opt = Some(sid);
-                        }
+        let network = state.network.read().await;
+        // A. invites tablosunda ara
+        let inv_filter = format!("code=eq.{}&select=space_id", clean_code.to_uppercase());
+        if let Ok(rows) = network.api.select::<serde_json::Value>("invites", &inv_filter, None, Some(1)).await {
+            if let Some(row) = rows.first() {
+                if let Some(sid_str) = row.get("space_id").and_then(|v| v.as_str()) {
+                    if let Ok(sid) = Uuid::parse_str(sid_str) {
+                        space_id_opt = Some(sid);
                     }
                 }
             }
+        }
 
-            // B. spaces custom_link veya id ara
-            if space_id_opt.is_none() {
-                let sp_filter = if let Ok(uuid) = Uuid::parse_str(clean_code) {
-                    format!("id=eq.{}&select=id", uuid)
-                } else {
-                    format!("custom_link=eq.{}&select=id", clean_code.to_lowercase())
-                };
-                if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &sp_filter, None, Some(1)).await {
-                    if let Some(row) = rows.first() {
-                        if let Some(sid_str) = row.get("id").and_then(|v| v.as_str()) {
-                            if let Ok(sid) = Uuid::parse_str(sid_str) {
-                                space_id_opt = Some(sid);
-                            }
+        // B. spaces custom_link veya id ara
+        if space_id_opt.is_none() {
+            let sp_filter = if let Ok(uuid) = Uuid::parse_str(clean_code) {
+                format!("id=eq.{}&select=id", uuid)
+            } else {
+                format!("custom_link=eq.{}&select=id", clean_code.to_lowercase())
+            };
+            if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &sp_filter, None, Some(1)).await {
+                if let Some(row) = rows.first() {
+                    if let Some(sid_str) = row.get("id").and_then(|v| v.as_str()) {
+                        if let Ok(sid) = Uuid::parse_str(sid_str) {
+                            space_id_opt = Some(sid);
                         }
                     }
                 }
@@ -1723,67 +1713,66 @@ pub async fn invites_redeem(code: String, state: State<'_, AppState>) -> Result<
 
     // 3. Uzak sunucudan topluluk ve kanal bilgilerini indir
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let sp_filter = format!("id=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", space_id);
-            if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &sp_filter, None, Some(1)).await {
-                if let Some(s) = rows.first() {
-                    let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("Topluluk");
-                    let icon = s.get("icon_hash").and_then(|v| v.as_str());
-                    let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
-                    let owner_id = Uuid::parse_str(owner_str).unwrap_or(identity.id);
-                    let db = state.db.read().await;
-                    let _ = db.insert_space(&space_id, name, icon, &owner_id);
-                    let _ = db.set_space_owner(&space_id, &identity.id, owner_id == identity.id);
-                    if let Some(link) = s.get("custom_link").and_then(|v| v.as_str()) {
-                        let _ = db.set_custom_link(&space_id, link);
-                    }
-                    if let Some(banner) = s.get("banner_hash").and_then(|v| v.as_str()) {
-                        let _ = db.update_space(&space_id, None, None, Some(Some(banner)), None);
-                    }
-                    if let Some(desc) = s.get("description").and_then(|v| v.as_str()) {
-                        let _ = db.update_space(&space_id, None, None, None, Some(Some(desc)));
-                    }
+        let network = state.network.read().await;
+        let sp_filter = format!("id=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", space_id);
+        if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &sp_filter, None, Some(1)).await {
+            if let Some(s) = rows.first() {
+                let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("Topluluk");
+                let icon = s.get("icon_hash").and_then(|v| v.as_str());
+                let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
+                let owner_id = Uuid::parse_str(owner_str).unwrap_or(identity.id);
+                let db = state.db.read().await;
+                let _ = db.insert_space(&space_id, name, icon, &owner_id);
+                let _ = db.set_space_owner(&space_id, &identity.id, owner_id == identity.id);
+                if let Some(link) = s.get("custom_link").and_then(|v| v.as_str()) {
+                    let _ = db.set_custom_link(&space_id, link);
+                }
+                if let Some(banner) = s.get("banner_hash").and_then(|v| v.as_str()) {
+                    let _ = db.update_space(&space_id, None, None, Some(Some(banner)), None);
+                }
+                if let Some(desc) = s.get("description").and_then(|v| v.as_str()) {
+                    let _ = db.update_space(&space_id, None, None, None, Some(Some(desc)));
                 }
             }
+        }
 
-            let ch_filter = format!("space_id=eq.{}&select=id,name,channel_type,position,is_nsfw,is_e2ee", space_id);
-            if let Ok(ch_rows) = network.api.select::<serde_json::Value>("channels", &ch_filter, Some("position.asc"), Some(100)).await {
-                let db = state.db.read().await;
-                let db_key = state.get_db_key().await;
-                for ch in ch_rows {
-                    if let (Some(cid_str), Some(cname), Some(ctype_str)) = (
-                        ch.get("id").and_then(|v| v.as_str()),
-                        ch.get("name").and_then(|v| v.as_str()),
-                        ch.get("channel_type").and_then(|v| v.as_str()),
-                    ) {
-                        if let Ok(cid) = Uuid::parse_str(cid_str) {
-                            let pos = ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                            let is_nsfw = ch.get("is_nsfw").and_then(|v| v.as_bool()).unwrap_or(false);
-                            let is_e2ee = ch.get("is_e2ee").and_then(|v| v.as_bool()).unwrap_or(false);
-                            let ctype = match ctype_str {
-                                "voice" => ChannelType::Voice,
-                                "announcement" => ChannelType::Announcement,
-                                "forum" => ChannelType::Forum,
-                                _ => ChannelType::Text,
-                            };
-                            let channel = crate::models::channel::Channel {
-                                id: cid,
-                                space_id: Some(space_id),
-                                name: cname.to_string(),
-                                channel_type: ctype,
-                                position: pos,
-                                topic: None,
-                                is_nsfw,
-                                is_e2ee,
-                                slow_mode_seconds: 0,
-                                permission_overrides: Vec::new(),
-                                created_at: chrono::Utc::now(),
-                                last_message_id: None,
-                                unread_count: 0,
-                                mentioned: false,
-                            };
-                            let _ = db.upsert_channel(&channel, db_key.as_ref());
-                        }
+        let ch_filter = format!("space_id=eq.{}&select=id,name,channel_type,position,is_nsfw,is_e2ee", space_id);
+        if let Ok(ch_rows) = network.api.select::<serde_json::Value>("channels", &ch_filter, Some("position.asc"), Some(100)).await {
+            let db = state.db.read().await;
+            let db_key = state.get_db_key().await;
+            for ch in ch_rows {
+                if let (Some(cid_str), Some(cname), Some(ctype_str)) = (
+                    ch.get("id").and_then(|v| v.as_str()),
+                    ch.get("name").and_then(|v| v.as_str()),
+                    ch.get("channel_type").and_then(|v| v.as_str()),
+                ) {
+                    if let Ok(cid) = Uuid::parse_str(cid_str) {
+                        let pos = ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                        let is_nsfw = ch.get("is_nsfw").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let is_e2ee = ch.get("is_e2ee").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let ctype = match ctype_str {
+                            "voice" => ChannelType::Voice,
+                            "announcement" => ChannelType::Announcement,
+                            "forum" => ChannelType::Forum,
+                            _ => ChannelType::Text,
+                        };
+                        let channel = crate::models::channel::Channel {
+                            id: cid,
+                            space_id: Some(space_id),
+                            name: cname.to_string(),
+                            channel_type: ctype,
+                            position: pos,
+                            topic: None,
+                            is_nsfw,
+                            is_e2ee,
+                            slow_mode_seconds: 0,
+                            permission_overrides: Vec::new(),
+                            created_at: chrono::Utc::now(),
+                            last_message_id: None,
+                            unread_count: 0,
+                            mentioned: false,
+                        };
+                        let _ = db.upsert_channel(&channel, db_key.as_ref());
                     }
                 }
             }
@@ -1895,110 +1884,109 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
     let space_id = parse_space_id(&space_id)?;
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("space_id=eq.{}&select=user_id", space_id);
-            if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &filter, None, Some(200)).await {
-                let mut user_ids: Vec<String> = memberships
-                    .into_iter()
-                    .filter_map(|m| m.get("user_id").and_then(|v| v.as_str()).map(str::to_string))
-                    .collect();
-                user_ids.sort();
-                user_ids.dedup();
+        let network = state.network.read().await;
+        let filter = format!("space_id=eq.{}&select=user_id", space_id);
+        if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &filter, None, Some(200)).await {
+            let mut user_ids: Vec<String> = memberships
+                .into_iter()
+                .filter_map(|m| m.get("user_id").and_then(|v| v.as_str()).map(str::to_string))
+                .collect();
+            user_ids.sort();
+            user_ids.dedup();
 
-                if !user_ids.is_empty() {
-                    let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash", user_ids.join(","));
-                    if let Ok(users) = network.api.select::<serde_json::Value>("users", &users_filter, None, Some(200)).await {
-                        let db = state.db.read().await;
-                        for u in users {
-                            if let (Some(uid_str), Some(uname), Some(disp)) = (
-                                u.get("id").and_then(|v| v.as_str()),
-                                u.get("username").and_then(|v| v.as_str()),
-                                u.get("display_name").and_then(|v| v.as_str()),
+            if !user_ids.is_empty() {
+                let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash", user_ids.join(","));
+                if let Ok(users) = network.api.select::<serde_json::Value>("users", &users_filter, None, Some(200)).await {
+                    let db = state.db.read().await;
+                    for u in users {
+                        if let (Some(uid_str), Some(uname), Some(disp)) = (
+                            u.get("id").and_then(|v| v.as_str()),
+                            u.get("username").and_then(|v| v.as_str()),
+                            u.get("display_name").and_then(|v| v.as_str()),
+                        ) {
+                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                let av = u.get("avatar_hash").and_then(|v| v.as_str());
+                                let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
+                                let _ = db.add_space_member(&space_id, &uid);
+                            }
+                        }
+                    }
+                }
+
+                // 1. First sync roles for this space so space_role_ids is populated
+                let roles_filter = format!("space_id=eq.{}&select=id,space_id,name,color,permissions,position", space_id);
+                if let Ok(remote_roles) = network.api.select::<serde_json::Value>("roles", &roles_filter, Some("position.asc"), Some(100)).await {
+                    let db = state.db.read().await;
+                    for r in remote_roles {
+                        if let (Some(id_str), Some(name)) = (r.get("id").and_then(|v| v.as_str()), r.get("name").and_then(|v| v.as_str())) {
+                            if let Ok(id) = Uuid::parse_str(id_str) {
+                                let color = r.get("color").and_then(|v| v.as_str());
+                                let position = r.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                                let perms: Permissions = r.get("permissions")
+                                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                                    .unwrap_or_default();
+                                let _ = db.upsert_role(&id, &space_id, name, color, &perms, position);
+                            }
+                        }
+                    }
+                }
+
+                let space_roles = {
+                    let db = state.db.read().await;
+                    db.list_roles(&space_id).unwrap_or_default()
+                };
+                let space_role_ids: Vec<String> = space_roles.iter().map(|r| r.id.to_string()).collect();
+                if !space_role_ids.is_empty() {
+                    let role_members_filter = format!("role_id=in.({})", space_role_ids.join(","));
+                    if let Ok(rm_rows) = network.api.select::<serde_json::Value>("role_members", &role_members_filter, None, Some(500)).await {
+                        let mut user_roles_map: std::collections::HashMap<Uuid, Vec<Uuid>> = std::collections::HashMap::new();
+                        for uid_str in &user_ids {
+                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                user_roles_map.insert(uid, Vec::new());
+                            }
+                        }
+                        for rm in rm_rows {
+                            if let (Some(rid_str), Some(uid_str)) = (
+                                rm.get("role_id").and_then(|v| v.as_str()),
+                                rm.get("user_id").and_then(|v| v.as_str()),
                             ) {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                                    let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
-                                    let _ = db.add_space_member(&space_id, &uid);
+                                if let (Ok(rid), Ok(uid)) = (Uuid::parse_str(rid_str), Uuid::parse_str(uid_str)) {
+                                    user_roles_map.entry(uid).or_default().push(rid);
                                 }
                             }
                         }
-                    }
-
-                    // 1. First sync roles for this space so space_role_ids is populated
-                    let roles_filter = format!("space_id=eq.{}&select=id,space_id,name,color,permissions,position", space_id);
-                    if let Ok(remote_roles) = network.api.select::<serde_json::Value>("roles", &roles_filter, Some("position.asc"), Some(100)).await {
                         let db = state.db.read().await;
-                        for r in remote_roles {
-                            if let (Some(id_str), Some(name)) = (r.get("id").and_then(|v| v.as_str()), r.get("name").and_then(|v| v.as_str())) {
-                                if let Ok(id) = Uuid::parse_str(id_str) {
-                                    let color = r.get("color").and_then(|v| v.as_str());
-                                    let position = r.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                                    let perms: Permissions = r.get("permissions")
-                                        .and_then(|v| serde_json::from_value(v.clone()).ok())
-                                        .unwrap_or_default();
-                                    let _ = db.upsert_role(&id, &space_id, name, color, &perms, position);
+                        let modified = state.role_members_modified.read().await;
+                        for (uid, rids) in user_roles_map {
+                            let key = format!("{}:{}", space_id, uid);
+                            if let Some(last_mod) = modified.get(&key) {
+                                if last_mod.elapsed().as_secs() < 5 {
+                                    continue;
                                 }
                             }
+                            let _ = db.update_space_member_roles(&space_id, &uid, &rids);
                         }
                     }
+                }
 
-                    let space_roles = {
-                        let db = state.db.read().await;
-                        db.list_roles(&space_id).unwrap_or_default()
-                    };
-                    let space_role_ids: Vec<String> = space_roles.iter().map(|r| r.id.to_string()).collect();
-                    if !space_role_ids.is_empty() {
-                        let role_members_filter = format!("role_id=in.({})", space_role_ids.join(","));
-                        if let Ok(role_members) = network.api.select::<serde_json::Value>("role_members", &role_members_filter, None, Some(500)).await {
-                            let mut user_roles_map: std::collections::HashMap<Uuid, Vec<Uuid>> = std::collections::HashMap::new();
-                            for uid_str in &user_ids {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    user_roles_map.insert(uid, Vec::new());
-                                }
-                            }
-                            for rm in role_members {
-                                if let (Some(rid_str), Some(uid_str)) = (
-                                    rm.get("role_id").and_then(|v| v.as_str()),
-                                    rm.get("user_id").and_then(|v| v.as_str()),
-                                ) {
-                                    if let (Ok(rid), Ok(uid)) = (Uuid::parse_str(rid_str), Uuid::parse_str(uid_str)) {
-                                        user_roles_map.entry(uid).or_default().push(rid);
-                                    }
-                                }
-                            }
-                            let db = state.db.read().await;
-                            let modified = state.role_members_modified.read().await;
-                            for (uid, rids) in user_roles_map {
-                                let key = format!("{}:{}", space_id, uid);
-                                if let Some(last_mod) = modified.get(&key) {
-                                    if last_mod.elapsed().as_secs() < 5 {
-                                        continue;
-                                    }
-                                }
-                                let _ = db.update_space_member_roles(&space_id, &uid, &rids);
-                            }
-                        }
-                    }
-
-                    // Sync member presence from remote with 90s TTL check
-                    let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", user_ids.join(","));
-                    if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
-                        let db = state.db.read().await;
-                        let now = chrono::Utc::now();
-                        for p in presences {
-                            if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    let mut status_str = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
-                                    if status_str != "offline" {
-                                        let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
-                                        if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                            if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 90 {
-                                                status_str = "offline";
-                                            }
+                // Sync member presence from remote with 90s TTL check
+                let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", user_ids.join(","));
+                if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
+                    let db = state.db.read().await;
+                    let now = chrono::Utc::now();
+                    for p in presences {
+                        if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
+                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                let mut status_str = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
+                                if status_str != "offline" {
+                                    let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
+                                    if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
+                                        if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 90 {
+                                            status_str = "offline";
                                         }
                                     }
-                                    let _ = db.update_presence(&uid, status_str);
                                 }
+                                let _ = db.update_presence(&uid, status_str);
                             }
                         }
                     }
@@ -2272,50 +2260,49 @@ pub async fn spaces_search_public(
     let mut discovered: std::collections::HashMap<Uuid, SpaceInfo> = std::collections::HashMap::new();
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = if q.is_empty() {
-                "select=id,name,icon_hash,owner_id,custom_link,banner_hash,description".to_string()
-            } else {
-                format!("or=(name.ilike.%25{}%25,custom_link.ilike.%25{}%25)&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", q, q)
-            };
-            if let Ok(remote_spaces) = network.api.select::<serde_json::Value>("spaces", &filter, None, Some(50)).await {
-                let space_ids: Vec<String> = remote_spaces.iter().filter_map(|s| s.get("id").and_then(|v| v.as_str()).map(str::to_string)).collect();
-                let mut member_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-                if !space_ids.is_empty() {
-                    let m_filter = format!("space_id=in.({})&select=space_id", space_ids.join(","));
-                    if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &m_filter, None, Some(500)).await {
-                        for m in &memberships {
-                            if let Some(sid) = m.get("space_id").and_then(|v| v.as_str()) {
-                                *member_counts.entry(sid.to_string()).or_insert(0) += 1;
-                            }
+        let network = state.network.read().await;
+        let filter = if q.is_empty() {
+            "select=id,name,icon_hash,owner_id,custom_link,banner_hash,description".to_string()
+        } else {
+            format!("or=(name.ilike.%25{}%25,custom_link.ilike.%25{}%25)&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", q, q)
+        };
+        if let Ok(remote_spaces) = network.api.select::<serde_json::Value>("spaces", &filter, None, Some(50)).await {
+            let space_ids: Vec<String> = remote_spaces.iter().filter_map(|s| s.get("id").and_then(|v| v.as_str()).map(str::to_string)).collect();
+            let mut member_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            if !space_ids.is_empty() {
+                let m_filter = format!("space_id=in.({})&select=space_id", space_ids.join(","));
+                if let Ok(memberships) = network.api.select::<serde_json::Value>("memberships", &m_filter, None, Some(500)).await {
+                    for m in &memberships {
+                        if let Some(sid) = m.get("space_id").and_then(|v| v.as_str()) {
+                            *member_counts.entry(sid.to_string()).or_insert(0) += 1;
                         }
                     }
                 }
+            }
 
-                for s in remote_spaces {
-                    if let (Some(id_str), Some(name)) = (s.get("id").and_then(|v| v.as_str()), s.get("name").and_then(|v| v.as_str())) {
-                        if let Ok(id) = Uuid::parse_str(id_str) {
-                            let icon = s.get("icon_hash").and_then(|v| v.as_str()).map(str::to_string);
-                            let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
-                            let is_owner = !my_user_id.is_empty() && owner_str == my_user_id;
-                            let link = s.get("custom_link").and_then(|v| v.as_str()).map(str::to_string);
-                            let banner = s.get("banner_hash").and_then(|v| v.as_str()).map(str::to_string);
-                            let desc = s.get("description").and_then(|v| v.as_str()).map(str::to_string);
-                            let count = member_counts.get(id_str).copied().unwrap_or(1);
+            for s in remote_spaces {
+                if let (Some(id_str), Some(name)) = (s.get("id").and_then(|v| v.as_str()), s.get("name").and_then(|v| v.as_str())) {
+                    if let Ok(id) = Uuid::parse_str(id_str) {
+                        let icon = s.get("icon_hash").and_then(|v| v.as_str()).map(str::to_string);
+                        let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let is_owner = !my_user_id.is_empty() && owner_str == my_user_id;
+                        let link = s.get("custom_link").and_then(|v| v.as_str()).map(str::to_string);
+                        let banner = s.get("banner_hash").and_then(|v| v.as_str()).map(str::to_string);
+                        let desc = s.get("description").and_then(|v| v.as_str()).map(str::to_string);
+                        let count = member_counts.get(id_str).copied().unwrap_or(1);
 
-                            discovered.insert(id, SpaceInfo {
-                                id: id.to_string(),
-                                name: name.to_string(),
-                                icon_hash: icon,
-                                owner_id: owner_str.to_string(),
-                                member_count: count,
-                                is_owner,
-                                my_roles: if is_owner { vec!["Owner".into()] } else { Vec::new() },
-                                banner_hash: banner,
-                                description: desc,
-                                custom_link: link,
-                            });
-                        }
+                        discovered.insert(id, SpaceInfo {
+                            id: id.to_string(),
+                            name: name.to_string(),
+                            icon_hash: icon,
+                            owner_id: owner_str.to_string(),
+                            member_count: count,
+                            is_owner,
+                            my_roles: if is_owner { vec!["Owner".into()] } else { Vec::new() },
+                            banner_hash: banner,
+                            description: desc,
+                            custom_link: link,
+                        });
                     }
                 }
             }
@@ -2374,33 +2361,32 @@ pub async fn spaces_join_public(
 
     // 2. Yerelde bulunamazsa Supabase üzerinden sorgula
     if space_id_opt.is_none() && config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = if let Ok(uuid) = Uuid::parse_str(trimmed) {
-                format!("id=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", uuid)
-            } else {
-                format!("custom_link=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", trimmed.to_lowercase())
-            };
-            if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &filter, None, Some(1)).await {
-                if let Some(s) = rows.first() {
-                    if let Some(sid_str) = s.get("id").and_then(|v| v.as_str()) {
-                        if let Ok(sid) = Uuid::parse_str(sid_str) {
-                            space_id_opt = Some(sid);
-                            let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("Topluluk");
-                            let icon = s.get("icon_hash").and_then(|v| v.as_str());
-                            let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
-                            let owner_id = Uuid::parse_str(owner_str).unwrap_or(identity.id);
-                            let db = state.db.read().await;
-                            let _ = db.insert_space(&sid, name, icon, &owner_id);
-                            let _ = db.set_space_owner(&sid, &identity.id, owner_id == identity.id);
-                            if let Some(link) = s.get("custom_link").and_then(|v| v.as_str()) {
-                                let _ = db.set_custom_link(&sid, link);
-                            }
-                            if let Some(banner) = s.get("banner_hash").and_then(|v| v.as_str()) {
-                                let _ = db.update_space(&sid, None, None, Some(Some(banner)), None);
-                            }
-                            if let Some(desc) = s.get("description").and_then(|v| v.as_str()) {
-                                let _ = db.update_space(&sid, None, None, None, Some(Some(desc)));
-                            }
+        let network = state.network.read().await;
+        let filter = if let Ok(uuid) = Uuid::parse_str(trimmed) {
+            format!("id=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", uuid)
+        } else {
+            format!("custom_link=eq.{}&select=id,name,icon_hash,owner_id,custom_link,banner_hash,description", trimmed.to_lowercase())
+        };
+        if let Ok(rows) = network.api.select::<serde_json::Value>("spaces", &filter, None, Some(1)).await {
+            if let Some(s) = rows.first() {
+                if let Some(sid_str) = s.get("id").and_then(|v| v.as_str()) {
+                    if let Ok(sid) = Uuid::parse_str(sid_str) {
+                        space_id_opt = Some(sid);
+                        let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("Topluluk");
+                        let icon = s.get("icon_hash").and_then(|v| v.as_str());
+                        let owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let owner_id = Uuid::parse_str(owner_str).unwrap_or(identity.id);
+                        let db = state.db.read().await;
+                        let _ = db.insert_space(&sid, name, icon, &owner_id);
+                        let _ = db.set_space_owner(&sid, &identity.id, owner_id == identity.id);
+                        if let Some(link) = s.get("custom_link").and_then(|v| v.as_str()) {
+                            let _ = db.set_custom_link(&sid, link);
+                        }
+                        if let Some(banner) = s.get("banner_hash").and_then(|v| v.as_str()) {
+                            let _ = db.update_space(&sid, None, None, Some(Some(banner)), None);
+                        }
+                        if let Some(desc) = s.get("description").and_then(|v| v.as_str()) {
+                            let _ = db.update_space(&sid, None, None, None, Some(Some(desc)));
                         }
                     }
                 }
@@ -2412,48 +2398,48 @@ pub async fn spaces_join_public(
 
     // 3. Kanalları Supabase'den indir
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let ch_filter = format!("space_id=eq.{}&select=id,name,channel_type,position,is_nsfw,is_e2ee", space_id);
-            if let Ok(ch_rows) = network.api.select::<serde_json::Value>("channels", &ch_filter, Some("position.asc"), Some(100)).await {
-                let db = state.db.read().await;
-                let db_key = state.get_db_key().await;
-                for ch in ch_rows {
-                    if let (Some(cid_str), Some(cname), Some(ctype_str)) = (
-                        ch.get("id").and_then(|v| v.as_str()),
-                        ch.get("name").and_then(|v| v.as_str()),
-                        ch.get("channel_type").and_then(|v| v.as_str()),
-                    ) {
-                        if let Ok(cid) = Uuid::parse_str(cid_str) {
-                            let pos = ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                            let is_nsfw = ch.get("is_nsfw").and_then(|v| v.as_bool()).unwrap_or(false);
-                            let is_e2ee = ch.get("is_e2ee").and_then(|v| v.as_bool()).unwrap_or(false);
-                            let ctype = match ctype_str {
-                                "voice" => ChannelType::Voice,
-                                "announcement" => ChannelType::Announcement,
-                                "forum" => ChannelType::Forum,
-                                _ => ChannelType::Text,
-                            };
-                            let channel = crate::models::channel::Channel {
-                                id: cid,
-                                space_id: Some(space_id),
-                                name: cname.to_string(),
-                                channel_type: ctype,
-                                position: pos,
-                                topic: None,
-                                is_nsfw,
-                                is_e2ee,
-                                slow_mode_seconds: 0,
-                                permission_overrides: Vec::new(),
-                                created_at: chrono::Utc::now(),
-                                last_message_id: None,
-                                unread_count: 0,
-                                mentioned: false,
-                            };
-                            let _ = db.upsert_channel(&channel, db_key.as_ref());
-                        }
+        let network = state.network.read().await;
+        let ch_filter = format!("space_id=eq.{}&select=id,name,channel_type,position,is_nsfw,is_e2ee", space_id);
+        if let Ok(ch_rows) = network.api.select::<serde_json::Value>("channels", &ch_filter, Some("position.asc"), Some(100)).await {
+            let db = state.db.read().await;
+            let db_key = state.get_db_key().await;
+            for ch in ch_rows {
+                if let (Some(cid_str), Some(cname), Some(ctype_str)) = (
+                    ch.get("id").and_then(|v| v.as_str()),
+                    ch.get("name").and_then(|v| v.as_str()),
+                    ch.get("channel_type").and_then(|v| v.as_str()),
+                ) {
+                    if let Ok(cid) = Uuid::parse_str(cid_str) {
+                        let pos = ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                        let is_nsfw = ch.get("is_nsfw").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let is_e2ee = ch.get("is_e2ee").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let ctype = match ctype_str {
+                            "voice" => ChannelType::Voice,
+                            "announcement" => ChannelType::Announcement,
+                            "forum" => ChannelType::Forum,
+                            _ => ChannelType::Text,
+                        };
+                        let channel = crate::models::channel::Channel {
+                            id: cid,
+                            space_id: Some(space_id),
+                            name: cname.to_string(),
+                            channel_type: ctype,
+                            position: pos,
+                            topic: None,
+                            is_nsfw,
+                            is_e2ee,
+                            slow_mode_seconds: 0,
+                            permission_overrides: Vec::new(),
+                            created_at: chrono::Utc::now(),
+                            last_message_id: None,
+                            unread_count: 0,
+                            mentioned: false,
+                        };
+                        let _ = db.upsert_channel(&channel, db_key.as_ref());
                     }
                 }
             }
+        }
 
             // 3b. Rolleri Supabase'den indir
             let r_filter = format!("space_id=eq.{}&select=id,name,color,permissions,position", space_id);
@@ -2476,7 +2462,6 @@ pub async fn spaces_join_public(
                 }
             }
         }
-    }
 
     // 4. Yerel üyelik ve yasak kontrolü
     {

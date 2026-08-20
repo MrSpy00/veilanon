@@ -27,6 +27,8 @@ pub struct FileInfo {
     pub is_encrypted: bool,
     /// Opaque storage path — the attachment reference stored in messages.
     pub r2_key: Option<String>,
+    /// Base64-encoded content key + nonce for recipient decryption (channel/message E2EE protected)
+    pub content_key_ciphertext: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,6 +127,8 @@ pub async fn encrypt_and_store_bytes(
         warn!("Blob upload deferred (offline) — metadata kept locally");
     }
 
+    let key_bundle_str = format!("{}:{}", B64.encode(&encrypted.content_key), B64.encode(&encrypted.nonce));
+
     info!("File encrypted and stored (id={})", file_id);
     Ok(FileInfo {
         file_id: file_id.to_string(),
@@ -132,7 +136,114 @@ pub async fn encrypt_and_store_bytes(
         upload_url: None,
         is_encrypted: true,
         r2_key: Some(storage_path),
+        content_key_ciphertext: Some(key_bundle_str),
     })
+}
+
+/// Helper function to resolve file ciphertext, content key, nonce, and mime type
+/// whether uploaded locally or received as an attachment in a message.
+async fn resolve_file_metadata_and_ciphertext(
+    file_id: &str,
+    state: &AppState,
+) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>, Option<String>), VeilError> {
+    let db_key = state.get_db_key().await.ok_or(VeilError::Unauthenticated)?;
+
+    // 1. Check local file_metadata table
+    let local_res: Option<(String, i64, String, String, String)> = {
+        let db = state.db.read().await;
+        db.query_row(
+            r#"SELECT storage_path, size_bytes, content_key_cipher, content_key_iv, nonce
+               FROM file_metadata WHERE id = ?1 AND deleted_at IS NULL"#,
+            rusqlite::params![file_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        ).ok()
+    };
+
+    let (storage_path, size_bytes, content_key, nonce_bytes, mime_hint) = if let Some((sp, sb, kc, ki, n)) = local_res {
+        let key = decrypt_aes_gcm(
+            &db_key,
+            &B64.decode(&kc).map_err(|_| VeilError::DecryptionError)?,
+            &B64.decode(&ki).map_err(|_| VeilError::DecryptionError)?,
+        )?;
+        let nonce = B64.decode(&n).map_err(|_| VeilError::DecryptionError)?;
+        (sp, sb, key, nonce, None)
+    } else {
+        // 2. Search local messages table for attachment matching file_id
+        let db = state.db.read().await;
+        let mut found: Option<(String, i64, Vec<u8>, Vec<u8>, Option<String>)> = None;
+
+        if let Ok(conn) = db.conn() {
+            if let Ok(mut stmt) = conn.prepare("SELECT attachments FROM messages WHERE attachments LIKE ?1") {
+                if let Ok(rows) = stmt.query_map(rusqlite::params![format!("%{}%", file_id)], |row| {
+                    row.get::<_, String>(0)
+                }) {
+                    for json_str_res in rows {
+                        if let Ok(json_str) = json_str_res {
+                            if let Ok(atts) = serde_json::from_str::<Vec<crate::models::message::AttachmentRef>>(&json_str) {
+                                if let Some(att) = atts.into_iter().find(|a| a.file_id.to_string() == file_id) {
+                                    let parts: Vec<&str> = att.content_key_ciphertext.split(':').collect();
+                                    if parts.len() == 2 {
+                                        if let (Ok(k), Ok(n)) = (B64.decode(parts[0]), B64.decode(parts[1])) {
+                                            found = Some((att.r2_key, att.size_bytes as i64, k, n, att.mime_type_hint));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        drop(db);
+
+        if let Some((sp, sb, k, n, mh)) = found {
+            if let Ok((key_cipher, key_iv)) = encrypt_aes_gcm(&db_key, &k) {
+                let db = state.db.read().await;
+                let _ = db.execute(
+                    r#"INSERT INTO file_metadata
+                       (id, channel_id, storage_path, size_bytes, content_key_cipher, content_key_iv, nonce)
+                       VALUES (?1, '', ?2, ?3, ?4, ?5, ?6)
+                       ON CONFLICT(id) DO NOTHING"#,
+                    rusqlite::params![
+                        file_id,
+                        sp,
+                        sb,
+                        B64.encode(&key_cipher),
+                        B64.encode(&key_iv),
+                        B64.encode(&n),
+                    ],
+                );
+            }
+            (sp, sb, k, n, mh)
+        } else {
+            return Err(VeilError::InvalidInput("file not found".into()));
+        }
+    };
+
+    // 3. Check local disk blob cache or download from Supabase Storage / R2
+    let data_dir = state.app.path().app_data_dir().ok();
+    let local_blob_path = data_dir.as_ref().map(|d| d.join("blobs").join(&storage_path));
+
+    let ciphertext = if let Some(local_path) = local_blob_path.as_ref().filter(|p| p.exists()) {
+        std::fs::read(local_path).map_err(VeilError::FileError)?
+    } else {
+        let network = state.network.read().await;
+        let downloaded = network.api.download_blob(&storage_path).await?;
+        if let Some(local_path) = local_blob_path.as_ref() {
+            if let Some(parent) = local_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(local_path, &downloaded);
+        }
+        downloaded
+    };
+
+    if (ciphertext.len() as i64) < size_bytes {
+        return Err(VeilError::InvalidInput("incomplete file on server".into()));
+    }
+
+    Ok((ciphertext, content_key, nonce_bytes, mime_hint))
 }
 
 /// Upload a file from a disk path — encrypted client-side.
@@ -160,47 +271,10 @@ pub async fn download_file(
     input: DownloadFileInput,
     state: State<'_, AppState>,
 ) -> Result<String, VeilError> {
-    let db_key = state.get_db_key().await.ok_or(VeilError::Unauthenticated)?;
+    let (ciphertext, content_key, nonce_bytes, _) =
+        resolve_file_metadata_and_ciphertext(&input.file_id, &state).await?;
 
-    // Local metadata: storage path + wrapped content key + file nonce.
-    let (storage_path, size_bytes, key_cipher, key_iv, nonce): (String, i64, String, String, String) = {
-        let db = state.db.read().await;
-        db.query_row(
-            r#"SELECT storage_path, size_bytes, content_key_cipher, content_key_iv, nonce
-               FROM file_metadata WHERE id = ?1 AND deleted_at IS NULL"#,
-            rusqlite::params![input.file_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-        )
-        .map_err(|_| VeilError::InvalidInput("file not found".into()))?
-    };
-
-    // Check local disk blob cache first, otherwise download from network
-    let data_dir = state.app.path().app_data_dir().ok();
-    let local_blob_path = data_dir.as_ref().map(|d| d.join("blobs").join(&storage_path));
-
-    let ciphertext = if let Some(local_path) = local_blob_path.as_ref().filter(|p| p.exists()) {
-        std::fs::read(local_path).map_err(|e| VeilError::FileError(e))?
-    } else {
-        let network = state.network.read().await;
-        let downloaded = network.api.download_blob(&storage_path).await?;
-        if let Some(local_path) = local_blob_path.as_ref() {
-            if let Some(parent) = local_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(local_path, &downloaded);
-        }
-        downloaded
-    };
-
-    if (ciphertext.len() as i64) < size_bytes {
-        return Err(VeilError::InvalidInput("incomplete file on server".into()));
-    }
-
-    // Unwrap the content key, then decrypt.
-    let content_key = decrypt_aes_gcm(&db_key, &B64.decode(&key_cipher).map_err(|_| VeilError::DecryptionError)?, &B64.decode(&key_iv).map_err(|_| VeilError::DecryptionError)?)?;
-    let nonce_bytes = B64.decode(&nonce).map_err(|_| VeilError::DecryptionError)?;
     let plaintext = file_enc::decrypt_file(&ciphertext, &content_key, &nonce_bytes)?;
-
     tokio::fs::write(&input.destination_path, plaintext).await?;
 
     info!("File downloaded and decrypted (id={})", input.file_id);
@@ -265,6 +339,7 @@ pub async fn get_file_info(
         upload_url: None,
         is_encrypted: is_encrypted != 0,
         r2_key: Some(storage_path),
+        content_key_ciphertext: None,
     })
 }
 
@@ -274,47 +349,9 @@ pub async fn get_file_data_url(
     file_id: String,
     state: State<'_, AppState>,
 ) -> Result<String, VeilError> {
-    let db_key = state.get_db_key().await.ok_or(VeilError::Unauthenticated)?;
+    let (ciphertext, content_key, nonce_bytes, mime_hint) =
+        resolve_file_metadata_and_ciphertext(&file_id, &state).await?;
 
-    let (storage_path, size_bytes, key_cipher, key_iv, nonce): (String, i64, String, String, String) = {
-        let db = state.db.read().await;
-        db.query_row(
-            r#"SELECT storage_path, size_bytes, content_key_cipher, content_key_iv, nonce
-               FROM file_metadata WHERE id = ?1 AND deleted_at IS NULL"#,
-            rusqlite::params![file_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
-        )
-        .map_err(|_| VeilError::InvalidInput("file not found".into()))?
-    };
-
-    // Check local disk blob cache first, otherwise download from network
-    let data_dir = state.app.path().app_data_dir().ok();
-    let local_blob_path = data_dir.as_ref().map(|d| d.join("blobs").join(&storage_path));
-
-    let ciphertext = if let Some(local_path) = local_blob_path.as_ref().filter(|p| p.exists()) {
-        std::fs::read(local_path).map_err(|e| VeilError::FileError(e))?
-    } else {
-        let network = state.network.read().await;
-        let downloaded = network.api.download_blob(&storage_path).await?;
-        if let Some(local_path) = local_blob_path.as_ref() {
-            if let Some(parent) = local_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(local_path, &downloaded);
-        }
-        downloaded
-    };
-
-    if (ciphertext.len() as i64) < size_bytes {
-        return Err(VeilError::InvalidInput("incomplete file on server".into()));
-    }
-
-    let content_key = decrypt_aes_gcm(
-        &db_key,
-        &B64.decode(&key_cipher).map_err(|_| VeilError::DecryptionError)?,
-        &B64.decode(&key_iv).map_err(|_| VeilError::DecryptionError)?,
-    )?;
-    let nonce_bytes = B64.decode(&nonce).map_err(|_| VeilError::DecryptionError)?;
     let plaintext = file_enc::decrypt_file(&ciphertext, &content_key, &nonce_bytes)?;
 
     let mime = if plaintext.starts_with(b"\x89PNG\r\n\x1a\n") {
@@ -327,8 +364,10 @@ pub async fn get_file_data_url(
         "image/webp"
     } else if plaintext.starts_with(b"BM") {
         "image/bmp"
-    } else if plaintext.starts_with(b"<svg") || plaintext.starts_with(b"<?xml") && plaintext.windows(4).any(|w| w == b"<svg") {
+    } else if plaintext.starts_with(b"<svg") || (plaintext.starts_with(b"<?xml") && plaintext.windows(4).any(|w| w == b"<svg")) {
         "image/svg+xml"
+    } else if plaintext.len() > 12 && &plaintext[4..8] == b"ftyp" && &plaintext[8..12] == b"avif" {
+        "image/avif"
     } else if plaintext.len() > 8 && (&plaintext[4..8] == b"ftyp" || &plaintext[4..8] == b"moov") {
         "video/mp4"
     } else if plaintext.starts_with(b"\x1A\x45\xDF\xA3") {
@@ -341,6 +380,10 @@ pub async fn get_file_data_url(
         "audio/ogg"
     } else if plaintext.len() > 12 && &plaintext[0..4] == b"RIFF" && &plaintext[8..12] == b"WAVE" {
         "audio/wav"
+    } else if plaintext.starts_with(b"%PDF") {
+        "application/pdf"
+    } else if let Some(ref hint) = mime_hint {
+        hint.as_str()
     } else {
         "application/octet-stream"
     };

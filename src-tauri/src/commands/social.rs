@@ -6,7 +6,7 @@
 use tauri::{Emitter, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 
@@ -88,9 +88,7 @@ async fn fetch_profile_remotely(
     if !config::configured("VEILANON_SUPABASE_URL") {
         return None;
     }
-    let Ok(network) = state.network.try_read() else {
-        return None;
-    };
+    let network = state.network.read().await;
     let rows: Vec<serde_json::Value> = network
         .api
         .select(
@@ -372,101 +370,69 @@ pub async fn friends_list(state: State<'_, AppState>) -> Result<Vec<FriendInfo>,
 
     // 1. Remote sync: pull incoming & outgoing friendships from Supabase
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("or=(user_id.eq.{},friend_id.eq.{})", identity.id, identity.id);
-            if let Ok(remote_rows) = network.api.select::<serde_json::Value>("friendships", &filter, None, Some(200)).await {
-                let mut peer_ids: Vec<String> = Vec::new();
-                let mut active_remote_pairs: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        let network = state.network.read().await;
+        let filter = format!("or=(user_id.eq.{},friend_id.eq.{})", identity.id, identity.id);
+        if let Ok(remote_rows) = network.api.select::<serde_json::Value>("friendships", &filter, None, Some(200)).await {
+            let mut peer_ids: Vec<String> = Vec::new();
+            let mut active_remote_pairs: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
 
-                for r in &remote_rows {
-                    let mut peer_uuid: Option<Uuid> = None;
-                    if let Some(uid) = r.get("user_id").and_then(|v| v.as_str()) {
-                        if uid != identity.id.to_string() {
-                            peer_ids.push(uid.to_string());
-                            if let Ok(u) = Uuid::parse_str(uid) { peer_uuid = Some(u); }
-                        }
+            for r in &remote_rows {
+                let mut peer_uuid: Option<Uuid> = None;
+                if let Some(uid) = r.get("user_id").and_then(|v| v.as_str()) {
+                    if uid != identity.id.to_string() {
+                        peer_ids.push(uid.to_string());
+                        if let Ok(u) = Uuid::parse_str(uid) { peer_uuid = Some(u); }
                     }
-                    if let Some(fid) = r.get("friend_id").and_then(|v| v.as_str()) {
-                        if fid != identity.id.to_string() {
-                            peer_ids.push(fid.to_string());
-                            if let Ok(u) = Uuid::parse_str(fid) { peer_uuid = Some(u); }
-                        }
+                }
+                if let Some(fid) = r.get("friend_id").and_then(|v| v.as_str()) {
+                    if fid != identity.id.to_string() {
+                        peer_ids.push(fid.to_string());
+                        if let Ok(u) = Uuid::parse_str(fid) { peer_uuid = Some(u); }
                     }
-                    if let Some(p) = peer_uuid {
-                        active_remote_pairs.insert(p);
+                }
+                if let Some(p) = peer_uuid {
+                    active_remote_pairs.insert(p);
+                }
+            }
+
+            if !peer_ids.is_empty() {
+                peer_ids.sort();
+                peer_ids.dedup();
+                let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash", peer_ids.join(","));
+                if let Ok(users) = network.api.select::<serde_json::Value>("users", &users_filter, None, Some(200)).await {
+                    let db = state.db.read().await;
+                    for u in users {
+                        if let (Some(uid_str), Some(uname), Some(disp)) = (
+                            u.get("id").and_then(|v| v.as_str()),
+                            u.get("username").and_then(|v| v.as_str()),
+                            u.get("display_name").and_then(|v| v.as_str()),
+                        ) {
+                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                let av = u.get("avatar_hash").and_then(|v| v.as_str());
+                                let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
+                            }
+                        }
                     }
                 }
 
-                if !peer_ids.is_empty() {
-                    peer_ids.sort();
-                    peer_ids.dedup();
-                    let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash", peer_ids.join(","));
-                    if let Ok(users) = network.api.select::<serde_json::Value>("users", &users_filter, None, Some(200)).await {
-                        let db = state.db.read().await;
-                        for u in users {
-                            if let (Some(uid_str), Some(uname), Some(disp)) = (
-                                u.get("id").and_then(|v| v.as_str()),
-                                u.get("username").and_then(|v| v.as_str()),
-                                u.get("display_name").and_then(|v| v.as_str()),
-                            ) {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                                    let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
-                                }
-                            }
-                        }
-                    }
-
-                    let dev_filter = format!("user_id=in.({})&select=user_id,public_key,signing_public_key", peer_ids.join(","));
-                    if let Ok(devices) = network.api.select::<serde_json::Value>("devices", &dev_filter, None, Some(200)).await {
-                        let db = state.db.read().await;
-                        for d in devices {
-                            if let (Some(uid_str), Some(pk), Some(spk)) = (
-                                d.get("user_id").and_then(|v| v.as_str()),
-                                d.get("public_key").and_then(|v| v.as_str()),
-                                d.get("signing_public_key").and_then(|v| v.as_str()),
-                            ) {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    if let Ok(Some((uname, disp, av, _, _))) = db.get_profile_by_id(&uid) {
-                                        let _ = db.upsert_profile(&uid, &uname, &disp, av.as_deref(), Some(pk), Some(spk), None, None, None);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Sync friends presence with 90-second TTL
-                    let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", peer_ids.join(","));
-                    if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
-                        let db = state.db.read().await;
-                        let now = chrono::Utc::now();
-                        for p in presences {
-                            if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
-                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                    let raw_status = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
-                                    let status_str = if raw_status != "offline" && raw_status != "invisible" {
-                                        let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
-                                        if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                            if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() <= 90 {
-                                                raw_status
-                                            } else {
-                                                "offline"
-                                            }
-                                        } else {
-                                            "offline"
-                                        }
-                                    } else {
-                                        "offline"
-                                    };
-                                    let _ = db.update_presence(&uid, status_str);
-                                }
+                let dev_filter = format!("user_id=in.({})&select=user_id,public_key,signing_public_key", peer_ids.join(","));
+                if let Ok(devices) = network.api.select::<serde_json::Value>("devices", &dev_filter, None, Some(200)).await {
+                    let db = state.db.read().await;
+                    for d in devices {
+                        if let (Some(uid_str), Some(pk), Some(spk)) = (
+                            d.get("user_id").and_then(|v| v.as_str()),
+                            d.get("public_key").and_then(|v| v.as_str()),
+                            d.get("signing_public_key").and_then(|v| v.as_str()),
+                        ) {
+                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                let _ = db.upsert_profile(&uid, "", "", None, Some(pk), Some(spk), None, None, None);
                             }
                         }
                     }
                 }
 
                 let db = state.db.read().await;
-                // Reconcile: Prune ANY local friend (pending, accepted, blocked) if no longer present on remote
+                // Mutabakat: yerelde olan ancak uzakta artık bulunmayan arkadaşlıkları temizle
                 if let Ok(local_friends) = db.list_friends(&identity.id) {
                     for lf in local_friends {
                         if !active_remote_pairs.contains(&lf.user_id) {
@@ -519,30 +485,29 @@ async fn resolve_peer_name(state: &AppState, peer_id: &Uuid) -> String {
 
     // Try fetching remotely from Supabase
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("id=eq.{}&select=id,username,display_name,avatar_hash", peer_id);
-            if let Ok(users) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
-                if let Some(u) = users.first() {
-                    let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
-                    let uname = u.get("username").and_then(|v| v.as_str()).unwrap_or("");
-                    let av = u.get("avatar_hash").and_then(|v| v.as_str());
+        let network = state.network.read().await;
+        let filter = format!("id=eq.{}&select=id,username,display_name,avatar_hash", peer_id);
+        if let Ok(users) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
+            if let Some(u) = users.first() {
+                let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
+                let uname = u.get("username").and_then(|v| v.as_str()).unwrap_or("");
+                let av = u.get("avatar_hash").and_then(|v| v.as_str());
 
-                    // Also fetch device keys
-                    let dev_filter = format!("user_id=eq.{}&select=public_key,signing_public_key", peer_id);
-                    let mut dh_pk: Option<String> = None;
-                    let mut sig_pk: Option<String> = None;
-                    if let Ok(devs) = network.api.select::<serde_json::Value>("devices", &dev_filter, None, Some(1)).await {
-                        if let Some(d) = devs.first() {
-                            dh_pk = d.get("public_key").and_then(|v| v.as_str()).map(str::to_string);
-                            sig_pk = d.get("signing_public_key").and_then(|v| v.as_str()).map(str::to_string);
-                        }
+                // Also fetch device keys
+                let dev_filter = format!("user_id=eq.{}&select=public_key,signing_public_key", peer_id);
+                let mut dh_pk: Option<String> = None;
+                let mut sig_pk: Option<String> = None;
+                if let Ok(devs) = network.api.select::<serde_json::Value>("devices", &dev_filter, None, Some(1)).await {
+                    if let Some(d) = devs.first() {
+                        dh_pk = d.get("public_key").and_then(|v| v.as_str()).map(str::to_string);
+                        sig_pk = d.get("signing_public_key").and_then(|v| v.as_str()).map(str::to_string);
                     }
-
-                    let db = state.db.read().await;
-                    let _ = db.upsert_profile(peer_id, uname, disp, av, dh_pk.as_deref(), sig_pk.as_deref(), None, None, None);
-                    if !disp.is_empty() { return disp.to_string(); }
-                    if !uname.is_empty() { return format!("@{uname}"); }
                 }
+
+                let db = state.db.read().await;
+                let _ = db.upsert_profile(peer_id, uname, disp, av, dh_pk.as_deref(), sig_pk.as_deref(), None, None, None);
+                if !disp.is_empty() { return disp.to_string(); }
+                if !uname.is_empty() { return format!("@{uname}"); }
             }
         }
     }
@@ -584,19 +549,13 @@ pub async fn dm_open(
 
         let mut target_dm_privacy = "everyone".to_string();
         if config::configured("VEILANON_SUPABASE_URL") {
-            match state.network.try_read() {
-                Ok(network) => {
-                    let filter = format!("id=eq.{}&select=dm_privacy", peer_id);
-                    if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
-                        if let Some(first) = rows.first() {
-                            if let Some(priv_val) = first.get("dm_privacy").and_then(|v| v.as_str()) {
-                                target_dm_privacy = priv_val.to_string();
-                            }
-                        }
+            let network = state.network.read().await;
+            let filter = format!("id=eq.{}&select=dm_privacy", peer_id);
+            if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
+                if let Some(first) = rows.first() {
+                    if let Some(priv_val) = first.get("dm_privacy").and_then(|v| v.as_str()) {
+                        target_dm_privacy = priv_val.to_string();
                     }
-                }
-                Err(_) => {
-                    warn!("Network lock contended during dm_privacy check — defaulting to 'everyone'");
                 }
             }
         }
@@ -645,66 +604,60 @@ pub async fn dm_open(
 
     // Existing DM channel in Supabase?
     if config::configured("VEILANON_SUPABASE_URL") {
-        match state.network.try_read() {
-            Ok(network) => {
-                let my_cm_filter = format!("user_id=eq.{}", identity.id);
-                if let Ok(my_memberships) = network.api.select::<serde_json::Value>("channel_members", &my_cm_filter, None, Some(100)).await {
-                    let my_cids: Vec<String> = my_memberships.iter().filter_map(|m| m.get("channel_id").and_then(|v| v.as_str()).map(str::to_string)).collect();
-                    if !my_cids.is_empty() {
-                        let peer_cm_filter = format!("user_id=eq.{}&channel_id=in.({})", peer_id, my_cids.join(","));
-                        if let Ok(peer_memberships) = network.api.select::<serde_json::Value>("channel_members", &peer_cm_filter, None, Some(1)).await {
-                            if let Some(first_match) = peer_memberships.first() {
-                                if let Some(matched_cid_str) = first_match.get("channel_id").and_then(|v| v.as_str()) {
-                                    if let Ok(matched_cid) = Uuid::parse_str(matched_cid_str) {
-                                        let db = state.db.read().await;
-                                        let db_key = state.get_db_key().await;
-                                        let channel = Channel {
-                                            id: matched_cid,
-                                            space_id: None,
-                                            name: peer_name.clone(),
-                                            channel_type: ChannelType::DirectMessage,
-                                            position: db.next_channel_position(None)?,
-                                            topic: None,
-                                            is_nsfw: false,
-                                            is_e2ee: true,
-                                            slow_mode_seconds: 0,
-                                            permission_overrides: Vec::new(),
-                                            created_at: chrono::Utc::now(),
-                                            last_message_id: None,
-                                            unread_count: 0,
-                                            mentioned: false,
-                                        };
-                                        let _ = db.upsert_channel(&channel, db_key.as_ref());
-                                        let _ = db.add_channel_member(&matched_cid, &identity.id);
-                                        let _ = db.add_channel_member(&matched_cid, &peer_id);
-                                        let profile = db.get_profile_by_id(&peer_id).ok().flatten();
-                                        let avatar_hash = profile.as_ref().and_then(|p| p.2.clone());
-                                        let online_status = profile.map(|p| p.4);
-                                        
-                                        return Ok(ChannelInfo {
-                                            id: matched_cid.to_string(),
-                                            space_id: None,
-                                            name: peer_name,
-                                            channel_type: "dm".into(),
-                                            position: channel.position,
-                                            is_nsfw: false,
-                                            is_e2ee: true,
-                                            unread_count: 0,
-                                            mentioned: false,
-                                            last_message_id: None,
-                                            avatar_hash,
-                                            peer_id: Some(peer_id.to_string()),
-                                            online_status,
-                                        });
-                                    }
-                                }
+        let network = state.network.read().await;
+        let my_cm_filter = format!("user_id=eq.{}", identity.id);
+        if let Ok(my_memberships) = network.api.select::<serde_json::Value>("channel_members", &my_cm_filter, None, Some(100)).await {
+            let my_cids: Vec<String> = my_memberships.iter().filter_map(|m| m.get("channel_id").and_then(|v| v.as_str()).map(str::to_string)).collect();
+            if !my_cids.is_empty() {
+                let peer_cm_filter = format!("user_id=eq.{}&channel_id=in.({})", peer_id, my_cids.join(","));
+                if let Ok(peer_memberships) = network.api.select::<serde_json::Value>("channel_members", &peer_cm_filter, None, Some(1)).await {
+                    if let Some(first_match) = peer_memberships.first() {
+                        if let Some(matched_cid_str) = first_match.get("channel_id").and_then(|v| v.as_str()) {
+                            if let Ok(matched_cid) = Uuid::parse_str(matched_cid_str) {
+                                let db = state.db.read().await;
+                                let db_key = state.get_db_key().await;
+                                let channel = Channel {
+                                    id: matched_cid,
+                                    space_id: None,
+                                    name: peer_name.clone(),
+                                    channel_type: ChannelType::DirectMessage,
+                                    position: db.next_channel_position(None)?,
+                                    topic: None,
+                                    is_nsfw: false,
+                                    is_e2ee: true,
+                                    slow_mode_seconds: 0,
+                                    permission_overrides: Vec::new(),
+                                    created_at: chrono::Utc::now(),
+                                    last_message_id: None,
+                                    unread_count: 0,
+                                    mentioned: false,
+                                };
+                                let _ = db.upsert_channel(&channel, db_key.as_ref());
+                                let _ = db.add_channel_member(&matched_cid, &identity.id);
+                                let _ = db.add_channel_member(&matched_cid, &peer_id);
+                                let profile = db.get_profile_by_id(&peer_id).ok().flatten();
+                                let avatar_hash = profile.as_ref().and_then(|p| p.2.clone());
+                                let online_status = profile.map(|p| p.4);
+                                
+                                return Ok(ChannelInfo {
+                                    id: matched_cid.to_string(),
+                                    space_id: None,
+                                    name: peer_name,
+                                    channel_type: "dm".into(),
+                                    position: channel.position,
+                                    is_nsfw: false,
+                                    is_e2ee: true,
+                                    unread_count: 0,
+                                    mentioned: false,
+                                    last_message_id: None,
+                                    avatar_hash,
+                                    peer_id: Some(peer_id.to_string()),
+                                    online_status,
+                                });
                             }
                         }
                     }
                 }
-            }
-            Err(_) => {
-                warn!("Network lock contended during Supabase DM lookup — creating local DM only");
             }
         }
     }
@@ -738,59 +691,53 @@ pub async fn dm_open(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        match state.network.try_read() {
-            Ok(network) => {
-                let ch_result = network
-                    .api
-                    .upsert(
-                        "channels",
-                        &serde_json::json!({
-                            "id": channel_id.to_string(),
-                            "name": channel.name,
-                            "channel_type": "dm",
-                            "position": channel.position,
-                            "is_e2ee": true,
-                        }),
-                        "id",
-                    )
-                    .await;
-                if let Err(e) = &ch_result {
-                    debug!("DM channel sync to Supabase failed: {}", e);
-                }
+        let network = state.network.read().await;
+        let ch_result = network
+            .api
+            .upsert(
+                "channels",
+                &serde_json::json!({
+                    "id": channel_id.to_string(),
+                    "name": channel.name,
+                    "channel_type": "dm",
+                    "position": channel.position,
+                    "is_e2ee": true,
+                }),
+                "id",
+            )
+            .await;
+        if let Err(e) = &ch_result {
+            debug!("DM channel sync to Supabase failed: {}", e);
+        }
 
-                let cm_result = network
-                    .api
-                    .rpc_void(
-                        "create_dm_channel",
-                        &serde_json::json!({
-                            "p_channel_id": channel_id.to_string(),
-                            "p_peer_user_id": peer_id.to_string(),
-                        }),
-                    )
-                    .await;
-                if let Err(e) = &cm_result {
-                    debug!("DM channel_members RPC failed ({}), falling back to direct upsert", e);
-                    let _ = network.api.upsert(
-                        "channel_members",
-                        &serde_json::json!({
-                            "channel_id": channel_id.to_string(),
-                            "user_id": identity.id.to_string(),
-                        }),
-                        "channel_id,user_id",
-                    ).await;
-                    let _ = network.api.upsert(
-                        "channel_members",
-                        &serde_json::json!({
-                            "channel_id": channel_id.to_string(),
-                            "user_id": peer_id.to_string(),
-                        }),
-                        "channel_id,user_id",
-                    ).await;
-                }
-            }
-            Err(_) => {
-                warn!("Network lock contended during dm_open Supabase sync — channel created locally only");
-            }
+        let cm_result = network
+            .api
+            .rpc_void(
+                "create_dm_channel",
+                &serde_json::json!({
+                    "p_channel_id": channel_id.to_string(),
+                    "p_peer_user_id": peer_id.to_string(),
+                }),
+            )
+            .await;
+        if let Err(e) = &cm_result {
+            debug!("DM channel_members RPC failed ({}), falling back to direct upsert", e);
+            let _ = network.api.upsert(
+                "channel_members",
+                &serde_json::json!({
+                    "channel_id": channel_id.to_string(),
+                    "user_id": identity.id.to_string(),
+                }),
+                "channel_id,user_id",
+            ).await;
+            let _ = network.api.upsert(
+                "channel_members",
+                &serde_json::json!({
+                    "channel_id": channel_id.to_string(),
+                    "user_id": peer_id.to_string(),
+                }),
+                "channel_id,user_id",
+            ).await;
         }
     }
 
@@ -819,74 +766,73 @@ pub async fn dm_list(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, Vei
     let identity = identity.as_ref().ok_or(VeilError::Unauthenticated)?;
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let filter = format!("user_id=eq.{}", identity.id);
-            if let Ok(memberships) = network.api.select::<serde_json::Value>("channel_members", &filter, None, Some(100)).await {
-                let mut remote_cids: Vec<String> = Vec::new();
-                for m in &memberships {
-                    if let Some(cid) = m.get("channel_id").and_then(|v| v.as_str()) {
-                        remote_cids.push(cid.to_string());
-                    }
+        let network = state.network.read().await;
+        let filter = format!("user_id=eq.{}", identity.id);
+        if let Ok(memberships) = network.api.select::<serde_json::Value>("channel_members", &filter, None, Some(100)).await {
+            let mut remote_cids: Vec<String> = Vec::new();
+            for m in &memberships {
+                if let Some(cid) = m.get("channel_id").and_then(|v| v.as_str()) {
+                    remote_cids.push(cid.to_string());
                 }
+            }
 
-                // Çift yönlü mutabakat: Sunucudan silinen DM sohbetlerini yerel SQLite'tan da sil
-                {
-                    let db = state.db.read().await;
-                    if let Ok(local_dms) = db.list_dm_channels() {
-                        for ldm in local_dms {
-                            if !remote_cids.contains(&ldm.id.to_string()) {
-                                let _ = db.delete_channel(&ldm.id);
-                            }
+            // Çift yönlü mutabakat: Sunucudan silinen DM sohbetlerini yerel SQLite'tan da sil
+            {
+                let db = state.db.read().await;
+                if let Ok(local_dms) = db.list_dm_channels() {
+                    for ldm in local_dms {
+                        if !remote_cids.contains(&ldm.id.to_string()) {
+                            let _ = db.delete_channel(&ldm.id);
                         }
                     }
                 }
+            }
 
-                if !remote_cids.is_empty() {
-                    remote_cids.sort();
-                    remote_cids.dedup();
-                    let ch_filter = format!("id=in.({})&space_id=is.null", remote_cids.join(","));
-                    if let Ok(channels) = network.api.select::<serde_json::Value>("channels", &ch_filter, None, Some(100)).await {
-                        let db = state.db.read().await;
-                        let db_key = state.get_db_key().await;
-                        for ch in channels {
-                            if let (Some(cid_str), Some(cname)) = (
-                                ch.get("id").and_then(|v| v.as_str()),
-                                ch.get("name").and_then(|v| v.as_str()),
-                            ) {
-                                if let Ok(cid) = Uuid::parse_str(cid_str) {
-                                    let ctype_str = ch.get("channel_type").and_then(|v| v.as_str()).unwrap_or("direct_message");
-                                    let ctype = if ctype_str == "group_dm" || ctype_str == "group_direct_message" {
-                                        ChannelType::GroupDirectMessage
-                                    } else {
-                                        ChannelType::DirectMessage
-                                    };
-                                    let channel = Channel {
-                                        id: cid,
-                                        space_id: None,
-                                        name: cname.to_string(),
-                                        channel_type: ctype,
-                                        position: ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-                                        topic: None,
-                                        is_nsfw: false,
-                                        is_e2ee: true,
-                                        slow_mode_seconds: 0,
-                                        permission_overrides: Vec::new(),
-                                        created_at: chrono::Utc::now(),
-                                        last_message_id: None,
-                                        unread_count: 0,
-                                        mentioned: false,
-                                    };
-                                    let _ = db.upsert_channel(&channel, db_key.as_ref());
-                                    let _ = db.add_channel_member(&cid, &identity.id);
+            if !remote_cids.is_empty() {
+                remote_cids.sort();
+                remote_cids.dedup();
+                let ch_filter = format!("id=in.({})&space_id=is.null", remote_cids.join(","));
+                if let Ok(channels) = network.api.select::<serde_json::Value>("channels", &ch_filter, None, Some(100)).await {
+                    let db = state.db.read().await;
+                    let db_key = state.get_db_key().await;
+                    for ch in channels {
+                        if let (Some(cid_str), Some(cname)) = (
+                            ch.get("id").and_then(|v| v.as_str()),
+                            ch.get("name").and_then(|v| v.as_str()),
+                        ) {
+                            if let Ok(cid) = Uuid::parse_str(cid_str) {
+                                let ctype_str = ch.get("channel_type").and_then(|v| v.as_str()).unwrap_or("direct_message");
+                                let ctype = if ctype_str == "group_dm" || ctype_str == "group_direct_message" {
+                                    ChannelType::GroupDirectMessage
+                                } else {
+                                    ChannelType::DirectMessage
+                                };
+                                let channel = Channel {
+                                    id: cid,
+                                    space_id: None,
+                                    name: cname.to_string(),
+                                    channel_type: ctype,
+                                    position: ch.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+                                    topic: None,
+                                    is_nsfw: false,
+                                    is_e2ee: true,
+                                    slow_mode_seconds: 0,
+                                    permission_overrides: Vec::new(),
+                                    created_at: chrono::Utc::now(),
+                                    last_message_id: None,
+                                    unread_count: 0,
+                                    mentioned: false,
+                                };
+                                let _ = db.upsert_channel(&channel, db_key.as_ref());
+                                let _ = db.add_channel_member(&cid, &identity.id);
 
-                                    // Pull other members for this channel
-                                    let cm_filter = format!("channel_id=eq.{}", cid);
-                                    if let Ok(all_cm) = network.api.select::<serde_json::Value>("channel_members", &cm_filter, None, Some(50)).await {
-                                        for row in all_cm {
-                                            if let Some(uid_str) = row.get("user_id").and_then(|v| v.as_str()) {
-                                                if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                                    let _ = db.add_channel_member(&cid, &uid);
-                                                }
+                                // Pull other members for this channel
+                                let cm_filter = format!("channel_id=eq.{}", cid);
+                                if let Ok(all_cm) = network.api.select::<serde_json::Value>("channel_members", &cm_filter, None, Some(50)).await {
+                                    for row in all_cm {
+                                        if let Some(uid_str) = row.get("user_id").and_then(|v| v.as_str()) {
+                                            if let Ok(uid) = Uuid::parse_str(uid_str) {
+                                                let _ = db.add_channel_member(&cid, &uid);
                                             }
                                         }
                                     }
@@ -920,20 +866,19 @@ pub async fn dm_list(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, Vei
     drop(db);
 
     if !missing_peers.is_empty() && config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            missing_peers.sort();
-            missing_peers.dedup();
-            let p_ids: Vec<String> = missing_peers.iter().map(|u| u.to_string()).collect();
-            let u_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash,banner_hash", p_ids.join(","));
-            if let Ok(u_rows) = network.api.select::<serde_json::Value>("users", &u_filter, None, Some(100)).await {
-                let db = state.db.read().await;
-                for u in u_rows {
-                    if let (Some(uid_str), Some(uname)) = (u.get("id").and_then(|v| v.as_str()), u.get("username").and_then(|v| v.as_str())) {
-                        if let Ok(uid) = Uuid::parse_str(uid_str) {
-                            let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
-                            let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                            let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
-                        }
+        let network = state.network.read().await;
+        missing_peers.sort();
+        missing_peers.dedup();
+        let p_ids: Vec<String> = missing_peers.iter().map(|u| u.to_string()).collect();
+        let u_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash,banner_hash", p_ids.join(","));
+        if let Ok(u_rows) = network.api.select::<serde_json::Value>("users", &u_filter, None, Some(100)).await {
+            let db = state.db.read().await;
+            for u in u_rows {
+                if let (Some(uid_str), Some(uname)) = (u.get("id").and_then(|v| v.as_str()), u.get("username").and_then(|v| v.as_str())) {
+                    if let Ok(uid) = Uuid::parse_str(uid_str) {
+                        let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
+                        let av = u.get("avatar_hash").and_then(|v| v.as_str());
+                        let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
                     }
                 }
             }
@@ -959,34 +904,33 @@ pub async fn dm_list(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, Vei
             }
         }
         if !peer_ids.is_empty() && config::configured("VEILANON_SUPABASE_URL") {
-            if let Ok(network) = state.network.try_read() {
-                peer_ids.sort();
-                peer_ids.dedup();
-                let p_ids: Vec<String> = peer_ids.iter().map(|u| u.to_string()).collect();
-                let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", p_ids.join(","));
-                if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
-                    let db = state.db.read().await;
-                    let now = chrono::Utc::now();
-                    for p in presences {
-                        if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
-                            if let Ok(uid) = Uuid::parse_str(uid_str) {
-                                let raw_status = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
-                                let status_str = if raw_status != "offline" && raw_status != "invisible" {
-                                    let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
-                                    if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                        if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() <= 90 {
-                                            raw_status
-                                        } else {
-                                            "offline"
-                                        }
+            let network = state.network.read().await;
+            peer_ids.sort();
+            peer_ids.dedup();
+            let p_ids: Vec<String> = peer_ids.iter().map(|u| u.to_string()).collect();
+            let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", p_ids.join(","));
+            if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
+                let db = state.db.read().await;
+                let now = chrono::Utc::now();
+                for p in presences {
+                    if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
+                        if let Ok(uid) = Uuid::parse_str(uid_str) {
+                            let raw_status = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
+                            let status_str = if raw_status != "offline" && raw_status != "invisible" {
+                                let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
+                                if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
+                                    if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() <= 90 {
+                                        raw_status
                                     } else {
                                         "offline"
                                     }
                                 } else {
                                     "offline"
-                                };
-                                let _ = db.update_presence(&uid, status_str);
-                            }
+                                }
+                            } else {
+                                "offline"
+                            };
+                            let _ = db.update_presence(&uid, status_str);
                         }
                     }
                 }
@@ -1245,9 +1189,7 @@ async fn fetch_real_presence(state: &AppState, user_id: &Uuid, local_fallback: &
     if !config::configured("VEILANON_SUPABASE_URL") {
         return local_fallback.to_string();
     }
-    let Ok(network) = state.network.try_read() else {
-        return local_fallback.to_string();
-    };
+    let network = state.network.read().await;
     let filter = format!("user_id=eq.{}&select=status,heartbeat_at,last_seen", user_id);
     let Ok(rows) = network.api.select::<serde_json::Value>("presence", &filter, None, Some(1)).await else {
         return local_fallback.to_string();
@@ -1286,23 +1228,22 @@ pub async fn get_user_profile(user_id: String, state: State<'_, AppState>) -> Re
 
     // Remote sync for profile if needed
     if !is_self && config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let u_filter = format!("id=eq.{}&select=id,username,display_name,avatar_hash,banner_hash,bio,custom_status", target);
-            if let Ok(u_rows) = network.api.select::<serde_json::Value>("users", &u_filter, None, Some(1)).await {
-                if let Some(u) = u_rows.first() {
-                    let uname = u.get("username").and_then(|v| v.as_str()).unwrap_or("");
-                    let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
-                    let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                    let ban = u.get("banner_hash").and_then(|v| v.as_str());
-                    let cs = u.get("custom_status").and_then(|v| v.as_str());
-                    let db = state.db.read().await;
-                    let _ = db.upsert_profile(&target, uname, disp, av, None, None, None, None, None);
-                    if let Some(b) = ban {
-                        let _ = db.set_user_profile_banner(&target, Some(b));
-                    }
-                    if let Some(c) = cs {
-                        let _ = db.update_custom_status(&target, Some(c));
-                    }
+        let network = state.network.read().await;
+        let u_filter = format!("id=eq.{}&select=id,username,display_name,avatar_hash,banner_hash,bio,custom_status", target);
+        if let Ok(u_rows) = network.api.select::<serde_json::Value>("users", &u_filter, None, Some(1)).await {
+            if let Some(u) = u_rows.first() {
+                let uname = u.get("username").and_then(|v| v.as_str()).unwrap_or("");
+                let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
+                let av = u.get("avatar_hash").and_then(|v| v.as_str());
+                let ban = u.get("banner_hash").and_then(|v| v.as_str());
+                let cs = u.get("custom_status").and_then(|v| v.as_str());
+                let db = state.db.read().await;
+                let _ = db.upsert_profile(&target, uname, disp, av, None, None, None, None, None);
+                if let Some(b) = ban {
+                    let _ = db.set_user_profile_banner(&target, Some(b));
+                }
+                if let Some(c) = cs {
+                    let _ = db.update_custom_status(&target, Some(c));
                 }
             }
         }

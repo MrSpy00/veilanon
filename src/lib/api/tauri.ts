@@ -190,6 +190,7 @@ export interface FileInfo {
   uploadUrl: string | null;
   isEncrypted: boolean;
   r2Key: string | null;
+  contentKeyCiphertext?: string | null;
 }
 
 export type NetworkProxyMode =

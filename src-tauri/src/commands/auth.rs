@@ -595,18 +595,17 @@ pub async fn update_profile(
         }
         // Unique check if changed
         if u != old_username.to_lowercase() && config::configured("VEILANON_SUPABASE_URL") {
-            if let Ok(network) = state.network.try_read() {
-                if let Ok(users) = network.api.select::<serde_json::Value>(
-                    "users",
-                    &format!("username=eq.{}", u),
-                    None,
-                    Some(10),
-                ).await {
-                    for row in users {
-                        if let Some(owner_id) = row.get("id").and_then(|v| v.as_str()) {
-                            if owner_id != identity_id.to_string() {
-                                return Err(VeilError::InvalidInput("Bu kullanıcı adı başka bir kullanıcı tarafından alınmış".into()));
-                            }
+            let network = state.network.read().await;
+            if let Ok(users) = network.api.select::<serde_json::Value>(
+                "users",
+                &format!("username=eq.{}", u),
+                None,
+                Some(10),
+            ).await {
+                for row in users {
+                    if let Some(owner_id) = row.get("id").and_then(|v| v.as_str()) {
+                        if owner_id != identity_id.to_string() {
+                            return Err(VeilError::InvalidInput("Bu kullanıcı adı başka bir kullanıcı tarafından alınmış".into()));
                         }
                     }
                 }
@@ -656,49 +655,48 @@ pub async fn update_profile(
     // Mirror the updated profile to the control plane so friends on other
     // devices see the new name (best-effort, never fails the command).
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let mut payload = serde_json::json!({
-                "id": identity_id.to_string(),
-                "username": target_username,
-                "display_name": display_name,
-                "avatar_hash": target_avatar.as_deref(),
-                "banner_hash": target_banner.as_deref(),
-            });
-            if let Some(ref cs) = input.custom_status {
-                let clean_cs = cs.trim();
-                if clean_cs.is_empty() {
-                    payload["custom_status"] = serde_json::Value::Null;
-                } else {
-                    payload["custom_status"] = serde_json::json!(clean_cs);
-                }
+        let network = state.network.read().await;
+        let mut payload = serde_json::json!({
+            "id": identity_id.to_string(),
+            "username": target_username,
+            "display_name": display_name,
+            "avatar_hash": target_avatar.as_deref(),
+            "banner_hash": target_banner.as_deref(),
+        });
+        if let Some(ref cs) = input.custom_status {
+            let clean_cs = cs.trim();
+            if clean_cs.is_empty() {
+                payload["custom_status"] = serde_json::Value::Null;
+            } else {
+                payload["custom_status"] = serde_json::json!(clean_cs);
             }
-            if let Some(ref b) = input.bio {
-                payload["bio"] = serde_json::json!(b.trim());
-            }
-            let _ = network
-                .api
-                .upsert(
-                    "users",
-                    &payload,
-                    "id",
-                )
-                .await;
+        }
+        if let Some(ref b) = input.bio {
+            payload["bio"] = serde_json::json!(b.trim());
+        }
+        let _ = network
+            .api
+            .upsert(
+                "users",
+                &payload,
+                "id",
+            )
+            .await;
 
-            if let Some(ref cs) = input.custom_status {
-                let clean_cs = cs.trim();
-                let pres_payload = if clean_cs.is_empty() {
-                    serde_json::json!({
-                        "user_id": identity_id.to_string(),
-                        "custom_status": serde_json::Value::Null,
-                    })
-                } else {
-                    serde_json::json!({
-                        "user_id": identity_id.to_string(),
-                        "custom_status": clean_cs,
-                    })
-                };
-                let _ = network.api.upsert("presence", &pres_payload, "user_id").await;
-            }
+        if let Some(ref cs) = input.custom_status {
+            let clean_cs = cs.trim();
+            let pres_payload = if clean_cs.is_empty() {
+                serde_json::json!({
+                    "user_id": identity_id.to_string(),
+                    "custom_status": serde_json::Value::Null,
+                })
+            } else {
+                serde_json::json!({
+                    "user_id": identity_id.to_string(),
+                    "custom_status": clean_cs,
+                })
+            };
+            let _ = network.api.upsert("presence", &pres_payload, "user_id").await;
         }
     }
 
@@ -731,22 +729,21 @@ pub async fn check_username_available(
     }
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            if let Ok(users) = network.api.select::<serde_json::Value>(
-                "users",
-                &format!("username=eq.{}", u),
-                None,
-                Some(10),
-            ).await {
-                for row in users {
-                    if let Some(owner_id) = row.get("id").and_then(|v| v.as_str()) {
-                        if let Some((my_id, _)) = &my_info {
-                            if owner_id == my_id {
-                                continue;
-                            }
+        let network = state.network.read().await;
+        if let Ok(users) = network.api.select::<serde_json::Value>(
+            "users",
+            &format!("username=eq.{}", u),
+            None,
+            Some(10),
+        ).await {
+            for row in users {
+                if let Some(owner_id) = row.get("id").and_then(|v| v.as_str()) {
+                    if let Some((my_id, _)) = &my_info {
+                        if owner_id == my_id {
+                            continue;
                         }
-                        return Ok(false);
                     }
+                    return Ok(false);
                 }
             }
         }
@@ -1958,12 +1955,11 @@ pub async fn revoke_session(device_id: String, state: State<'_, AppState>) -> Re
     }
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            network
-                .api
-                .delete("devices", &format!("id=eq.{}", device_id))
-                .await?;
-        }
+        let network = state.network.read().await;
+        network
+            .api
+            .delete("devices", &format!("id=eq.{}", device_id))
+            .await?;
     }
 
     info!("Session revoked"); // device_id intentionally not logged

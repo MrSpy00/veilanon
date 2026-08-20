@@ -531,6 +531,24 @@ pub async fn send_message(
     let disappears_at = input.disappear_seconds
         .map(|secs| now + chrono::Duration::seconds(secs as i64));
     
+    let msg_type = if let Some(first_att) = input.attachments.first() {
+        if let Some(ref mime) = first_att.mime_type_hint {
+            if mime.starts_with("image/") {
+                MessageType::Image
+            } else if mime.starts_with("video/") {
+                MessageType::Video
+            } else if mime.starts_with("audio/") {
+                MessageType::Audio
+            } else {
+                MessageType::File
+            }
+        } else {
+            MessageType::File
+        }
+    } else {
+        MessageType::Text
+    };
+
     let message = Message {
         id: message_id,
         channel_id,
@@ -540,7 +558,7 @@ pub async fn send_message(
         ciphertext: ciphertext_b64,
         iv: iv_b64,
         crypto_meta,
-        message_type: MessageType::Text,
+        message_type: msg_type,
         status: MessageStatus::Sending,
         reply_to_id: input.reply_to_id.as_ref().and_then(|id| Uuid::parse_str(id).ok()),
         pinned: false,
@@ -573,6 +591,18 @@ pub async fn send_message(
                 "ciphertext": message.ciphertext,
                 "iv": message.iv,
                 "crypto_meta": message.crypto_meta,
+                "message_type": match message.message_type {
+                    MessageType::File => "file",
+                    MessageType::Image => "image",
+                    MessageType::Video => "video",
+                    MessageType::Audio => "audio",
+                    MessageType::System => "system",
+                    MessageType::Call => "call",
+                    MessageType::Text => "text",
+                },
+                "reply_to_id": message.reply_to_id.map(|r| r.to_string()),
+                "pinned": message.pinned,
+                "attachments": message.attachments,
                 "schema_version": 1,
                 "client_created_at": message.created_at.to_rfc3339(),
                 "disappears_at": message.disappears_at.map(|dt| dt.to_rfc3339()),
@@ -842,24 +872,23 @@ pub async fn edit_message(
     }
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let mut payload = serde_json::json!({
-                "ciphertext": ciphertext_b64,
-                "iv": iv_b64,
-                "edited_at": now.to_rfc3339(),
-            });
-            if let Some(ref meta) = crypto_meta {
-                payload["crypto_meta"] = serde_json::json!(meta);
-            }
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &payload,
-                )
-                .await;
+        let network = state.network.read().await;
+        let mut payload = serde_json::json!({
+            "ciphertext": ciphertext_b64,
+            "iv": iv_b64,
+            "edited_at": now.to_rfc3339(),
+        });
+        if let Some(ref meta) = crypto_meta {
+            payload["crypto_meta"] = serde_json::json!(meta);
         }
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &payload,
+            )
+            .await;
     }
 
     let sender = {
@@ -900,16 +929,15 @@ pub async fn delete_message(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &serde_json::json!({ "deleted_at": Utc::now().to_rfc3339() }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &serde_json::json!({ "deleted_at": Utc::now().to_rfc3339() }),
+            )
+            .await;
     }
 
     info!("Message deleted");
@@ -930,16 +958,15 @@ pub async fn clear_channel_messages(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("channel_id=eq.{}", channel_id),
-                    &serde_json::json!({ "deleted_at": Utc::now().to_rfc3339() }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("channel_id=eq.{}", channel_id),
+                &serde_json::json!({ "deleted_at": Utc::now().to_rfc3339() }),
+            )
+            .await;
     }
 
     info!("Channel messages cleared: {}", channel_id);
@@ -975,16 +1002,15 @@ pub async fn add_reaction(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &serde_json::json!({ "reactions": reactions_val }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &serde_json::json!({ "reactions": reactions_val }),
+            )
+            .await;
     }
 
     Ok(())
@@ -1016,16 +1042,15 @@ pub async fn remove_reaction(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &serde_json::json!({ "reactions": reactions_val }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &serde_json::json!({ "reactions": reactions_val }),
+            )
+            .await;
     }
 
     Ok(())
@@ -1073,16 +1098,15 @@ pub async fn pin_message(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &serde_json::json!({ "pinned": true }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &serde_json::json!({ "pinned": true }),
+            )
+            .await;
     }
 
     Ok(())
@@ -1105,16 +1129,15 @@ pub async fn unpin_message(
     drop(db);
 
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .update(
-                    "messages",
-                    &format!("id=eq.{}", message_id),
-                    &serde_json::json!({ "pinned": false }),
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .update(
+                "messages",
+                &format!("id=eq.{}", message_id),
+                &serde_json::json!({ "pinned": false }),
+            )
+            .await;
     }
 
     Ok(())
