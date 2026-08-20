@@ -297,7 +297,7 @@ impl Default for AppSettings {
             echo_cancellation: true,
             push_to_talk: false,
             push_to_talk_key: None,
-            mirror_camera: false,
+            mirror_camera: true,
             start_on_login: false,
             minimize_to_tray: true,
             close_to_tray: true,

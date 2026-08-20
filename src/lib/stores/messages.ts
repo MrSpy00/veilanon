@@ -359,7 +359,11 @@ function createMessageStore() {
         // Replace temp with confirmed
         update(s => {
           const nextList = (s.byChannel[channelId] ?? []).map((m: Message) =>
-            m.id === tempId ? { ...sent, isOwn: true } : m
+            m.id === tempId ? {
+              ...sent,
+              attachments: (sent.attachments && sent.attachments.length > 0) ? sent.attachments : attachments,
+              isOwn: true
+            } : m
           );
           saveChannelCache(channelId, nextList);
           return {

@@ -36,7 +36,10 @@
   let isScrapingUrl = $state(false);
   let scrapeResults = $state<Array<{url: string; mediaType: string; source: string}>>([]);
   let bgOpacityInput = $state(0.26);
+  let messageBlurInput = $state(8);
   let mediaError = $state<string | null>(null);
+  let playlistImportModalOpen = $state(false);
+  let playlistImportText = $state('');
 
   // Saved Themes State
   let savedThemesList = $state<Array<{id: string; name: string; savedAt: string}>>([]);
@@ -62,9 +65,68 @@
       detectedMediaType = 'image';
     }
     bgOpacityInput = ui.customBgOpacity ?? 0.26;
+    messageBlurInput = ui.messageBackdropBlur ?? 8;
     customThemeNameInput = ui.customThemeName || 'Kişisel Tema';
     refreshSavedThemes();
   });
+
+  function addCurrentMediaToPlaylist() {
+    const url = mediaUrlInput.trim();
+    if (!url) return;
+    const type = (detectedMediaType === 'video' || detectedMediaType === 'unknown') ? 'video' : 'image';
+    uiStore.addPlaylistItem({
+      id: crypto.randomUUID(),
+      url,
+      type,
+      title: `Medya ${ui.bgPlaylist.length + 1}`,
+    });
+    toastStore.success('Medya arka plan playlistine eklendi.');
+  }
+
+  function handleExportPlaylist() {
+    if (!ui.bgPlaylist || ui.bgPlaylist.length === 0) {
+      toastStore.info('Playlist henüz boş.');
+      return;
+    }
+    const jsonStr = JSON.stringify(ui.bgPlaylist, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `veilanon-playlist-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toastStore.success('Playlist dosyası indirildi.');
+  }
+
+  function handleImportPlaylist() {
+    if (!playlistImportText.trim()) return;
+    try {
+      let items: any[] = [];
+      if (playlistImportText.trim().startsWith('[')) {
+        items = JSON.parse(playlistImportText);
+      } else {
+        items = playlistImportText
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean)
+          .map((url, i) => ({
+            id: crypto.randomUUID(),
+            url,
+            type: detectMediaType(url) === 'video' ? 'video' : 'image',
+            title: `Medya ${i + 1}`,
+          }));
+      }
+      if (Array.isArray(items) && items.length > 0) {
+        uiStore.setPlaylist(items);
+        playlistImportModalOpen = false;
+        playlistImportText = '';
+        toastStore.success(`${items.length} medya playliste aktarıldı.`);
+      }
+    } catch {
+      toastStore.error('Geçersiz playlist formatı.');
+    }
+  }
 
   // Debounced live update for CSS preview
   function handleCssChange(newCss: string) {
@@ -679,8 +741,8 @@
             id="bg-opacity-slider"
             type="range"
             min="0"
-            max="0.6"
-            step="0.02"
+            max="1.0"
+            step="0.01"
             class="veil-range-slider"
             bind:value={bgOpacityInput}
             oninput={() => {
@@ -689,7 +751,26 @@
               uiStore.setCustomBackground(img, vid, bgOpacityInput);
             }}
           />
-          <span class="veil-custom-hint">Metin okunabilirliği için opaklık en fazla %60 ile sınırlandırılmıştır.</span>
+        </div>
+
+        <div class="veil-form-group">
+          <div class="opacity-header">
+            <label class="veil-form-label" for="bg-blur-slider">Mesaj Arka Planı Bulanıklığı (Backdrop Blur):</label>
+            <span class="opacity-val">{messageBlurInput}px</span>
+          </div>
+          <input
+            id="bg-blur-slider"
+            type="range"
+            min="0"
+            max="30"
+            step="1"
+            class="veil-range-slider"
+            bind:value={messageBlurInput}
+            oninput={() => {
+              uiStore.setMessageBlur(messageBlurInput);
+            }}
+          />
+          <span class="veil-custom-hint">Arka plandaki medya varken mesajların daha rahat okunması için bulanıklık şiddetini ayarlar.</span>
         </div>
 
         <div class="veil-media-actions">
@@ -697,11 +778,78 @@
             <Icon name="trash" size={14} />
             <span>Medyayı Kaldır</span>
           </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick={addCurrentMediaToPlaylist} disabled={!mediaUrlInput.trim()}>
+            <Icon name="plus" size={14} />
+            <span>Playliste Ekle</span>
+          </button>
           <button type="button" class="btn btn-primary btn-sm" onclick={applyCurrentMedia} disabled={!mediaUrlInput.trim()}>
             <Icon name="check" size={14} />
             <span>Uygula & Kaydet</span>
           </button>
         </div>
+
+        <!-- Playlist Section -->
+        {#if ui.bgPlaylist && ui.bgPlaylist.length > 0}
+          <div class="veil-playlist-section">
+            <div class="veil-playlist-header">
+              <div class="veil-playlist-title">
+                <Icon name="film" size={15} />
+                <span>Arka Plan Playlisti ({ui.bgPlaylist.length} Medya)</span>
+              </div>
+              <div class="veil-playlist-tools">
+                <button type="button" class="btn btn-ghost btn-xs" onclick={() => uiStore.cyclePlaylistNext()} title="Sonraki Medyaya Geç">
+                  <Icon name="arrow-right" size={13} />
+                  <span>Sonraki</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick={handleExportPlaylist} title="Playlisti Dışa Aktar">
+                  <Icon name="download" size={13} />
+                  <span>Dışa Aktar</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick={() => (playlistImportModalOpen = true)} title="Playlisti İçe Aktar">
+                  <Icon name="upload" size={13} />
+                  <span>İçe Aktar</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="veil-playlist-grid">
+              {#each ui.bgPlaylist as item}
+                {@const isCurrent = ui.customBgImage === item.url || ui.customBgVideo === item.url}
+                <div class="veil-playlist-card" class:active={isCurrent}>
+                  <div class="veil-playlist-info">
+                    <span class="media-type-badge badge-small" class:badge-video={item.type === 'video'} class:badge-image={item.type === 'image'}>
+                      {item.type === 'video' ? 'Video' : 'Görsel'}
+                    </span>
+                    <span class="veil-playlist-url" title={item.url}>{item.url}</span>
+                  </div>
+                  <div class="veil-playlist-card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      onclick={() => {
+                        mediaUrlInput = item.url;
+                        detectedMediaType = item.type;
+                        if (item.type === 'video') uiStore.setCustomBackground('', item.url, bgOpacityInput);
+                        else uiStore.setCustomBackground(item.url, '', bgOpacityInput);
+                      }}
+                      title="Bu Medyayı Seç"
+                    >
+                      {isCurrent ? 'Aktif' : 'Seç'}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs text-danger"
+                      onclick={() => uiStore.removePlaylistItem(item.id)}
+                      title="Playlistten Kaldır"
+                    >
+                      <Icon name="trash" size={12} />
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -797,6 +945,56 @@
         </button>
         <button type="button" class="btn btn-primary" onclick={handleImportJsonSubmit} disabled={!jsonImportText.trim()}>
           İçe Aktar & Uygula
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal: Playlist Import -->
+{#if playlistImportModalOpen}
+  <div
+    class="veil-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="import-playlist-title"
+    tabindex="-1"
+    onclick={() => (playlistImportModalOpen = false)}
+    onkeydown={(e) => { if (e.key === 'Escape') playlistImportModalOpen = false; }}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="veil-modal veil-modal-md"
+      role="document"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="veil-modal-header">
+        <h3 id="import-playlist-title">Arka Plan Playlisti İçe Aktar</h3>
+        <button type="button" class="btn-icon" onclick={() => (playlistImportModalOpen = false)} aria-label="Kapat">
+          <Icon name="x" size={16} />
+        </button>
+      </div>
+
+      <div class="veil-modal-body">
+        <p class="veil-settings-row-desc">
+          JSON formatında bir playlist veya her satırında bir görsel/video linki bulunan metin yapıştırın.
+        </p>
+        <textarea
+          class="veil-input veil-import-textarea"
+          bind:value={playlistImportText}
+          placeholder={`https://example.com/bg1.mp4\nhttps://example.com/wallpaper.jpg`}
+          rows={8}
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <div class="veil-modal-footer">
+        <button type="button" class="btn btn-ghost" onclick={() => (playlistImportModalOpen = false)}>
+          İptal
+        </button>
+        <button type="button" class="btn btn-primary" onclick={handleImportPlaylist} disabled={!playlistImportText.trim()}>
+          İçe Aktar
         </button>
       </div>
     </div>
@@ -1376,6 +1574,89 @@
   }
 
   .saved-theme-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  /* Playlist Styles */
+  .veil-playlist-section {
+    margin-top: var(--space-3, 0.75rem);
+    padding: var(--space-3, 0.75rem);
+    background: var(--veil-bg-surface);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-lg, 0.75rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+  }
+
+  .veil-playlist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .veil-playlist-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-xs, 12px);
+    font-weight: 700;
+    color: var(--veil-text-primary);
+  }
+
+  .veil-playlist-tools {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .veil-playlist-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .veil-playlist-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 6px 8px;
+    background: var(--veil-bg-elevated);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-md);
+    transition: border-color var(--t-base, 0.15s ease);
+  }
+
+  .veil-playlist-card.active {
+    border-color: var(--veil-brand);
+    background: color-mix(in srgb, var(--veil-brand) 8%, var(--veil-bg-elevated));
+  }
+
+  .veil-playlist-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .veil-playlist-url {
+    font-size: 11px;
+    font-family: var(--font-mono, monospace);
+    color: var(--veil-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .veil-playlist-card-actions {
     display: flex;
     align-items: center;
     gap: 4px;

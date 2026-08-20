@@ -58,11 +58,13 @@
       x: Math.max(12, Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : 800) - 240)),
       y: Math.max(12, Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : 600) - 200)),
     };
+    const initVals: Record<number, number> = {};
     items.forEach((it, idx) => {
       if (it.isSlider) {
-        sliderValues[idx] = it.sliderValue ?? 100;
+        initVals[idx] = it.sliderValue ?? 100;
       }
     });
+    sliderValues = initVals;
     const cleanup = handleEscape(onClose);
     tick().then(() => {
       if (!menuEl) return;
@@ -146,7 +148,7 @@
             value={sliderValues[i] ?? item.sliderValue ?? 100}
             oninput={(e) => {
               const v = Number((e.target as HTMLInputElement).value);
-              sliderValues[i] = v;
+              sliderValues = { ...sliderValues, [i]: v };
               item.onSliderChange?.(v);
             }}
             class="veil-slider"

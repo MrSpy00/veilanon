@@ -48,6 +48,13 @@
   let remoteMicActive = $state(true);
   let remoteSpeaking = $state(false);
 
+  $effect(() => {
+    if (!isLocal && participant?.sid) {
+      const savedVol = mediaStore.getParticipantVolume(participant.sid);
+      userVolume = Math.round(savedVol * 100);
+    }
+  });
+
   onMount(() => {
     settingsApi.get().then((s) => {
       if (s.mirrorCamera !== undefined) {

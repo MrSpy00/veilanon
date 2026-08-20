@@ -45,14 +45,17 @@
   }
 
   const mime = $derived.by(() => {
+    const fn = (attachment.fileName || '').toLowerCase();
+    if (fn.includes('ses-kaydi') || fn.includes('ses') || fn.includes('voice') || fn.includes('audio')) return 'audio';
     if (dataUrl?.startsWith('data:audio/')) return 'audio';
     if (attachment.mimeTypeHint?.startsWith('audio/')) return 'audio';
-    if (attachment.fileName?.toLowerCase().includes('ses-kaydi')) return 'audio';
+    if (fn.endsWith('.mp3') || fn.endsWith('.wav') || fn.endsWith('.ogg') || fn.endsWith('.m4a') || fn.endsWith('.flac') || fn.endsWith('.weba') || fn.endsWith('.aac')) return 'audio';
     if (dataUrl?.startsWith('data:image/')) return 'image';
     if (dataUrl?.startsWith('data:video/')) return 'video';
     if (attachment.mimeTypeHint?.startsWith('image/')) return 'image';
     if (attachment.mimeTypeHint?.startsWith('video/')) return 'video';
-    if (attachment.fileName?.toLowerCase().endsWith('.mp3') || attachment.fileName?.toLowerCase().endsWith('.wav') || attachment.fileName?.toLowerCase().endsWith('.ogg') || attachment.fileName?.toLowerCase().endsWith('.m4a') || attachment.fileName?.toLowerCase().endsWith('.flac')) return 'audio';
+    if (fn.endsWith('.png') || fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.gif') || fn.endsWith('.webp') || fn.endsWith('.bmp') || fn.endsWith('.svg')) return 'image';
+    if (fn.endsWith('.mp4') || fn.endsWith('.mov') || fn.endsWith('.mkv') || fn.endsWith('.avi')) return 'video';
     return 'file';
   });
 
@@ -200,12 +203,27 @@
       <audio
         bind:this={audioEl}
         src={dataUrl}
-        preload="metadata"
+        preload="auto"
         onplay={() => (isPlaying = true)}
         onpause={() => (isPlaying = false)}
         onended={() => { isPlaying = false; currentTime = 0; }}
-        ontimeupdate={() => { if (audioEl) currentTime = audioEl.currentTime; }}
-        onloadedmetadata={() => { if (audioEl) duration = audioEl.duration; }}
+        ontimeupdate={() => {
+          if (audioEl) {
+            currentTime = audioEl.currentTime;
+            if (!isFinite(duration) || duration <= 0 || audioEl.currentTime > duration) {
+              if (isFinite(audioEl.duration) && audioEl.duration > 0) {
+                duration = audioEl.duration;
+              } else {
+                duration = Math.max(duration || 0, audioEl.currentTime);
+              }
+            }
+          }
+        }}
+        onloadedmetadata={() => {
+          if (audioEl && isFinite(audioEl.duration) && audioEl.duration > 0) {
+            duration = audioEl.duration;
+          }
+        }}
       ></audio>
 
       <button

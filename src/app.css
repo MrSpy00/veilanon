@@ -82,22 +82,36 @@
 
 /* ── AMOLED Pure Black Mode (#000000) ───────────────────────── */
 [data-amoled="true"],
-[data-amoled="true"][data-theme="dark"] {
-  --veil-bg-void:        #000000;
-  --veil-bg-base:        #030304;
-  --veil-bg-elevated:    #090a0e;
-  --veil-bg-surface:     #0f1016;
-  --veil-bg-overlay:     #15161f;
-  --veil-bg-raised:      #1a1b26;
+[data-amoled="true"][data-theme="dark"],
+[data-amoled="true"][data-preset],
+html[data-amoled="true"] {
+  --veil-bg-void:        #000000 !important;
+  --veil-bg-base:        #000000 !important;
+  --veil-bg-elevated:    #050505 !important;
+  --veil-bg-surface:     #0a0a0a !important;
+  --veil-bg-overlay:     #0f0f0f !important;
+  --veil-bg-raised:      #141414 !important;
 
-  --veil-border:         #1c1d29;
-  --veil-border-subtle:  #111218;
+  --veil-border:         #1a1a1a !important;
+  --veil-border-subtle:  #101010 !important;
 
-  --veil-sidebar-bg:     #000000;
-  --veil-channel-bg:     #030304;
+  --veil-sidebar-bg:     #000000 !important;
+  --veil-channel-bg:     #000000 !important;
 
-  --veil-scroll-thumb:   #1f202c;
-  --veil-scroll-hover:   #2d2f3f;
+  --veil-scroll-thumb:   #1a1a1a !important;
+  --veil-scroll-hover:   #262626 !important;
+}
+
+[data-amoled="true"]:not([data-has-custom-bg="true"]) body,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-app,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-sidebar,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-channels,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-channel-list,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-chat,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-messages,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-member-list,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-home {
+  background-color: #000000 !important;
 }
 
 /* ── Light Theme ───────────────────────────────────────────── */
@@ -2629,18 +2643,18 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-chat-header,
 .veil-app[data-has-custom-bg="true"] .veil-chat-header,
 [data-has-custom-bg="true"] .veil-chat-header {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-sidebar,
 .veil-app[data-has-custom-bg="true"] .veil-sidebar,
 [data-has-custom-bg="true"] .veil-sidebar {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2650,9 +2664,9 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-channel-list,
 [data-has-custom-bg="true"] .veil-channels,
 [data-has-custom-bg="true"] .veil-channel-list {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2660,16 +2674,16 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-channel-header,
 [data-has-custom-bg="true"] .veil-channel-header,
 [data-has-custom-bg="true"] .veil-space-hero-wrap {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-member-list,
 .veil-app[data-has-custom-bg="true"] .veil-member-list,
 [data-has-custom-bg="true"] .veil-member-list {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2681,9 +2695,9 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-voice-stage-full,
 .veil-app[data-has-custom-bg="true"] .veil-voice-stage-full,
 [data-has-custom-bg="true"] .veil-voice-stage-full {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-voice-lobby,
@@ -2695,9 +2709,9 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-voice-lobby-card,
 .veil-app[data-has-custom-bg="true"] .veil-voice-lobby-card,
 [data-has-custom-bg="true"] .veil-voice-lobby-card {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 60%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45) !important;
 }
@@ -2706,6 +2720,12 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-messages,
 [data-has-custom-bg="true"] .veil-messages {
   background: transparent !important;
+}
+
+[data-has-custom-bg="true"] .veil-message-item {
+  backdrop-filter: blur(var(--veil-msg-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 8px));
+  border-radius: var(--radius-sm);
 }
 
 .veil-app.veil-has-custom-bg .veil-home,
@@ -2717,9 +2737,9 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-bottom-user-unified,
 .veil-app[data-has-custom-bg="true"] .veil-bottom-user-unified,
 [data-has-custom-bg="true"] .veil-bottom-user-unified {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2728,9 +2748,9 @@ select:-webkit-autofill {
 }
 
 [data-has-custom-bg="true"] .veil-message-box {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 

@@ -119,7 +119,6 @@
     }).then(u => unlistens.push(u));
 
     listen('user:updated', () => {
-      void authStore.initialize();
       void spaceStore.loadSpaces();
       void spaceStore.loadDms();
       void friendsStore.load();

@@ -10,6 +10,7 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import BannerImage from '$lib/components/ui/BannerImage.svelte';
   import BannerCropModal from '$lib/components/ui/BannerCropModal.svelte';
+  import ImageCropModal from '$lib/components/ui/ImageCropModal.svelte';
   import Toggle from '$lib/components/ui/Toggle.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
@@ -18,6 +19,7 @@
   import { copyText as copyToClipboard } from '$lib/utils/clipboard';
 
   let cropSrc = $state<string | null>(null);
+  let avatarCropSrc = $state<string | null>(null);
 
   let deviceName = $state('…');
   let deviceOs = $state('');
@@ -228,9 +230,27 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
+    if (selected.toLowerCase().endsWith('.gif')) {
+      avatarBusy = true;
+      try {
+        const hash = await identityApi.setAvatar(selected);
+        authStore.updateIdentity({ avatarHash: hash });
+        toastStore.success('Animasyonlu profil fotoğrafı güncellendi.');
+      } catch {
+        toastStore.error('Profil fotoğrafı yüklenemedi.');
+      } finally {
+        avatarBusy = false;
+      }
+      return;
+    }
+    avatarCropSrc = await readLocalImageAsDataUrl(selected);
+  }
+
+  async function handleAvatarCropSave(croppedDataUrl: string) {
+    avatarCropSrc = null;
     avatarBusy = true;
     try {
-      const hash = await identityApi.setAvatar(selected);
+      const hash = await identityApi.setAvatar(croppedDataUrl);
       authStore.updateIdentity({ avatarHash: hash });
       toastStore.success('Profil fotoğrafı güncellendi.');
     } catch {
@@ -635,6 +655,17 @@
       Oturum kapatmak kimliğini silmez — veriler cihazında şifreli olarak kalır.
     </p>
   </div>
+
+  {#if avatarCropSrc}
+    <ImageCropModal
+      src={avatarCropSrc}
+      shape="circle"
+      aspectRatio={1}
+      title="Profil Fotoğrafını Ayarla"
+      onSave={handleAvatarCropSave}
+      onClose={() => { avatarCropSrc = null; }}
+    />
+  {/if}
 
   {#if cropSrc}
     <BannerCropModal

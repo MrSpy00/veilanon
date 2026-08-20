@@ -105,9 +105,12 @@ async fn fetch_profile_remotely(
         }
     }
 
+    // URL-encoded clean query for PostgREST
+    let clean_enc = clean.replace('%', "%25").replace('&', "%26").replace('=', "%3D").replace('+', "%2B").replace(' ', "%20");
+
     // 2. Exact username match (case-insensitive)
     if found_item.is_none() {
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean), None, Some(1)).await {
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean_enc), None, Some(1)).await {
             if let Some(item) = rows.into_iter().next() {
                 found_item = Some(item);
             }
@@ -116,26 +119,16 @@ async fn fetch_profile_remotely(
 
     // 3. Exact display_name match (case-insensitive)
     if found_item.is_none() {
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean), None, Some(1)).await {
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean_enc), None, Some(1)).await {
             if let Some(item) = rows.into_iter().next() {
                 found_item = Some(item);
             }
         }
     }
 
-    // 4. Combined PostgREST OR query
+    // 4. Substring / wildcard search in username or display_name
     if found_item.is_none() {
-        let filter = format!("or=(username.ilike.{},display_name.ilike.{})", clean, clean);
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
-            if let Some(item) = rows.into_iter().next() {
-                found_item = Some(item);
-            }
-        }
-    }
-
-    // 5. Wildcard substring match
-    if found_item.is_none() {
-        let filter = format!("or=(username.ilike.*{}*,display_name.ilike.*{}*)", clean, clean);
+        let filter = format!("or=(username.ilike.%25{}%25,display_name.ilike.%25{}%25)", clean_enc, clean_enc);
         if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
             if let Some(item) = rows.into_iter().next() {
                 found_item = Some(item);
@@ -504,15 +497,6 @@ pub async fn friends_list(state: State<'_, AppState>) -> Result<Vec<FriendInfo>,
                 }
 
                 let db = state.db.read().await;
-                // Mutabakat: yerelde olan ancak uzakta artık bulunmayan arkadaşlıkları temizle
-                if let Ok(local_friends) = db.list_friends(&identity.id) {
-                    for lf in local_friends {
-                        if !active_remote_pairs.contains(&lf.user_id) {
-                            let _ = db.remove_friend(&identity.id, &lf.user_id);
-                        }
-                    }
-                }
-
                 for r in &remote_rows {
                     let r_user = r.get("user_id").and_then(|v| v.as_str()).unwrap_or("");
                     let r_friend = r.get("friend_id").and_then(|v| v.as_str()).unwrap_or("");

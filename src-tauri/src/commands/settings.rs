@@ -39,10 +39,10 @@ pub async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, Vei
     Ok(settings.clone())
 }
 
-/// Update application settings
+/// Update application settings (supports partial updates cleanly)
 #[tauri::command]
 pub async fn update_settings(
-    new_settings: AppSettings,
+    new_settings: serde_json::Value,
     state: State<'_, AppState>,
 ) -> Result<AppSettings, VeilError> {
     let data_dir = state.app.path().app_data_dir()
@@ -50,7 +50,20 @@ pub async fn update_settings(
 
     let saved = {
         let mut settings = state.settings.write().await;
-        *settings = new_settings;
+        let mut current_val = serde_json::to_value(&*settings)
+            .map_err(|_| VeilError::SerializationError)?;
+        
+        if let (serde_json::Value::Object(ref mut cur_map), serde_json::Value::Object(new_map)) = (&mut current_val, new_settings) {
+            for (k, v) in new_map {
+                if !v.is_null() {
+                    cur_map.insert(k, v);
+                }
+            }
+        }
+        
+        let merged: AppSettings = serde_json::from_value(current_val)
+            .map_err(|_| VeilError::SerializationError)?;
+        *settings = merged;
         settings.save(&data_dir)?;
         settings.clone()
     };

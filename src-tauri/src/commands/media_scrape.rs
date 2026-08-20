@@ -21,10 +21,36 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
     // Validate URL
     let parsed = url::Url::parse(&url).map_err(|e| format!("Invalid URL: {}", e))?;
 
+    let lower_path = parsed.path().to_lowercase();
+    if lower_path.ends_with(".mp4") || lower_path.ends_with(".webm") || lower_path.ends_with(".mov") || lower_path.ends_with(".mkv") || lower_path.ends_with(".ogv") {
+        return Ok(ScrapeResult {
+            success: true,
+            media_urls: vec![MediaCandidate {
+                url: parsed.to_string(),
+                media_type: "video".into(),
+                source: "direct_link".into(),
+            }],
+            title: Some("Doğrudan Video Linki".into()),
+            error: None,
+        });
+    }
+    if lower_path.ends_with(".png") || lower_path.ends_with(".jpg") || lower_path.ends_with(".jpeg") || lower_path.ends_with(".gif") || lower_path.ends_with(".webp") || lower_path.ends_with(".avif") || lower_path.ends_with(".bmp") || lower_path.ends_with(".svg") {
+        return Ok(ScrapeResult {
+            success: true,
+            media_urls: vec![MediaCandidate {
+                url: parsed.to_string(),
+                media_type: "image".into(),
+                source: "direct_link".into(),
+            }],
+            title: Some("Doğrudan Görsel Linki".into()),
+            error: None,
+        });
+    }
+
     // Fetch the page HTML with timeout
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
         .build()
         .map_err(|e| format!("Client error: {}", e))?;
 
@@ -32,6 +58,32 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
         .send()
         .await
         .map_err(|e| format!("Fetch error: {}", e))?;
+
+    if let Some(ct) = response.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()) {
+        if ct.starts_with("image/") {
+            return Ok(ScrapeResult {
+                success: true,
+                media_urls: vec![MediaCandidate {
+                    url: parsed.to_string(),
+                    media_type: "image".into(),
+                    source: "content_type_header".into(),
+                }],
+                title: Some("Doğrudan Görsel".into()),
+                error: None,
+            });
+        } else if ct.starts_with("video/") {
+            return Ok(ScrapeResult {
+                success: true,
+                media_urls: vec![MediaCandidate {
+                    url: parsed.to_string(),
+                    media_type: "video".into(),
+                    source: "content_type_header".into(),
+                }],
+                title: Some("Doğrudan Video".into()),
+                error: None,
+            });
+        }
+    }
 
     let html = response.text().await
         .map_err(|e| format!("Read error: {}", e))?;
@@ -41,6 +93,8 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
 
     // Extract title
     if let Some(t) = extract_meta_content(&html, "og:title") {
+        title = Some(t);
+    } else if let Some(t) = extract_meta_content(&html, "twitter:title") {
         title = Some(t);
     } else if let Some(t) = extract_tag_content(&html, "title") {
         title = Some(t);

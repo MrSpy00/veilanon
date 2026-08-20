@@ -1996,9 +1996,11 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
                                 let mut status_str = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
                                 if status_str != "offline" {
                                     let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
-                                    if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                        if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 90 {
-                                            status_str = "offline";
+                                    if !hb_str.is_empty() {
+                                        if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
+                                            if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 300 {
+                                                status_str = "offline";
+                                            }
                                         }
                                     }
                                 }

@@ -6,6 +6,7 @@
   import Avatar from '../ui/Avatar.svelte';
   import BannerImage from '../ui/BannerImage.svelte';
   import BannerCropModal from '../ui/BannerCropModal.svelte';
+  import ImageCropModal from '../ui/ImageCropModal.svelte';
   import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { uiStore } from '$lib/stores/ui';
@@ -20,6 +21,7 @@
   import { copyText } from '$lib/utils/clipboard';
 
   let cropSrc = $state<string | null>(null);
+  let iconCropSrc = $state<string | null>(null);
 
   const ui = $derived($uiStore);
   const spaces = $derived($spaceStore);
@@ -267,9 +269,28 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
+    if (selected.toLowerCase().endsWith('.gif')) {
+      mediaBusy = true;
+      try {
+        await spaceApi.setIcon(spaceId, selected);
+        await refreshSpaceAfterMedia();
+        toastStore.success('Animasyonlu topluluk ikonu güncellendi.');
+      } catch {
+        toastStore.error('İkon yüklenemedi.');
+      } finally {
+        mediaBusy = false;
+      }
+      return;
+    }
+    iconCropSrc = await readLocalImageAsDataUrl(selected);
+  }
+
+  async function handleSpaceIconCropSave(croppedDataUrl: string) {
+    iconCropSrc = null;
+    if (!spaceId) return;
     mediaBusy = true;
     try {
-      await spaceApi.setIcon(spaceId, selected);
+      await spaceApi.setIcon(spaceId, croppedDataUrl);
       await refreshSpaceAfterMedia();
       toastStore.success('Topluluk ikonu güncellendi.');
     } catch {
@@ -1308,6 +1329,17 @@
           </button>
         </div>
       </div>
+    {/if}
+
+    {#if iconCropSrc}
+      <ImageCropModal
+        src={iconCropSrc}
+        shape="circle"
+        aspectRatio={1}
+        title="Topluluk İkonunu Ayarla"
+        onSave={handleSpaceIconCropSave}
+        onClose={() => { iconCropSrc = null; }}
+      />
     {/if}
 
     {#if cropSrc}

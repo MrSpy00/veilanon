@@ -22,6 +22,13 @@ export type Modal =
   | 'role-editor'
   | null;
 
+export interface BgPlaylistItem {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+  title?: string;
+}
+
 interface UiState {
   theme: Theme;
   presetThemeId: string;
@@ -31,6 +38,8 @@ interface UiState {
   customBgImage: string;
   customBgVideo: string;
   customBgOpacity: number;
+  messageBackdropBlur: number;
+  bgPlaylist: BgPlaylistItem[];
   activeSpaceId: string | null;
   activeChannelId: string | null;
   activeDmId: string | null;
@@ -68,6 +77,8 @@ function createUiStore() {
     customBgImage: '',
     customBgVideo: '',
     customBgOpacity: 0.26,
+    messageBackdropBlur: 8,
+    bgPlaylist: [],
     activeSpaceId: null,
     activeChannelId: null,
     activeDmId: null,
@@ -102,6 +113,12 @@ function createUiStore() {
 
     applyThemeTokensToDom(state.presetThemeId, isDark, amoled, accent);
     applyCustomCssNode(state.customCss, state.customCssEnabled);
+
+    document.documentElement.style.setProperty('--veil-msg-blur', `${state.messageBackdropBlur ?? 8}px`);
+    document.documentElement.setAttribute(
+      'data-has-custom-bg',
+      Boolean(state.customBgImage || state.customBgVideo) ? 'true' : 'false'
+    );
   }
 
   return {
@@ -113,15 +130,29 @@ function createUiStore() {
         this.resetThemeToDefault();
         return;
       }
+      const storedTheme = (localStorage.getItem(userBgKey('veilanon-theme', userId)) || localStorage.getItem('veilanon-theme') || 'dark') as Theme;
+      const storedPreset = localStorage.getItem(userBgKey('veilanon-preset', userId)) || localStorage.getItem('veilanon-preset') || 'veil-origin';
       const storedImage = localStorage.getItem(userBgKey('veilanon-bg-image', userId)) || '';
       const storedVideo = localStorage.getItem(userBgKey('veilanon-bg-video', userId)) || '';
       const storedOpacity = parseFloat(localStorage.getItem(userBgKey('veilanon-bg-opacity', userId)) || '0.26');
+      const storedBlur = parseFloat(localStorage.getItem(userBgKey('veilanon-msg-blur', userId)) || '8');
+      
+      let storedPlaylist: BgPlaylistItem[] = [];
+      try {
+        const raw = localStorage.getItem(userBgKey('veilanon-bg-playlist', userId));
+        if (raw) storedPlaylist = JSON.parse(raw);
+      } catch { /* ignored */ }
+
       update(s => {
         const next = {
           ...s,
+          theme: storedTheme,
+          presetThemeId: storedPreset,
           customBgImage: storedImage,
           customBgVideo: storedVideo,
           customBgOpacity: isNaN(storedOpacity) ? 0.26 : storedOpacity,
+          messageBackdropBlur: isNaN(storedBlur) ? 8 : storedBlur,
+          bgPlaylist: storedPlaylist,
         };
         refreshDomTheme(next);
         return next;
@@ -136,6 +167,8 @@ function createUiStore() {
           customBgImage: '',
           customBgVideo: '',
           customBgOpacity: 0.26,
+          messageBackdropBlur: 8,
+          bgPlaylist: [],
         };
         refreshDomTheme(next);
         return next;
@@ -204,7 +237,7 @@ function createUiStore() {
     },
 
     setCustomBackground(image: string, video: string, opacity: number) {
-      const clampedOpacity = Math.max(0, Math.min(0.6, opacity));
+      const clampedOpacity = Math.max(0, Math.min(1.0, opacity));
       update(s => {
         const next = {
           ...s,
@@ -215,6 +248,64 @@ function createUiStore() {
         localStorage.setItem(userBgKey('veilanon-bg-image'), image);
         localStorage.setItem(userBgKey('veilanon-bg-video'), video);
         localStorage.setItem(userBgKey('veilanon-bg-opacity'), String(clampedOpacity));
+        refreshDomTheme(next);
+        return next;
+      });
+    },
+
+    setMessageBlur(blur: number) {
+      const clampedBlur = Math.max(0, Math.min(30, blur));
+      update(s => {
+        const next = { ...s, messageBackdropBlur: clampedBlur };
+        localStorage.setItem(userBgKey('veilanon-msg-blur'), String(clampedBlur));
+        refreshDomTheme(next);
+        return next;
+      });
+    },
+
+    setPlaylist(playlist: BgPlaylistItem[]) {
+      update(s => {
+        const next = { ...s, bgPlaylist: playlist };
+        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(playlist));
+        return next;
+      });
+    },
+
+    addPlaylistItem(item: BgPlaylistItem) {
+      update(s => {
+        const list = [...s.bgPlaylist.filter(p => p.url !== item.url), item];
+        const next = { ...s, bgPlaylist: list };
+        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
+        return next;
+      });
+    },
+
+    removePlaylistItem(id: string) {
+      update(s => {
+        const list = s.bgPlaylist.filter(p => p.id !== id);
+        const next = { ...s, bgPlaylist: list };
+        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
+        return next;
+      });
+    },
+
+    cyclePlaylistNext() {
+      update(s => {
+        if (!s.bgPlaylist || s.bgPlaylist.length === 0) return s;
+        const curUrl = s.customBgImage || s.customBgVideo;
+        const curIdx = s.bgPlaylist.findIndex(p => p.url === curUrl);
+        const nextIdx = (curIdx + 1) % s.bgPlaylist.length;
+        const target = s.bgPlaylist[nextIdx];
+        if (!target) return s;
+        const img = target.type === 'image' ? target.url : '';
+        const vid = target.type === 'video' ? target.url : '';
+        const next = {
+          ...s,
+          customBgImage: img,
+          customBgVideo: vid,
+        };
+        localStorage.setItem(userBgKey('veilanon-bg-image'), img);
+        localStorage.setItem(userBgKey('veilanon-bg-video'), vid);
         refreshDomTheme(next);
         return next;
       });

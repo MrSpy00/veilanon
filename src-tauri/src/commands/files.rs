@@ -372,15 +372,15 @@ pub async fn get_file_data_url(
         "video/mp4"
     } else if plaintext.starts_with(b"\x1A\x45\xDF\xA3") {
         if let Some(ref hint) = mime_hint {
-            if hint.starts_with("audio/") || hint.contains("opus") {
+            if hint.starts_with("audio/") || hint.contains("opus") || hint.contains("audio") || hint.contains("ses") {
                 "audio/webm"
             } else if hint.starts_with("video/") {
                 "video/webm"
             } else {
-                "video/webm"
+                "audio/webm"
             }
         } else {
-            "video/webm"
+            "audio/webm"
         }
     } else if plaintext.starts_with(b"fLaC") {
         "audio/flac"

@@ -81,8 +81,7 @@
     try {
       const space = await spaceStore.joinPublic(sp.customLink || sp.id);
       toastStore.success(`Topluluğa katıldın: ${space.name}`);
-      uiStore.navigate(space.id, null);
-      spaceStore.loadChannels(space.id);
+      void uiStore.navigateSpace(space.id);
     } catch (err) {
       toastStore.error(`Topluluğa katılınamadı: ${String(err).replace(/^Error:\s*/, '')}`);
     } finally {
@@ -149,8 +148,7 @@
       const space = await spaceStore.redeem(code);
       toastStore.success(`Topluluğa katıldın: ${space.name}`);
       inviteCode = '';
-      uiStore.navigate(space.id, null);
-      spaceStore.loadChannels(space.id);
+      void uiStore.navigateSpace(space.id);
     } catch {
       toastStore.error('Davet kodu veya bağlantısı geçersiz ya da süresi dolmuş.');
     } finally {
@@ -248,7 +246,7 @@
             {#each spaces.spaces as space (space.id)}
               <button
                 class="veil-space-row"
-                onclick={() => { uiStore.navigate(space.id, null); spaceStore.loadChannels(space.id); }}
+                onclick={() => void uiStore.navigateSpace(space.id)}
               >
                 <span class="veil-space-row-icon" aria-hidden="true">
                   <Avatar name={space.name} hash={space.iconHash} size="md" />
@@ -265,93 +263,88 @@
 
         <div class="veil-home-divider" role="separator"></div>
 
-        <!-- Açık Toplulukları Keşfet -->
-        <div class="veil-discover-section">
-          <div class="veil-home-panel-title-row" style="border-bottom:none; padding-bottom:0;">
-            <div class="veil-discover-heading">
-              <h3 class="veil-home-panel-title">Açık Toplulukları Keşfet</h3>
-              <span class="veil-discover-sub">Yeni insanlarla tanış, ilgi alanlarına göre topluluklara katıl</span>
-            </div>
+        <div class="veil-home-section-header">
+          <div class="veil-home-section-title">
+            <Icon name="compass" size={16} />
+            <span>Açık Toplulukları Keşfet</span>
           </div>
-
-          <div class="veil-discover-search-bar">
-            <Icon name="search" size={15} />
+          <div class="veil-home-search-wrap">
             <input
-              class="veil-input veil-discover-input"
+              type="search"
+              class="veil-input veil-home-search"
+              placeholder="Topluluk ara…"
               bind:value={discoverSearch}
-              placeholder="Topluluk adı, konu veya açıklama ara…"
-              aria-label="Açık topluluk ara"
-              oninput={searchPublicSpaces}
-              onkeydown={(e) => { if (e.key === 'Enter') searchPublicSpaces(); }}
+              oninput={() => { searchPublicSpaces(); }}
             />
-            {#if searchingPublic}
-              <div class="veil-spinner" style="width:16px;height:16px;"></div>
-            {/if}
           </div>
+        </div>
 
-          {#if discoverSpaces.length > 0}
-            <div class="veil-discover-cards-grid">
-              {#each discoverSpaces as sp (sp.id)}
-                {@const isJoined = spaces.spaces.some(s => s.id === sp.id)}
-                <div class="veil-community-card">
-                  <div class="veil-community-card-banner">
-                    {#if sp.bannerHash}
-                      <BannerImage hash={sp.bannerHash} alt="" class="veil-community-banner-img" />
-                    {:else}
-                      <div class="veil-community-banner-placeholder"></div>
-                    {/if}
-                    <div class="veil-community-avatar-wrap">
-                      <Avatar name={sp.name} hash={sp.iconHash} size="md" />
-                    </div>
+        {#if searchingPublic}
+          <div class="veil-home-loading">
+            <div class="veil-spinner"></div>
+            <span>Açık topluluklar taranıyor…</span>
+          </div>
+        {:else if discoverSpaces.length === 0}
+          <div class="veil-home-empty">
+            <div class="veil-home-empty-icon"><Icon name="compass" size={40} /></div>
+            <p>Açık topluluk bulunamadı</p>
+            <span>Topluluk ayarlarından kendi topluluğunu herkese açık hale getirebilirsin.</span>
+          </div>
+        {:else}
+          <div class="veil-communities-grid">
+            {#each discoverSpaces as sp (sp.id)}
+              {@const isJoined = spaces.spaces.some(s => s.id === sp.id)}
+              <div class="veil-community-card">
+                <div class="veil-community-card-banner">
+                  {#if sp.bannerHash}
+                    <BannerImage hash={sp.bannerHash} alt="" class="veil-community-banner-img" />
+                  {/if}
+                </div>
+
+                <div class="veil-community-card-body">
+                  <div class="veil-community-card-avatar-wrap">
+                    <Avatar name={sp.name} hash={sp.iconHash} size="lg" />
                   </div>
 
-                  <div class="veil-community-card-body">
-                    <div class="veil-community-header">
-                      <h4 class="veil-community-name" title={sp.name}>{sp.name}</h4>
-                      <span class="veil-community-members-pill">
-                        <Icon name="users" size={12} />
-                        {sp.memberCount} üye
-                      </span>
-                    </div>
+                  <div class="veil-community-card-info">
+                    <span class="veil-community-name">{sp.name}</span>
+                    <span class="veil-community-members">
+                      <span class="veil-online-dot"></span>
+                      {sp.memberCount || 1} üye
+                    </span>
+                  </div>
 
-                    <p class="veil-community-desc">
-                      {sp.description || 'Bu topluluk gizlilik odaklı sohbet ve paylaşımlar için açılmıştır.'}
-                    </p>
+                  <p class="veil-community-desc">
+                    {sp.description || 'Bu topluluk gizlilik odaklı sohbet ve paylaşımlar için açılmıştır.'}
+                  </p>
 
-                    <div class="veil-community-card-footer">
-                      {#if sp.customLink}
-                        <span class="veil-community-link-tag">/{sp.customLink}</span>
-                      {/if}
-                      {#if isJoined}
-                        <button
-                          class="btn btn-secondary btn-sm"
-                          onclick={() => { uiStore.navigate(sp.id, null); spaceStore.loadChannels(sp.id); }}
-                        >
-                          <Icon name="check" size={13} />
-                          Görüntüle
-                        </button>
-                      {:else}
-                        <button
-                          class="btn btn-primary btn-sm"
-                          onclick={() => joinPublicSpace(sp)}
-                          disabled={joiningSpaceId === sp.id}
-                        >
-                          {joiningSpaceId === sp.id ? 'Katılıyor…' : 'Katıl'}
-                        </button>
-                      {/if}
-                    </div>
+                  <div class="veil-community-card-footer">
+                    {#if sp.customLink}
+                      <span class="veil-community-link-tag">/{sp.customLink}</span>
+                    {/if}
+                    {#if isJoined}
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        onclick={() => void uiStore.navigateSpace(sp.id)}
+                      >
+                        <Icon name="check" size={13} />
+                        Görüntüle
+                      </button>
+                    {:else}
+                      <button
+                        class="btn btn-primary btn-sm"
+                        onclick={() => joinPublicSpace(sp)}
+                        disabled={joiningSpaceId === sp.id}
+                      >
+                        {joiningSpaceId === sp.id ? 'Katılıyor…' : 'Katıl'}
+                      </button>
+                    {/if}
                   </div>
                 </div>
-              {/each}
-            </div>
-          {:else if !searchingPublic}
-            <div class="veil-home-empty" style="padding: var(--space-4);">
-              <span style="font-size: var(--text-xs); color: var(--veil-text-muted);">
-                {discoverSearch ? 'Aramanızla eşleşen açık topluluk bulunamadı.' : 'Henüz listelenmiş açık topluluk yok.'}
-              </span>
-            </div>
-          {/if}
-        </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
 
         <div class="veil-home-divider" role="separator"></div>
 

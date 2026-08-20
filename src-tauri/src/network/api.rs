@@ -271,6 +271,19 @@ impl ApiClient {
             .send()
             .await?;
 
+        let resp = if resp.status() == reqwest::StatusCode::UNAUTHORIZED && self.access_token.is_some() {
+            // Expired or invalid user token — retry with anon key
+            self.client
+                .get(&url)
+                .header("apikey", &self.anon_key)
+                .header("Authorization", format!("Bearer {}", self.anon_key))
+                .header("Accept", "application/json")
+                .send()
+                .await?
+        } else {
+            resp
+        };
+
         self.check_status(resp.status())?;
         let items: Vec<T> = resp.json().await?;
         Ok(items)

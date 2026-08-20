@@ -67,6 +67,22 @@
   onMount(() => {
     const unlisten = listen('veilanon:broadcast', (e: any) => {
       const p = e.payload;
+      if (p?.type === 'request_voice_presence' || p?.action === 'query_voice_presence') {
+        if (media.isInCall && media.channelId) {
+          void invoke('broadcast_voice_state', {
+            input: {
+              channel_id: media.channelId,
+              is_muted: media.isMuted,
+              is_deafened: media.isDeafened,
+              is_camera_on: media.isCameraOn,
+              is_screen_sharing: media.isScreenSharing,
+              is_speaking: media.isSpeaking,
+            },
+          }).catch(() => {});
+        }
+        return;
+      }
+
       if (p?.type === 'voice_presence') {
         const cid = p.channel_id;
         const uid = p.user_id;
@@ -109,6 +125,22 @@
     return () => {
       unlisten.then((fn) => fn()).catch(() => {});
     };
+  });
+
+  // Query voice presence when switching spaces so we immediately see who is in voice
+  $effect(() => {
+    if (ui.activeSpaceId) {
+      void invoke('broadcast_voice_state', {
+        input: {
+          channel_id: '',
+          is_muted: media.isMuted,
+          is_deafened: media.isDeafened,
+          is_camera_on: media.isCameraOn,
+          is_screen_sharing: media.isScreenSharing,
+          is_speaking: media.isSpeaking,
+        },
+      }).catch(() => {});
+    }
   });
 
   // Broadcast local voice state to space members when active in a channel
