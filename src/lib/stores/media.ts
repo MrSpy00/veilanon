@@ -110,6 +110,28 @@ function createMediaStore() {
   let localVadTimer: ReturnType<typeof setInterval> | null = null;
   let isJoining = false;
 
+  const participantVolumeMap: Record<string, number> = {};
+
+  function getParticipantVolumeInternal(participantId: string): number {
+    if (!participantId) return 1;
+    if (participantVolumeMap[participantId] !== undefined) {
+      return participantVolumeMap[participantId];
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`veil_voice_vol_${participantId}`);
+        if (stored) {
+          const val = parseFloat(stored);
+          if (!isNaN(val)) {
+            participantVolumeMap[participantId] = val;
+            return val;
+          }
+        }
+      } catch { /* ignored */ }
+    }
+    return 1;
+  }
+
   async function loadAudioOpts(): Promise<AudioCaptureOptions> {
     try {
       const s = await settingsApi.get();
@@ -407,7 +429,7 @@ function createMediaStore() {
           updateParticipants();
         };
 
-        const attachAudioTrack = (track: RemoteTrack) => {
+        const attachAudioTrack = (track: RemoteTrack, participantId: string = '') => {
           if (room !== r) return;
           if (track.kind !== Track.Kind.Audio) return;
           if (typeof document === 'undefined') return;
@@ -422,8 +444,10 @@ function createMediaStore() {
             if (st.outputDeviceId && typeof (audioEl as any).setSinkId === 'function') {
               (audioEl as any).setSinkId(st.outputDeviceId).catch(() => {});
             }
+            const savedVol = getParticipantVolumeInternal(participantId);
+            audioEl.volume = Math.min(1, Math.max(0, savedVol));
             if (st.outputVolume !== undefined) {
-              audioEl.volume = Math.max(0, Math.min(1, st.outputVolume / 100));
+              audioEl.volume = Math.min(audioEl.volume, Math.max(0, st.outputVolume / 100));
             }
           }).catch(() => {});
           document.body.appendChild(audioEl);
@@ -723,12 +747,18 @@ function createMediaStore() {
     },
 
     /**
-     * Tek bir kullanıcının ses seviyesi (0..1). Deafen'dan bağımsız — sağ tık
+     * Tek bir kullanıcının ses seviyesi (0..2). Deafen'dan bağımsız — sağ tık
      * menüsü ve ses karıştırıcıdan çağrılır.
      */
     setParticipantVolume(participantSid: string, volume: number) {
-      if (!room) return;
       const clamped = Math.min(2, Math.max(0, volume));
+      participantVolumeMap[participantSid] = clamped;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`veil_voice_vol_${participantSid}`, String(clamped));
+        } catch { /* ignored */ }
+      }
+      if (!room) return;
       let p = room.remoteParticipants.get(participantSid);
       if (!p) {
         p = Array.from(room.remoteParticipants.values()).find(
@@ -766,16 +796,17 @@ function createMediaStore() {
       }
     },
 
-    /** Bir katılımcının mevcut ses seviyesi (0..1; bilinmiyorsa 1). */
+    /** Bir katılımcının mevcut ses seviyesi (0..2; bilinmiyorsa 1). */
     getParticipantVolume(participantSid: string): number {
-      if (!room) return 1;
+      const stored = getParticipantVolumeInternal(participantSid);
+      if (!room) return stored;
       let p = room.remoteParticipants.get(participantSid);
       if (!p) {
         p = Array.from(room.remoteParticipants.values()).find(
           (x) => x.identity === participantSid || x.sid === participantSid
         );
       }
-      return p?.getVolume() ?? 1;
+      return p?.getVolume() ?? stored;
     },
 
     async toggleCamera() {

@@ -110,8 +110,19 @@ html[data-amoled="true"] {
 [data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-chat,
 [data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-messages,
 [data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-member-list,
-[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-home {
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-home,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-chat-header,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-channel-header,
+[data-amoled="true"]:not([data-has-custom-bg="true"]) .veil-bottom-user-unified {
   background-color: #000000 !important;
+  background: #000000 !important;
+  --veil-bg-void: #000000 !important;
+  --veil-bg-base: #000000 !important;
+  --veil-bg-elevated: #050505 !important;
+  --veil-bg-surface: #0a0a0a !important;
+  --veil-bg-overlay: #141414 !important;
+  --veil-sidebar-bg: #000000 !important;
+  --veil-channel-bg: #000000 !important;
 }
 
 /* ── Light Theme ───────────────────────────────────────────── */
@@ -2609,6 +2620,10 @@ select:-webkit-autofill {
   height: 100%;
   object-fit: cover;
   display: block;
+  image-rendering: -webkit-optimize-contrast;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
   transition: opacity var(--t-base, 200ms ease);
 }
 
@@ -2643,7 +2658,7 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-chat-header,
 .veil-app[data-has-custom-bg="true"] .veil-chat-header,
 [data-has-custom-bg="true"] .veil-chat-header {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -2652,7 +2667,7 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-sidebar,
 .veil-app[data-has-custom-bg="true"] .veil-sidebar,
 [data-has-custom-bg="true"] .veil-sidebar {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -2664,7 +2679,7 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-channel-list,
 [data-has-custom-bg="true"] .veil-channels,
 [data-has-custom-bg="true"] .veil-channel-list {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -2674,14 +2689,16 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-channel-header,
 [data-has-custom-bg="true"] .veil-channel-header,
 [data-has-custom-bg="true"] .veil-space-hero-wrap {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-member-list,
 .veil-app[data-has-custom-bg="true"] .veil-member-list,
 [data-has-custom-bg="true"] .veil-member-list {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -2695,7 +2712,7 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-voice-stage-full,
 .veil-app[data-has-custom-bg="true"] .veil-voice-stage-full,
 [data-has-custom-bg="true"] .veil-voice-stage-full {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
 }
@@ -2709,7 +2726,7 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-voice-lobby-card,
 .veil-app[data-has-custom-bg="true"] .veil-voice-lobby-card,
 [data-has-custom-bg="true"] .veil-voice-lobby-card {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 50%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -2737,7 +2754,7 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-bottom-user-unified,
 .veil-app[data-has-custom-bg="true"] .veil-bottom-user-unified,
 [data-has-custom-bg="true"] .veil-bottom-user-unified {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -2748,7 +2765,7 @@ select:-webkit-autofill {
 }
 
 [data-has-custom-bg="true"] .veil-message-box {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
   backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;

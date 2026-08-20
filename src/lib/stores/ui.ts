@@ -132,6 +132,8 @@ function createUiStore() {
       }
       const storedTheme = (localStorage.getItem(userBgKey('veilanon-theme', userId)) || localStorage.getItem('veilanon-theme') || 'dark') as Theme;
       const storedPreset = localStorage.getItem(userBgKey('veilanon-preset', userId)) || localStorage.getItem('veilanon-preset') || 'veil-origin';
+      const storedAccent = localStorage.getItem(userBgKey('veilanon-accent', userId)) || localStorage.getItem('veilanon-accent') || null;
+      const storedAmoled = (localStorage.getItem(userBgKey('veilanon-amoled', userId)) || localStorage.getItem('veilanon-amoled')) === 'true';
       const storedImage = localStorage.getItem(userBgKey('veilanon-bg-image', userId)) || '';
       const storedVideo = localStorage.getItem(userBgKey('veilanon-bg-video', userId)) || '';
       const storedOpacity = parseFloat(localStorage.getItem(userBgKey('veilanon-bg-opacity', userId)) || '0.26');
@@ -179,6 +181,7 @@ function createUiStore() {
       update(s => {
         const next = { ...s, theme };
         localStorage.setItem('veilanon-theme', theme);
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-theme'), theme);
         refreshDomTheme(next);
         return next;
       });
@@ -188,6 +191,7 @@ function createUiStore() {
       update(s => {
         const next = { ...s, presetThemeId };
         localStorage.setItem('veilanon-preset', presetThemeId);
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-preset'), presetThemeId);
         refreshDomTheme(next);
         return next;
       });
@@ -196,8 +200,10 @@ function createUiStore() {
     setAccentColor(color: string | null) {
       if (!color) {
         localStorage.removeItem('veilanon-accent');
+        if (activeUserId) localStorage.removeItem(userBgKey('veilanon-accent'));
       } else {
         localStorage.setItem('veilanon-accent', color);
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-accent'), color);
       }
       update(s => {
         refreshDomTheme(s);
@@ -208,8 +214,10 @@ function createUiStore() {
     setAmoledMode(enabled: boolean) {
       if (enabled) {
         localStorage.setItem('veilanon-amoled', 'true');
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-amoled'), 'true');
       } else {
         localStorage.removeItem('veilanon-amoled');
+        if (activeUserId) localStorage.removeItem(userBgKey('veilanon-amoled'));
       }
       update(s => {
         refreshDomTheme(s);
@@ -222,6 +230,7 @@ function createUiStore() {
       update(s => {
         const next = { ...s, customCss: sanitized.safe };
         localStorage.setItem('veilanon-custom-css', sanitized.safe);
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-custom-css'), sanitized.safe);
         refreshDomTheme(next);
         return next;
       });
@@ -231,6 +240,7 @@ function createUiStore() {
       update(s => {
         const next = { ...s, customCssEnabled: enabled };
         localStorage.setItem('veilanon-custom-css-enabled', enabled ? 'true' : 'false');
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-custom-css-enabled'), enabled ? 'true' : 'false');
         refreshDomTheme(next);
         return next;
       });
@@ -314,6 +324,7 @@ function createUiStore() {
     setCustomThemeName(customThemeName: string) {
       update(s => {
         localStorage.setItem('veilanon-custom-theme-name', customThemeName);
+        if (activeUserId) localStorage.setItem(userBgKey('veilanon-custom-theme-name'), customThemeName);
         return { ...s, customThemeName };
       });
     },
@@ -397,6 +408,21 @@ function createUiStore() {
         targetChannelId = localStorage.getItem(`veil_last_channel_${spaceId}`);
       } catch { /* ignored */ }
 
+      // Synchronously pick existing channels if already loaded in memory to prevent <Home /> flash
+      let inMemoryChannels: any[] = [];
+      try {
+        const { get } = await import('svelte/store');
+        const spState = get(spaceStore);
+        inMemoryChannels = spState.channelsBySpace[spaceId] ?? [];
+      } catch { /* ignored */ }
+
+      if (!targetChannelId && inMemoryChannels.length > 0) {
+        const defaultText = inMemoryChannels.find(c => c.channelType === 'text' && (c.name.toLowerCase() === 'genel' || c.name.toLowerCase() === 'general'))
+          ?? inMemoryChannels.find(c => c.channelType === 'text')
+          ?? inMemoryChannels[0];
+        targetChannelId = defaultText?.id ?? null;
+      }
+
       update(s => ({
         ...s,
         activeSpaceId: spaceId,
@@ -407,7 +433,9 @@ function createUiStore() {
       const channels = await spaceStore.loadChannels(spaceId);
       if (channels && channels.length > 0) {
         if (!targetChannelId || !channels.some(c => c.id === targetChannelId)) {
-          const defaultText = channels.find(c => c.channelType === 'text') ?? channels[0];
+          const defaultText = channels.find(c => c.channelType === 'text' && (c.name.toLowerCase() === 'genel' || c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'welcome' || c.name.toLowerCase() === 'hosgeldiniz'))
+            ?? channels.find(c => c.channelType === 'text')
+            ?? channels[0];
           targetChannelId = defaultText?.id ?? null;
           if (targetChannelId) {
             try {

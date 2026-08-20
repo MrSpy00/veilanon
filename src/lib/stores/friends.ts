@@ -58,18 +58,25 @@ function createFriendsStore() {
   return {
     subscribe,
 
-    load() {
+    async load(): Promise<FriendInfo[]> {
       if (loadTimer !== null) {
         clearTimeout(loadTimer);
-      }
-      loadTimer = setTimeout(() => {
         loadTimer = null;
-        doLoad();
-      }, 100);
+      }
+      await doLoad();
+      return get({ subscribe }).friends;
     },
 
     async add(username: string): Promise<void> {
-      await friendApi.add({ username });
+      let clean = username.trim();
+      if (clean.includes('/u/')) {
+        clean = clean.split('/u/')[1] || clean;
+      } else if (clean.includes('/user/')) {
+        clean = clean.split('/user/')[1] || clean;
+      }
+      clean = clean.split('?')[0].split('#')[0].split('/')[0].trim().replace(/^@/, '').trim();
+      if (!clean) throw new Error('Geçerli bir kullanıcı adı girin');
+      await friendApi.add({ username: clean });
       await this.load();
     },
 

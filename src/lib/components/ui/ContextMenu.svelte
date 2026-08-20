@@ -76,7 +76,7 @@
       if (first !== undefined) {
         activeIndex = first;
         const btns = itemButtons();
-        btns[0]?.focus();
+        btns[0]?.focus({ preventScroll: true });
       }
     });
     const onDown = (e: MouseEvent) => {
@@ -97,7 +97,7 @@
     const next = list[nextIdx];
     activeIndex = next;
     const btns = itemButtons();
-    btns[nextIdx]?.focus();
+    btns[nextIdx]?.focus({ preventScroll: true });
   }
 
   function onKeydown(e: KeyboardEvent) {

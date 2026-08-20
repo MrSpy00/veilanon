@@ -1243,25 +1243,13 @@
     justify-content: space-between;
     gap: var(--space-4, 1rem);
     padding: 16px 20px;
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(59, 130, 246, 0.08) 50%, rgba(16, 185, 129, 0.05) 100%), var(--veil-bg-elevated, #151824);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 16px;
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 70%, transparent);
+    border: 1px solid var(--veil-border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: var(--radius-lg, 14px);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
     margin-bottom: var(--space-2, 0.5rem);
     backdrop-filter: blur(16px);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .header-banner::before {
-    content: '';
-    position: absolute;
-    top: -24px;
-    left: -24px;
-    width: 140px;
-    height: 140px;
-    background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
-    filter: blur(20px);
-    pointer-events: none;
   }
 
   .header-banner-left {
@@ -1276,16 +1264,15 @@
   .header-icon-wrap {
     width: 44px;
     height: 44px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.12));
-    border: 1px solid rgba(139, 92, 246, 0.4);
-    box-shadow: 0 0 18px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    color: #c4b5fd;
+    border-radius: var(--radius-md, 10px);
+    background: color-mix(in srgb, var(--veil-accent, #7c3aed) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--veil-accent, #7c3aed) 30%, transparent);
+    color: var(--veil-accent-light, #a78bfa);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+    transition: transform 0.2s ease;
   }
 
   .header-banner:hover .header-icon-wrap {

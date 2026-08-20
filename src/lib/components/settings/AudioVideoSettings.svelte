@@ -274,7 +274,7 @@
           <div class="veil-settings-row-desc">Kamera görüntüsünü ayna gibi yatay çevirir. Kapalıyken düz görünür.</div>
         </div>
         <Toggle
-          checked={settings.mirrorCamera ?? false}
+          checked={settings.mirrorCamera ?? true}
           onChange={(v) => void save({ mirrorCamera: v })}
           label="Kamerayı Aynala"
         />
@@ -288,7 +288,7 @@
           {#if testingVideo}
             <video
               class="veil-camera-preview-video"
-              class:mirrored={settings.mirrorCamera ?? false}
+              class:mirrored={settings.mirrorCamera ?? true}
               autoplay
               playsinline
               muted

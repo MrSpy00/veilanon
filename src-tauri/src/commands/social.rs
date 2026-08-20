@@ -80,6 +80,19 @@ fn dm_channel_type_string(stored: &str) -> String {
     }
 }
 
+fn sanitize_username_input(input: &str) -> String {
+    let mut s = input.trim();
+    if let Some(pos) = s.find("/u/") {
+        s = &s[pos + 3..];
+    } else if let Some(pos) = s.find("/user/") {
+        s = &s[pos + 6..];
+    }
+    let s = s.split('?').next().unwrap_or(s);
+    let s = s.split('#').next().unwrap_or(s);
+    let s = s.split('/').next().unwrap_or(s);
+    s.trim().trim_start_matches('@').trim().to_string()
+}
+
 /// Best-effort remote profile lookup with multi-level fallback strategies
 async fn fetch_profile_remotely(
     state: &AppState,
@@ -89,7 +102,7 @@ async fn fetch_profile_remotely(
         return None;
     }
     let network = state.network.read().await;
-    let clean = username_or_id.trim().trim_start_matches('@');
+    let clean = sanitize_username_input(username_or_id);
     if clean.is_empty() {
         return None;
     }
@@ -97,7 +110,7 @@ async fn fetch_profile_remotely(
     let mut found_item: Option<serde_json::Value> = None;
 
     // 1. Direct UUID match if input is a valid UUID
-    if let Ok(uid) = Uuid::parse_str(clean) {
+    if let Ok(uid) = Uuid::parse_str(&clean) {
         if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("id=eq.{}", uid), None, Some(1)).await {
             if let Some(item) = rows.into_iter().next() {
                 found_item = Some(item);
@@ -148,7 +161,7 @@ async fn fetch_profile_remotely(
     let uname = item.get("username")
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
-        .unwrap_or(clean)
+        .unwrap_or(&clean)
         .to_string();
 
     let display = item.get("display_name")
@@ -188,7 +201,7 @@ pub async fn friends_add(
 ) -> Result<(), VeilError> {
     let identity = state.get_or_restore_identity().await;
     let identity = identity.as_ref().ok_or(VeilError::Unauthenticated)?;
-    let clean_username = input.username.trim().trim_start_matches('@').to_string();
+    let clean_username = sanitize_username_input(&input.username);
 
     if clean_username.is_empty() || clean_username.len() > 64 {
         return Err(VeilError::InvalidInput("Geçerli bir kullanıcı adı girin".into()));
@@ -1404,31 +1417,51 @@ pub async fn get_user_profile(user_id: String, state: State<'_, AppState>) -> Re
 pub async fn resolve_username(username: String, state: State<'_, AppState>) -> Result<UserProfileResponse, VeilError> {
     let identity = state.get_or_restore_identity().await;
     let identity = identity.as_ref().ok_or(VeilError::Unauthenticated)?;
-    let username = username.trim().trim_start_matches('@');
-    if username.is_empty() || username.len() > 32 {
+    let clean_username = sanitize_username_input(&username);
+    if clean_username.is_empty() || clean_username.len() > 64 {
         return Err(VeilError::InvalidInput("Invalid username".into()));
     }
 
     let db = state.db.read().await;
-    let profile = db.get_profile_by_username(username)?;
-    let Some((target, username, display_name, avatar_hash)) = profile else {
-        if username.eq_ignore_ascii_case(&identity.username) {
-            let full_self = db.get_profile_full_by_id(&identity.id).ok().flatten();
-            let local_status = full_self.as_ref().map(|p| p.5.as_str()).unwrap_or("online");
-            let real_status = fetch_real_presence(&state, &identity.id, local_status).await;
-            return Ok(UserProfileResponse {
-                user_id: identity.id.to_string(),
-                username: identity.username.clone(),
-                display_name: identity.display_name.clone(),
-                avatar_hash: identity.avatar_hash.clone(),
-                banner_hash: identity.banner_hash.clone(),
-                bio: full_self.as_ref().and_then(|p| p.4.clone()),
-                custom_status: full_self.as_ref().and_then(|p| p.6.clone()),
-                online_status: real_status,
-                friend_status: "friends".into(),
-                created_at: None,
-            });
+    let profile = match db.get_profile_by_username(&clean_username)? {
+        Some(profile) => Some(profile),
+        None => {
+            if clean_username.eq_ignore_ascii_case(&identity.username) {
+                let full_self = db.get_profile_full_by_id(&identity.id).ok().flatten();
+                let local_status = full_self.as_ref().map(|p| p.5.as_str()).unwrap_or("online");
+                let real_status = fetch_real_presence(&state, &identity.id, local_status).await;
+                return Ok(UserProfileResponse {
+                    user_id: identity.id.to_string(),
+                    username: identity.username.clone(),
+                    display_name: identity.display_name.clone(),
+                    avatar_hash: identity.avatar_hash.clone(),
+                    banner_hash: identity.banner_hash.clone(),
+                    bio: full_self.as_ref().and_then(|p| p.4.clone()),
+                    custom_status: full_self.as_ref().and_then(|p| p.6.clone()),
+                    online_status: real_status,
+                    friend_status: "friends".into(),
+                    created_at: None,
+                });
+            }
+            fetch_profile_remotely(&state, &clean_username).await.map(
+                |(id, uname, display, avatar, dh, signing)| {
+                    let _ = db.upsert_profile(
+                        &id,
+                        &uname,
+                        &display,
+                        avatar.as_deref(),
+                        dh.as_deref(),
+                        signing.as_deref(),
+                        None,
+                        None,
+                        None,
+                    );
+                    (id, uname, display, avatar)
+                },
+            )
         }
+    };
+    let Some((target, target_username, display_name, avatar_hash)) = profile else {
         return Err(VeilError::InvalidInput("User not found".into()));
     };
 
@@ -1454,7 +1487,7 @@ pub async fn resolve_username(username: String, state: State<'_, AppState>) -> R
 
     Ok(UserProfileResponse {
         user_id: target.to_string(),
-        username,
+        username: target_username,
         display_name,
         avatar_hash,
         banner_hash,

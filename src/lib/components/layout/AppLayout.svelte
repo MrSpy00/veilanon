@@ -214,6 +214,10 @@
         channelId={ui.activeChannelId ?? ui.activeDmId ?? ''}
         isDm={!ui.activeChannelId}
       />
+    {:else if ui.activeSpaceId}
+      <div class="veil-channel-loading-wrap" style="flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-height:300px;">
+        <div class="veil-spinner"></div>
+      </div>
     {:else}
       <Home />
     {/if}

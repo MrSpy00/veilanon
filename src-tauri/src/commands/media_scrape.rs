@@ -131,6 +131,26 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
         }
     }
 
+    // Extract twitter:image / twitter:image:src
+    for content in extract_meta_contents(&html, "twitter:image") {
+        if !media_urls.iter().any(|m| m.url == content) {
+            media_urls.push(MediaCandidate {
+                url: resolve_url(&parsed, &content),
+                media_type: "image".to_string(),
+                source: "twitter:image".to_string(),
+            });
+        }
+    }
+    for content in extract_meta_contents(&html, "twitter:image:src") {
+        if !media_urls.iter().any(|m| m.url == content) {
+            media_urls.push(MediaCandidate {
+                url: resolve_url(&parsed, &content),
+                media_type: "image".to_string(),
+                source: "twitter:image:src".to_string(),
+            });
+        }
+    }
+
     // Extract <video> src attributes
     for src in extract_video_srcs(&html) {
         if !media_urls.iter().any(|m| m.url == src) {
@@ -153,16 +173,29 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
         }
     }
 
-    // Extract Open Graph image URLs (fallback if no video found)
-    for content in extract_meta_contents(&html, "og:image") {
-        media_urls.push(MediaCandidate {
-            url: resolve_url(&parsed, &content),
-            media_type: "image".to_string(),
-            source: "og:image".to_string(),
-        });
+    // Extract direct media URLs embedded inside JSON / script tags
+    for src in extract_json_media_urls(&html) {
+        if !media_urls.iter().any(|m| m.url == src.0) {
+            media_urls.push(MediaCandidate {
+                url: resolve_url(&parsed, &src.0),
+                media_type: src.1,
+                source: "json_embedded".to_string(),
+            });
+        }
     }
 
-    // Extract og:image:url
+    // Extract Open Graph image URLs (fallback if no video found)
+    for content in extract_meta_contents(&html, "og:image") {
+        if !media_urls.iter().any(|m| m.url == content) {
+            media_urls.push(MediaCandidate {
+                url: resolve_url(&parsed, &content),
+                media_type: "image".to_string(),
+                source: "og:image".to_string(),
+            });
+        }
+    }
+
+    // Extract og:image:url and og:image:secure_url
     for content in extract_meta_contents(&html, "og:image:url") {
         if !media_urls.iter().any(|m| m.url == content) {
             media_urls.push(MediaCandidate {
@@ -172,8 +205,17 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
             });
         }
     }
+    for content in extract_meta_contents(&html, "og:image:secure_url") {
+        if !media_urls.iter().any(|m| m.url == content) {
+            media_urls.push(MediaCandidate {
+                url: resolve_url(&parsed, &content),
+                media_type: "image".to_string(),
+                source: "og:image:secure_url".to_string(),
+            });
+        }
+    }
 
-    // Extract large <img> src (heuristic: skip tiny icons/logos)
+    // Extract large <img> src and data-src (heuristic: skip tiny icons/logos)
     for src in extract_img_srcs(&html) {
         if !media_urls.iter().any(|m| m.url == src)
             && !src.contains("logo") && !src.contains("icon") && !src.contains("avatar")
@@ -192,6 +234,27 @@ pub async fn scrape_url(url: String) -> Result<ScrapeResult, String> {
         title,
         error: None,
     })
+}
+
+fn extract_json_media_urls(html: &str) -> Vec<(String, String)> {
+    let mut results = Vec::new();
+    if let Ok(re_vid) = regex::Regex::new(r#"https?://[^\s"'<>\\]+?\.(?:mp4|webm|mov|mkv)"#) {
+        for m in re_vid.find_iter(html) {
+            let u = m.as_str().to_string();
+            if !results.iter().any(|(url, _)| url == &u) {
+                results.push((u, "video".to_string()));
+            }
+        }
+    }
+    if let Ok(re_img) = regex::Regex::new(r#"https?://[^\s"'<>\\]+?\.(?:png|jpg|jpeg|gif|webp)"#) {
+        for m in re_img.find_iter(html) {
+            let u = m.as_str().to_string();
+            if !results.iter().any(|(url, _)| url == &u) && !u.contains("icon") && !u.contains("avatar") && !u.contains("logo") {
+                results.push((u, "image".to_string()));
+            }
+        }
+    }
+    results
 }
 
 // Helper functions using regex (no HTML parser dependency needed)
