@@ -80,7 +80,7 @@ fn dm_channel_type_string(stored: &str) -> String {
     }
 }
 
-/// Best-effort remote profile lookup (skipped when Supabase isn't configured)
+/// Best-effort remote profile lookup with multi-level fallback strategies
 async fn fetch_profile_remotely(
     state: &AppState,
     username_or_id: &str,
@@ -90,24 +90,85 @@ async fn fetch_profile_remotely(
     }
     let network = state.network.read().await;
     let clean = username_or_id.trim().trim_start_matches('@');
-    let filter = if let Ok(uid) = Uuid::parse_str(clean) {
-        format!("id=eq.{}", uid)
-    } else {
-        format!("or=(username.ilike.{},display_name.ilike.{})", clean, clean)
-    };
+    if clean.is_empty() {
+        return None;
+    }
 
-    let rows: Vec<serde_json::Value> = network
-        .api
-        .select(
-            "users",
-            &filter,
-            None,
-            Some(1),
-        )
-        .await
-        .ok()?;
-    let item = rows.first()?;
-    let uid = Uuid::parse_str(item.get("id")?.as_str()?).ok()?;
+    let mut found_item: Option<serde_json::Value> = None;
+
+    // 1. Direct UUID match if input is a valid UUID
+    if let Ok(uid) = Uuid::parse_str(clean) {
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("id=eq.{}", uid), None, Some(1)).await {
+            if let Some(item) = rows.into_iter().next() {
+                found_item = Some(item);
+            }
+        }
+    }
+
+    // 2. Exact username match (case-insensitive)
+    if found_item.is_none() {
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean), None, Some(1)).await {
+            if let Some(item) = rows.into_iter().next() {
+                found_item = Some(item);
+            }
+        }
+    }
+
+    // 3. Exact display_name match (case-insensitive)
+    if found_item.is_none() {
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean), None, Some(1)).await {
+            if let Some(item) = rows.into_iter().next() {
+                found_item = Some(item);
+            }
+        }
+    }
+
+    // 4. Combined PostgREST OR query
+    if found_item.is_none() {
+        let filter = format!("or=(username.ilike.{},display_name.ilike.{})", clean, clean);
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
+            if let Some(item) = rows.into_iter().next() {
+                found_item = Some(item);
+            }
+        }
+    }
+
+    // 5. Wildcard substring match
+    if found_item.is_none() {
+        let filter = format!("or=(username.ilike.*{}*,display_name.ilike.*{}*)", clean, clean);
+        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
+            if let Some(item) = rows.into_iter().next() {
+                found_item = Some(item);
+            }
+        }
+    }
+
+    let item = found_item?;
+
+    let uid_val = item.get("id").or_else(|| item.get("user_id"));
+    let uid_str = match uid_val {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        _ => return None,
+    };
+    let uid = Uuid::parse_str(&uid_str).ok()?;
+
+    let uname = item.get("username")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(clean)
+        .to_string();
+
+    let display = item.get("display_name")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&uname)
+        .to_string();
+
+    let avatar = item.get("avatar_hash")
+        .or_else(|| item.get("avatarHash"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
 
     let mut dh = item.get("dh_public_key").and_then(|v| v.as_str()).map(str::to_string);
     let mut signing = item.get("signing_public_key").and_then(|v| v.as_str()).map(str::to_string);
@@ -122,14 +183,7 @@ async fn fetch_profile_remotely(
         }
     }
 
-    Some((
-        uid,
-        item.get("username")?.as_str()?.to_string(),
-        item.get("display_name")?.as_str()?.to_string(),
-        item.get("avatar_hash").and_then(|v| v.as_str()).map(str::to_string),
-        dh,
-        signing,
-    ))
+    Some((uid, uname, display, avatar, dh, signing))
 }
 
 // ── Friends ─────────────────────────────────────────────────────────────────
@@ -171,7 +225,7 @@ pub async fn friends_add(
         ),
     };
 
-    let friend_id = profile.ok_or(VeilError::InvalidInput("Kullanıcı bulunamadı. Lütfen kullanıcı adını kontrol edin.".into()))?.0;
+    let (friend_id, friend_uname, _friend_disp, _) = profile.ok_or(VeilError::InvalidInput("Kullanıcı bulunamadı. Lütfen kullanıcı adını kontrol edin.".into()))?;
     if friend_id == identity.id {
         return Err(VeilError::InvalidInput("Kendine arkadaşlık isteği gönderemezsin".into()));
     }
@@ -194,10 +248,21 @@ pub async fn friends_add(
                 "user_id,friend_id",
             )
             .await;
+
+        // Broadcast friend request signal over realtime so recipient is notified instantly
+        network.realtime.broadcast(serde_json::json!({
+            "type": "friend_request",
+            "action": "incoming",
+            "sender_id": identity.id.to_string(),
+            "sender_username": identity.username,
+            "sender_display_name": identity.display_name,
+            "sender_avatar_hash": identity.avatar_hash,
+            "target_id": friend_id.to_string(),
+        }));
     }
 
     let _ = state.app.emit("friends:changed", serde_json::json!({ "userId": friend_id.to_string() }));
-    info!("Friend request sent to {}", clean_username);
+    info!("Friend request sent to {} ({})", friend_uname, friend_id);
     Ok(())
 }
 

@@ -81,10 +81,25 @@
     const unlistenUser = listen('user:updated', () => {
       debouncedFriendsLoad();
     });
+    const unlistenBroadcast = listen('veilanon:broadcast', (e: any) => {
+      const p = e.payload;
+      if (p?.type === 'friend_request') {
+        if (!p.target_id || p.target_id === auth.identity?.id) {
+          debouncedFriendsLoad();
+          if (p.sender_username && p.action === 'incoming') {
+            void toastStore.notifyFriendRequest({
+              username: p.sender_username,
+              displayName: p.sender_display_name || p.sender_username,
+            });
+          }
+        }
+      }
+    });
     return () => {
       unlistenFriends.then(fn => fn());
       unlistenPresence.then(fn => fn());
       unlistenUser.then(fn => fn());
+      unlistenBroadcast.then(fn => fn());
     };
   });
 
@@ -110,7 +125,8 @@
       toastStore.success(`@${raw} kullanıcısına arkadaşlık isteği gönderildi!`);
       activeTab = 'pending';
     } catch (err) {
-      toastStore.error(typeof err === 'string' ? err : 'İstek gönderilemedi. Kullanıcı adını kontrol edin.');
+      const msg = String(err).replace(/^Error:\s*/, '');
+      toastStore.error(msg || 'İstek gönderilemedi. Kullanıcı adını kontrol edin.');
     } finally {
       adding = false;
     }

@@ -832,9 +832,15 @@ pub fn get_invite_by_code(&self, code: &str) -> VeilResult<Option<InviteRow>> {
     // ── User profiles (local cache of remote users) ─────────────────────────
 
     pub fn get_profile_by_username(&self, username: &str) -> VeilResult<Option<ProfileRow>> {
+        let clean = username.trim().trim_start_matches('@');
         let rows = self.query_map(
-            "SELECT id, username, display_name, avatar_hash FROM user_profiles WHERE lower(username) = lower(?1) LIMIT 1",
-            params![username],
+            r#"SELECT id, username, display_name, avatar_hash FROM user_profiles
+               WHERE lower(username) = lower(?1)
+                  OR lower(display_name) = lower(?1)
+                  OR id = ?1
+               ORDER BY (lower(username) = lower(?1)) DESC, (id = ?1) DESC
+               LIMIT 1"#,
+            params![clean],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -881,7 +887,8 @@ pub fn get_invite_by_code(&self, code: &str) -> VeilResult<Option<InviteRow>> {
             r#"INSERT INTO user_profiles (id, username, display_name, avatar_hash, dh_public_key, signing_public_key, banner_hash, bio_ciphertext, custom_status, updated_at)
                VALUES (?1, ?2, ?3, ?4, COALESCE(?5, ''), COALESCE(?6, ''), ?7, ?8, ?9, unixepoch())
                ON CONFLICT(id) DO UPDATE SET
-                 username = ?2, display_name = ?3,
+                 username = CASE WHEN ?2 != '' THEN ?2 ELSE user_profiles.username END,
+                 display_name = CASE WHEN ?3 != '' THEN ?3 ELSE user_profiles.display_name END,
                  avatar_hash = COALESCE(?4, user_profiles.avatar_hash),
                  dh_public_key = COALESCE(?5, user_profiles.dh_public_key),
                  signing_public_key = COALESCE(?6, user_profiles.signing_public_key),
