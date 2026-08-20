@@ -377,6 +377,43 @@ pub async fn toggle_camera(state: State<'_, AppState>) -> Result<(), VeilError> 
     Ok(())
 }
 
+/// Broadcast voice state (mute, deafen, camera, screenshare, speaking) to all users in space
+#[derive(Debug, Deserialize)]
+pub struct BroadcastVoiceStateInput {
+    pub channel_id: String,
+    pub is_muted: bool,
+    pub is_deafened: bool,
+    pub is_camera_on: bool,
+    pub is_screen_sharing: bool,
+    pub is_speaking: bool,
+}
+
+#[tauri::command]
+pub async fn broadcast_voice_state(
+    input: BroadcastVoiceStateInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    if let Some(identity) = state.get_or_restore_identity().await {
+        let network = state.network.read().await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "voice_presence",
+            "action": "state",
+            "channel_id": input.channel_id,
+            "user_id": identity.id.to_string(),
+            "username": identity.username,
+            "display_name": identity.display_name,
+            "avatar_hash": identity.avatar_hash,
+            "is_muted": input.is_muted,
+            "is_deafened": input.is_deafened,
+            "is_camera_on": input.is_camera_on,
+            "is_screen_sharing": input.is_screen_sharing,
+            "is_speaking": input.is_speaking,
+        }));
+    }
+    Ok(())
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

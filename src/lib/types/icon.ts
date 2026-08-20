@@ -58,6 +58,8 @@ export type IconName =
   | 'zoom-out'
   | 'refresh-cw'
   | 'file'
+  | 'play'
+  | 'pause'
   | 'broadcast'
   | 'radio'
   | 'arrow-up'

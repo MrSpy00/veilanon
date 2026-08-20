@@ -23,6 +23,7 @@ export interface Message {
   attachments: unknown[];
   editedAt: number | null;
   createdAt: number;
+  deletedAt?: number | null;
   disappearsAt: number | null;
   // Local ephemeral state
   isOwn?: boolean;
@@ -211,16 +212,25 @@ function createMessageStore() {
               incomingForNotify.push(m);
             }
           } else {
-            if (
-              prev.content !== m.content ||
+            const hasContentUpdate = m.content !== null && m.content !== undefined && m.content !== prev.content;
+            const hasOtherUpdate =
               prev.reactions?.length !== m.reactions?.length ||
               prev.pinned !== m.pinned ||
               prev.status !== m.status ||
-              prev.editedAt !== m.editedAt
-            ) {
+              prev.editedAt !== m.editedAt ||
+              prev.deletedAt !== m.deletedAt;
+
+            if (hasContentUpdate || hasOtherUpdate) {
               const idx = merged.findIndex(x => x.id === m.id);
               if (idx !== -1) {
-                merged[idx] = { ...prev, ...m };
+                merged[idx] = {
+                  ...prev,
+                  ...m,
+                  // Preserve existing decrypted content if remote row returned null
+                  content: (m.content !== null && m.content !== undefined) ? m.content : prev.content,
+                  attachments: (m.attachments && m.attachments.length > 0) ? m.attachments : prev.attachments,
+                  isOwn: prev.isOwn ?? (m.senderId === currentUserId || m.senderId === 'self'),
+                };
                 hasChanges = true;
               }
             }

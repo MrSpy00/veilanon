@@ -74,7 +74,7 @@
       src={resolvedSrc}
       {alt}
       loading="eager"
-      class:loaded={isLoaded}
+      class="veil-banner-img loaded"
       onload={() => { isLoaded = true; hasError = false; }}
       onerror={() => (hasError = true)}
     />
@@ -108,13 +108,8 @@
     object-fit: cover;
     object-position: center;
     display: block;
-    opacity: 0;
-    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    z-index: 2;
-    backface-visibility: hidden;
-    transform: translateZ(0);
-  }
-  .veil-banner-wrapper img.loaded {
     opacity: 1;
+    transition: opacity 0.2s ease-in-out;
+    z-index: 2;
   }
 </style>

@@ -23,6 +23,13 @@
   let lightboxOpen = $state(false);
   let downloading = $state(false);
 
+  // Audio player state
+  let audioEl = $state<HTMLAudioElement | null>(null);
+  let isPlaying = $state(false);
+  let currentTime = $state(0);
+  let duration = $state(0);
+  let playbackRate = $state(1);
+
   function formatBytes(bytes: number): string {
     if (!bytes) return '0 B';
     if (bytes < 1024) return `${bytes} B`;
@@ -30,14 +37,34 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  function formatDuration(secs: number): string {
+    if (!Number.isFinite(secs) || secs < 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
   const mime = $derived.by(() => {
+    if (dataUrl?.startsWith('data:audio/')) return 'audio';
+    if (attachment.mimeTypeHint?.startsWith('audio/')) return 'audio';
+    if (attachment.fileName?.toLowerCase().includes('ses-kaydi')) return 'audio';
     if (dataUrl?.startsWith('data:image/')) return 'image';
     if (dataUrl?.startsWith('data:video/')) return 'video';
-    if (dataUrl?.startsWith('data:audio/')) return 'audio';
     if (attachment.mimeTypeHint?.startsWith('image/')) return 'image';
     if (attachment.mimeTypeHint?.startsWith('video/')) return 'video';
-    if (attachment.mimeTypeHint?.startsWith('audio/')) return 'audio';
+    if (attachment.fileName?.toLowerCase().endsWith('.mp3') || attachment.fileName?.toLowerCase().endsWith('.wav') || attachment.fileName?.toLowerCase().endsWith('.ogg') || attachment.fileName?.toLowerCase().endsWith('.m4a') || attachment.fileName?.toLowerCase().endsWith('.flac')) return 'audio';
     return 'file';
+  });
+
+  const waveformBars = $derived.by(() => {
+    const bars: number[] = [];
+    const seed = attachment.fileId || 'veilanon';
+    for (let i = 0; i < 32; i++) {
+      const code = seed.charCodeAt(i % seed.length) + i * 17;
+      const height = 20 + (code % 75);
+      bars.push(height);
+    }
+    return bars;
   });
 
   const displayFileName = $derived.by(() => {
@@ -47,7 +74,7 @@
       const last = parts[parts.length - 1];
       if (last && !last.startsWith('enc-') && !last.startsWith('blob-')) return last;
     }
-    const ext = mime === 'image' ? 'png' : mime === 'video' ? 'mp4' : mime === 'audio' ? 'mp3' : 'bin';
+    const ext = mime === 'image' ? 'png' : mime === 'video' ? 'mp4' : mime === 'audio' ? 'webm' : 'bin';
     return `dosya-${attachment.fileId.slice(0, 8)}.${ext}`;
   });
 
@@ -69,6 +96,31 @@
 
     return () => { cancelled = true; };
   });
+
+  function toggleAudio() {
+    if (!audioEl) return;
+    if (isPlaying) {
+      audioEl.pause();
+    } else {
+      audioEl.play().catch(() => {});
+    }
+  }
+
+  function cycleRate() {
+    if (!audioEl) return;
+    if (playbackRate === 1) playbackRate = 1.5;
+    else if (playbackRate === 1.5) playbackRate = 2;
+    else playbackRate = 1;
+    audioEl.playbackRate = playbackRate;
+  }
+
+  function seekWaveform(e: MouseEvent) {
+    if (!audioEl || !duration) return;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const pos = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+    audioEl.currentTime = pos * duration;
+  }
 
   async function handleDownload() {
     if (downloading) return;
@@ -143,11 +195,73 @@
       </button>
     </div>
   {:else if mime === 'audio'}
-    <div class="veil-audio-wrap">
-      <audio src={dataUrl} controls class="veil-inline-audio" preload="metadata"></audio>
-      <button class="btn btn-ghost btn-sm" onclick={handleDownload} title="Sesi indir">
-        <Icon name="download" size={14} />
+    <!-- Modern Voice Message Waveform Player -->
+    <div class="veil-voice-note-card" class:playing={isPlaying}>
+      <audio
+        bind:this={audioEl}
+        src={dataUrl}
+        preload="metadata"
+        onplay={() => (isPlaying = true)}
+        onpause={() => (isPlaying = false)}
+        onended={() => { isPlaying = false; currentTime = 0; }}
+        ontimeupdate={() => { if (audioEl) currentTime = audioEl.currentTime; }}
+        onloadedmetadata={() => { if (audioEl) duration = audioEl.duration; }}
+      ></audio>
+
+      <button
+        type="button"
+        class="veil-voice-play-btn"
+        onclick={toggleAudio}
+        aria-label={isPlaying ? 'Durdur' : 'Oynat'}
+        title={isPlaying ? 'Durdur' : 'Oynat'}
+      >
+        {#if isPlaying}
+          <Icon name="pause" size={18} />
+        {:else}
+          <Icon name="play" size={18} />
+        {/if}
       </button>
+
+      <div class="veil-voice-body">
+        <!-- Interactive Waveform -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="veil-voice-waveform" onclick={seekWaveform} title="İlerle">
+          {#each waveformBars as barH, i}
+            {@const progressPercent = duration ? (currentTime / duration) * 100 : 0}
+            {@const barPercent = (i / waveformBars.length) * 100}
+            <div
+              class="veil-waveform-bar"
+              class:passed={barPercent <= progressPercent}
+              style="height: {barH}%;"
+            ></div>
+          {/each}
+        </div>
+
+        <div class="veil-voice-meta">
+          <span class="veil-voice-time">
+            {formatDuration(currentTime)} / {formatDuration(duration || 0)}
+          </span>
+          <div class="veil-voice-controls">
+            <button
+              type="button"
+              class="veil-voice-rate-btn"
+              onclick={cycleRate}
+              title="Oynatma hızı"
+            >
+              {playbackRate}x
+            </button>
+            <button
+              type="button"
+              class="veil-voice-dl-btn"
+              onclick={handleDownload}
+              title="Sesi indir"
+            >
+              <Icon name="download" size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   {:else}
     <div class="veil-file-card">
@@ -177,7 +291,7 @@
 
 <style>
   .veil-media-attachment {
-    margin-top: var(--space-2);
+    margin-top: 4px;
     display: inline-block;
     max-width: 100%;
   }
@@ -255,20 +369,119 @@
     max-height: 360px;
     display: block;
   }
-  .veil-audio-wrap {
+
+  /* ── Dedicated Voice Message Waveform Player ── */
+  .veil-voice-note-card {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2);
-    background: var(--veil-bg-surface);
-    border: 1px solid var(--veil-border-subtle);
-    border-radius: var(--radius-lg);
-    max-width: 360px;
+    gap: var(--space-3);
+    padding: 8px 14px;
+    background: color-mix(in srgb, var(--veil-bg-elevated, #171b26) 85%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--veil-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-xl, 14px);
+    min-width: 290px;
+    max-width: 380px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .veil-inline-audio {
+  .veil-voice-note-card.playing {
+    border-color: var(--veil-brand, #7c3aed);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--veil-brand, #7c3aed) 25%, transparent);
+  }
+  .veil-voice-play-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: var(--veil-brand, #7c3aed);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s, filter 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .veil-voice-play-btn:hover {
+    transform: scale(1.06);
+    filter: brightness(1.1);
+  }
+  .veil-voice-body {
     flex: 1;
-    height: 36px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
+  .veil-voice-waveform {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 24px;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .veil-waveform-bar {
+    flex: 1;
+    min-width: 3px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .veil-waveform-bar.passed {
+    background: var(--veil-brand, #7c3aed);
+  }
+  .veil-voice-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--veil-text-muted, #94a3b8);
+  }
+  .veil-voice-time {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .veil-voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .veil-voice-rate-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--veil-text-secondary, #cbd5e1);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .veil-voice-rate-btn:hover {
+    background: var(--veil-brand-subtle, rgba(124, 58, 237, 0.2));
+    color: #fff;
+  }
+  .veil-voice-dl-btn {
+    background: transparent;
+    border: none;
+    color: var(--veil-text-muted, #94a3b8);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .veil-voice-dl-btn:hover {
+    color: var(--veil-text-primary, #f1f5f9);
+  }
+
   .veil-file-card {
     display: flex;
     align-items: center;

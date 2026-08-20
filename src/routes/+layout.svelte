@@ -96,13 +96,6 @@
       if (s.customThemeName) {
         uiStore.setCustomThemeName(s.customThemeName);
       }
-      if (s.customBgImage !== undefined || s.customBgVideo !== undefined || s.customBgOpacity !== undefined) {
-        uiStore.setCustomBackground(
-          s.customBgImage ?? '',
-          s.customBgVideo ?? '',
-          s.customBgOpacity ?? 0.26
-        );
-      }
       if (s.fontSize && s.fontSize !== 14) {
         document.documentElement.style.fontSize = `${s.fontSize}px`;
       }

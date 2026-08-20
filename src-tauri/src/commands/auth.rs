@@ -1819,8 +1819,16 @@ pub async fn set_banner(path: String, state: State<'_, AppState>) -> Result<Stri
 /// If not available locally, downloads and caches the blob from Supabase storage.
 #[tauri::command]
 pub async fn get_avatar(hash: String, state: State<'_, AppState>) -> Result<String, VeilError> {
-    let clean = hash.trim().trim_start_matches('/').trim_start_matches('\\');
-    if clean.is_empty() || clean.contains("..") {
+    let clean = hash.trim();
+    if clean.is_empty() {
+        return Err(VeilError::InvalidInput("Invalid avatar identifier".into()));
+    }
+    if clean.starts_with("data:image/") || clean.starts_with("http://") || clean.starts_with("https://") {
+        return Ok(clean.to_string());
+    }
+
+    let clean = clean.trim_start_matches('/').trim_start_matches('\\');
+    if clean.contains("..") {
         return Err(VeilError::InvalidInput("Invalid avatar identifier".into()));
     }
     let safe_hash = std::path::Path::new(clean)

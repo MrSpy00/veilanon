@@ -225,6 +225,7 @@ fn response_from_message(msg: &Message, content: String, sender: SenderInfo) -> 
         attachments: msg.attachments.clone(),
         edited_at: msg.edited_at.map(|dt| dt.timestamp()),
         created_at: msg.created_at.timestamp(),
+        deleted_at: msg.deleted_at.map(|dt| dt.timestamp()),
         disappears_at: msg.disappears_at.map(|dt| dt.timestamp()),
     }
 }
@@ -320,7 +321,7 @@ async fn decrypt_batch(
     let mut sender_cache: std::collections::HashMap<Uuid, SenderInfo> = std::collections::HashMap::new();
     let identity = state.get_or_restore_identity().await.clone();
     for msg in messages {
-        let content = if is_dm {
+        let content_str = if is_dm {
             ratchet
                 .as_mut()
                 .and_then(|(r, _)| ratchet_decrypt(&db_guard, &db_key, r, &msg))
@@ -332,7 +333,13 @@ async fn decrypt_batch(
         } else {
             decrypt_message_content(&db_key, &msg)
         };
-        let Some(content) = content else { continue };
+        let content = if let Some(c) = content_str {
+            c
+        } else if !msg.attachments.is_empty() {
+            String::new()
+        } else {
+            continue;
+        };
         let sender = sender_cache
             .entry(msg.sender_id)
             .or_insert_with(|| {
@@ -397,6 +404,7 @@ pub struct MessageResponse {
     pub attachments: Vec<AttachmentRef>,
     pub edited_at: Option<i64>,
     pub created_at: i64,
+    pub deleted_at: Option<i64>,
     pub disappears_at: Option<i64>,
 }
 
@@ -511,6 +519,7 @@ pub async fn send_message(
                     attachments: input.attachments,
                     edited_at: None,
                     created_at: chrono::Utc::now().timestamp(),
+                    deleted_at: None,
                     disappears_at: disappears_ts,
                 });
             }
@@ -529,6 +538,7 @@ pub async fn send_message(
     
     let now = Utc::now();
     let disappears_at = input.disappear_seconds
+        .filter(|&secs| secs > 0)
         .map(|secs| now + chrono::Duration::seconds(secs as i64));
     
     let msg_type = if let Some(first_att) = input.attachments.first() {
@@ -744,6 +754,7 @@ pub async fn send_message(
         attachments: input.attachments,
         edited_at: None,
         created_at: now.timestamp(),
+        deleted_at: None,
         disappears_at: disappears_at.map(|dt| dt.timestamp()),
     })
 }
@@ -912,6 +923,7 @@ pub async fn edit_message(
         attachments: msg.attachments.clone(),
         edited_at: Some(now.timestamp()),
         created_at: msg.created_at.timestamp(),
+        deleted_at: None,
         disappears_at: msg.disappears_at.map(|dt| dt.timestamp()),
     })
 }
@@ -1329,7 +1341,7 @@ pub async fn sync_messages(
     type RemoteRow = serde_json::Value;
     let rows: Vec<RemoteRow> = {
         let network = state.network.read().await;
-        let filter = format!("channel_id=eq.{}&select=id,channel_id,sender_id,sender_device_id,ciphertext,iv,crypto_meta,schema_version,client_created_at,disappears_at,reply_to_id,pinned", channel_uuid);
+        let filter = format!("channel_id=eq.{}&select=id,channel_id,sender_id,sender_device_id,ciphertext,iv,crypto_meta,message_type,attachments,reactions,schema_version,client_created_at,disappears_at,reply_to_id,pinned", channel_uuid);
         network.api.select("messages", &filter, Some("client_created_at.asc"), Some(200)).await?
     };
 
@@ -1379,6 +1391,27 @@ pub async fn sync_messages(
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&chrono::Utc));
 
+        let msg_type_str = row.get("message_type").and_then(|v| v.as_str()).unwrap_or("text");
+        let msg_type = match msg_type_str {
+            "image" => MessageType::Image,
+            "video" => MessageType::Video,
+            "audio" => MessageType::Audio,
+            "file" => MessageType::File,
+            "system" => MessageType::System,
+            "call" => MessageType::Call,
+            _ => MessageType::Text,
+        };
+
+        let attachments: Vec<AttachmentRef> = row.get("attachments")
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+
+        let reactions: Vec<Reaction> = row.get("reactions")
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+
         // Skip rows we already have locally (idempotent merge).
         let exists: bool = {
             let db = state.db.read().await;
@@ -1422,12 +1455,12 @@ pub async fn sync_messages(
             ciphertext: ciphertext.to_string(),
             iv: iv.to_string(),
             crypto_meta,
-            message_type: MessageType::Text,
+            message_type: msg_type,
             status: MessageStatus::Sent,
             reply_to_id,
             pinned,
-            reactions: Vec::new(),
-            attachments: Vec::new(),
+            reactions,
+            attachments,
             edited_at: None,
             created_at: created_ts,
             deleted_at: None,

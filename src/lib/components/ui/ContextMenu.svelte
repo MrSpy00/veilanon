@@ -38,6 +38,7 @@
   let menuEl = $state<HTMLDivElement | null>(null);
   let pos = $state({ x: 0, y: 0 });
   let activeIndex = $state(-1);
+  let sliderValues = $state<Record<number, number>>({});
 
   function itemButtons(): HTMLButtonElement[] {
     return Array.from(menuEl?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)') ?? []);
@@ -52,15 +53,23 @@
   $effect(() => {
     if (!open) return;
     activeIndex = -1;
-    pos = { x, y };
+    // Initial guess clamped
+    pos = {
+      x: Math.max(12, Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : 800) - 240)),
+      y: Math.max(12, Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : 600) - 200)),
+    };
+    items.forEach((it, idx) => {
+      if (it.isSlider) {
+        sliderValues[idx] = it.sliderValue ?? 100;
+      }
+    });
     const cleanup = handleEscape(onClose);
     tick().then(() => {
       if (!menuEl) return;
       const rect = menuEl.getBoundingClientRect();
-      pos = {
-        x: Math.min(x, window.innerWidth - rect.width - 8),
-        y: Math.min(y, window.innerHeight - rect.height - 8),
-      };
+      const targetX = Math.max(12, Math.min(x, window.innerWidth - rect.width - 12));
+      const targetY = Math.max(12, Math.min(y, window.innerHeight - rect.height - 12));
+      pos = { x: targetX, y: targetY };
       const first = enabledIndices()[0];
       if (first !== undefined) {
         activeIndex = first;
@@ -127,16 +136,17 @@
               {#if item.icon}<Icon name={item.icon} size={14} />{/if}
               {item.label}
             </span>
-            <span class="veil-context-slider-val">%{item.sliderValue ?? 100}</span>
+            <span class="veil-context-slider-val">%{sliderValues[i] ?? item.sliderValue ?? 100}</span>
           </div>
           <input
             type="range"
             min={item.sliderMin ?? 0}
             max={item.sliderMax ?? 200}
             step={item.sliderStep ?? 1}
-            value={item.sliderValue ?? 100}
+            value={sliderValues[i] ?? item.sliderValue ?? 100}
             oninput={(e) => {
               const v = Number((e.target as HTMLInputElement).value);
+              sliderValues[i] = v;
               item.onSliderChange?.(v);
             }}
             class="veil-slider"

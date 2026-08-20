@@ -51,6 +51,13 @@ interface UiState {
   replyTo: { channelId: string; messageId: string; author: string; content: string } | null;
 }
 
+let activeUserId: string | null = null;
+
+function userBgKey(key: string, uid?: string | null): string {
+  const id = uid || activeUserId;
+  return id ? `${key}_${id}` : key;
+}
+
 function createUiStore() {
   const { subscribe, set, update } = writable<UiState>({
     theme: 'dark',
@@ -99,6 +106,41 @@ function createUiStore() {
 
   return {
     subscribe,
+
+    loadUserTheme(userId: string | null) {
+      activeUserId = userId;
+      if (!userId) {
+        this.resetThemeToDefault();
+        return;
+      }
+      const storedImage = localStorage.getItem(userBgKey('veilanon-bg-image', userId)) || '';
+      const storedVideo = localStorage.getItem(userBgKey('veilanon-bg-video', userId)) || '';
+      const storedOpacity = parseFloat(localStorage.getItem(userBgKey('veilanon-bg-opacity', userId)) || '0.26');
+      update(s => {
+        const next = {
+          ...s,
+          customBgImage: storedImage,
+          customBgVideo: storedVideo,
+          customBgOpacity: isNaN(storedOpacity) ? 0.26 : storedOpacity,
+        };
+        refreshDomTheme(next);
+        return next;
+      });
+    },
+
+    resetThemeToDefault() {
+      activeUserId = null;
+      update(s => {
+        const next = {
+          ...s,
+          customBgImage: '',
+          customBgVideo: '',
+          customBgOpacity: 0.26,
+        };
+        refreshDomTheme(next);
+        return next;
+      });
+    },
 
     setTheme(theme: Theme) {
       update(s => {
@@ -170,9 +212,10 @@ function createUiStore() {
           customBgVideo: video,
           customBgOpacity: clampedOpacity,
         };
-        localStorage.setItem('veilanon-bg-image', image);
-        localStorage.setItem('veilanon-bg-video', video);
-        localStorage.setItem('veilanon-bg-opacity', String(clampedOpacity));
+        localStorage.setItem(userBgKey('veilanon-bg-image'), image);
+        localStorage.setItem(userBgKey('veilanon-bg-video'), video);
+        localStorage.setItem(userBgKey('veilanon-bg-opacity'), String(clampedOpacity));
+        refreshDomTheme(next);
         return next;
       });
     },
@@ -186,9 +229,11 @@ function createUiStore() {
 
     clearMediaOnError() {
       update(s => {
-        localStorage.removeItem('veilanon-bg-image');
-        localStorage.removeItem('veilanon-bg-video');
-        return { ...s, customBgImage: '', customBgVideo: '' };
+        localStorage.removeItem(userBgKey('veilanon-bg-image'));
+        localStorage.removeItem(userBgKey('veilanon-bg-video'));
+        const next = { ...s, customBgImage: '', customBgVideo: '' };
+        refreshDomTheme(next);
+        return next;
       });
     },
 
@@ -196,9 +241,9 @@ function createUiStore() {
       update(s => {
         localStorage.removeItem('veilanon-custom-css');
         localStorage.removeItem('veilanon-custom-css-enabled');
-        localStorage.removeItem('veilanon-bg-image');
-        localStorage.removeItem('veilanon-bg-video');
-        localStorage.removeItem('veilanon-bg-opacity');
+        localStorage.removeItem(userBgKey('veilanon-bg-image'));
+        localStorage.removeItem(userBgKey('veilanon-bg-video'));
+        localStorage.removeItem(userBgKey('veilanon-bg-opacity'));
         localStorage.removeItem('veilanon-custom-theme-name');
         const next = {
           ...s,
@@ -219,9 +264,9 @@ function createUiStore() {
       const storedPreset = localStorage.getItem('veilanon-preset') || 'veil-origin';
       const customCss = localStorage.getItem('veilanon-custom-css') || '';
       const customCssEnabled = localStorage.getItem('veilanon-custom-css-enabled') === 'true';
-      const customBgImage = localStorage.getItem('veilanon-bg-image') || '';
-      const customBgVideo = localStorage.getItem('veilanon-bg-video') || '';
-      const storedOpacity = parseFloat(localStorage.getItem('veilanon-bg-opacity') || '0.26');
+      const customBgImage = activeUserId ? (localStorage.getItem(userBgKey('veilanon-bg-image')) || '') : '';
+      const customBgVideo = activeUserId ? (localStorage.getItem(userBgKey('veilanon-bg-video')) || '') : '';
+      const storedOpacity = parseFloat(localStorage.getItem(userBgKey('veilanon-bg-opacity')) || '0.26');
       const customThemeName = localStorage.getItem('veilanon-custom-theme-name') || 'Kişisel Tema';
 
       update(s => {

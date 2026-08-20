@@ -37,6 +37,7 @@ function resetAllStores() {
   friendsStore.reset();
   uiStore.navigate(null, null);
   uiStore.closeModal();
+  uiStore.resetThemeToDefault();
 }
 
 function createAuthStore() {
@@ -69,6 +70,7 @@ function createAuthStore() {
       try {
         const auto = await invoke<IdentityInfo | null>('try_auto_unlock');
         if (auto) {
+          uiStore.loadUserTheme(auto.id);
           update(s => ({
             ...s,
             isAuthenticated: true,
@@ -97,6 +99,7 @@ function createAuthStore() {
         if (rememberMe) {
           await invoke('set_auto_unlock', { enabled: true, passphrase }).catch(() => {});
         }
+        uiStore.loadUserTheme(response.id);
         update(s => ({
           ...s,
           isAuthenticated: true,
@@ -121,6 +124,7 @@ function createAuthStore() {
         if (rememberMe) {
           await invoke('set_auto_unlock', { enabled: true, passphrase }).catch(() => {});
         }
+        uiStore.loadUserTheme(response.id);
         update(s => ({
           ...s,
           isAuthenticated: true,
@@ -143,6 +147,7 @@ function createAuthStore() {
         if (rememberMe) {
           await invoke('set_auto_unlock', { enabled: true, passphrase }).catch(() => {});
         }
+        uiStore.loadUserTheme(response.id);
         update(s => ({
           ...s,
           isAuthenticated: true,
@@ -166,6 +171,7 @@ function createAuthStore() {
           newPassphrase,
           username: username || null,
         });
+        uiStore.loadUserTheme(response.id);
         update(s => ({
           ...s,
           isAuthenticated: true,

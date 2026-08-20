@@ -379,20 +379,25 @@
   .veil-home {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-6) var(--space-8);
+    padding: var(--space-4) var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: var(--space-6);
-    max-width: 860px;
+    gap: var(--space-5);
+    max-width: 100%;
     width: 100%;
-    margin: 0 auto;
+    margin: 0;
+    box-sizing: border-box;
   }
   .veil-home-header {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding-bottom: var(--space-4);
-    border-bottom: 1px solid var(--veil-border-subtle);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--veil-bg-surface, #1e1f22) 65%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-xl, 14px);
   }
   .veil-home-brand {
     width: 40px;

@@ -68,6 +68,7 @@ export interface ParticipantInfo {
   name: string;
   avatarHash: string | null;
   isMuted: boolean;
+  isDeafened?: boolean;
   isSpeaking: boolean;
   isVideoOn: boolean;
   isScreenSharing: boolean;
@@ -728,7 +729,12 @@ function createMediaStore() {
     setParticipantVolume(participantSid: string, volume: number) {
       if (!room) return;
       const clamped = Math.min(2, Math.max(0, volume));
-      const p = room.remoteParticipants.get(participantSid);
+      let p = room.remoteParticipants.get(participantSid);
+      if (!p) {
+        p = Array.from(room.remoteParticipants.values()).find(
+          (x) => x.identity === participantSid || x.sid === participantSid
+        );
+      }
       if (p) {
         try {
           p.setVolume(Math.min(1, clamped));
@@ -763,7 +769,12 @@ function createMediaStore() {
     /** Bir katılımcının mevcut ses seviyesi (0..1; bilinmiyorsa 1). */
     getParticipantVolume(participantSid: string): number {
       if (!room) return 1;
-      const p = room.remoteParticipants.get(participantSid);
+      let p = room.remoteParticipants.get(participantSid);
+      if (!p) {
+        p = Array.from(room.remoteParticipants.values()).find(
+          (x) => x.identity === participantSid || x.sid === participantSid
+        );
+      }
       return p?.getVolume() ?? 1;
     },
 

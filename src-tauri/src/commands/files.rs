@@ -371,13 +371,31 @@ pub async fn get_file_data_url(
     } else if plaintext.len() > 8 && (&plaintext[4..8] == b"ftyp" || &plaintext[4..8] == b"moov") {
         "video/mp4"
     } else if plaintext.starts_with(b"\x1A\x45\xDF\xA3") {
-        "video/webm"
+        if let Some(ref hint) = mime_hint {
+            if hint.starts_with("audio/") || hint.contains("opus") {
+                "audio/webm"
+            } else if hint.starts_with("video/") {
+                "video/webm"
+            } else {
+                "video/webm"
+            }
+        } else {
+            "video/webm"
+        }
     } else if plaintext.starts_with(b"fLaC") {
         "audio/flac"
     } else if plaintext.starts_with(b"ID3") || (plaintext.len() > 2 && plaintext[0] == 0xFF && (plaintext[1] & 0xE0) == 0xE0) {
         "audio/mpeg"
     } else if plaintext.starts_with(b"OggS") {
-        "audio/ogg"
+        if let Some(ref hint) = mime_hint {
+            if hint.starts_with("audio/") {
+                hint.as_str()
+            } else {
+                "audio/ogg"
+            }
+        } else {
+            "audio/ogg"
+        }
     } else if plaintext.len() > 12 && &plaintext[0..4] == b"RIFF" && &plaintext[8..12] == b"WAVE" {
         "audio/wav"
     } else if plaintext.starts_with(b"%PDF") {

@@ -59,6 +59,8 @@
       '<path d="M11 5 6.5 8.5H3.5v7h3L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/>',
     'volume-x':
       '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>',
+    play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+    pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
     megaphone:
       '<path d="m3.5 11 17-6v13l-17-6v-1Z"/><path d="M11.5 15.5 10 21l-4-1 1.5-5.5"/>',
     edit: '<path d="M4 20h4.5L20 8.5a2.1 2.1 0 0 0-3-3L5.5 17Z"/><path d="m14.5 6.5 3 3"/>',

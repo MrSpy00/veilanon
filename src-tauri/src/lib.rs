@@ -468,6 +468,7 @@ pub fn run() {
             media::set_video_device,
             media::toggle_mute,
             media::toggle_camera,
+            media::broadcast_voice_state,
             // Files
             files::upload_file,
             files::upload_bytes,

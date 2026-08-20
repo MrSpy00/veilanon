@@ -83,17 +83,24 @@ fn dm_channel_type_string(stored: &str) -> String {
 /// Best-effort remote profile lookup (skipped when Supabase isn't configured)
 async fn fetch_profile_remotely(
     state: &AppState,
-    username: &str,
+    username_or_id: &str,
 ) -> Option<(Uuid, String, String, Option<String>, Option<String>, Option<String>)> {
     if !config::configured("VEILANON_SUPABASE_URL") {
         return None;
     }
     let network = state.network.read().await;
+    let clean = username_or_id.trim().trim_start_matches('@');
+    let filter = if let Ok(uid) = Uuid::parse_str(clean) {
+        format!("id=eq.{}", uid)
+    } else {
+        format!("or=(username.ilike.{},display_name.ilike.{})", clean, clean)
+    };
+
     let rows: Vec<serde_json::Value> = network
         .api
         .select(
             "users",
-            &format!("username=eq.{}", username),
+            &filter,
             None,
             Some(1),
         )
@@ -134,12 +141,12 @@ pub async fn friends_add(
 ) -> Result<(), VeilError> {
     let identity = state.get_or_restore_identity().await;
     let identity = identity.as_ref().ok_or(VeilError::Unauthenticated)?;
-    let clean_username = input.username.trim().trim_start_matches('@').to_lowercase();
+    let clean_username = input.username.trim().trim_start_matches('@').to_string();
 
-    if clean_username.is_empty() || clean_username.len() > 32 {
+    if clean_username.is_empty() || clean_username.len() > 64 {
         return Err(VeilError::InvalidInput("Geçerli bir kullanıcı adı girin".into()));
     }
-    if clean_username == identity.username.to_lowercase() {
+    if clean_username.eq_ignore_ascii_case(&identity.username) || clean_username == identity.id.to_string() {
         return Err(VeilError::InvalidInput("Kendine arkadaşlık isteği gönderemezsin".into()));
     }
 

@@ -668,6 +668,18 @@ pub async fn spaces_create(
         let db = state.db.read().await;
         db.insert_space(&id, input.name.trim(), input.icon_hash.as_deref(), &identity.id)?;
         db.set_space_owner(&id, &identity.id, true)?;
+        let _ = db.add_space_member(&id, &identity.id);
+        let _ = db.upsert_profile(
+            &identity.id,
+            &identity.username,
+            &identity.display_name,
+            identity.avatar_hash.as_deref(),
+            Some(&identity.identity_key_public),
+            Some(&identity.signing_key_public),
+            None,
+            None,
+            None,
+        );
         let row = db.get_space(&id)?.ok_or(VeilError::DatabaseError(rusqlite::Error::QueryReturnedNoRows))?;
         let info = to_space_info(&row);
         drop(db);
@@ -976,6 +988,8 @@ pub async fn spaces_set_banner(
     )
     .await;
 
+    let _ = state.app.emit("space:updated", serde_json::json!({ "spaceId": space_id.to_string() }));
+    let _ = state.app.emit("spaces:changed", ());
     info!("Space banner updated");
     Ok(hash)
 }
@@ -1030,6 +1044,8 @@ pub async fn spaces_set_icon(
     )
     .await;
 
+    let _ = state.app.emit("space:updated", serde_json::json!({ "spaceId": space_id.to_string() }));
+    let _ = state.app.emit("spaces:changed", ());
     info!("Space icon updated");
     Ok(hash)
 }

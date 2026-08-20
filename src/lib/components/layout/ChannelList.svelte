@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
+  import { invoke } from '@tauri-apps/api/core';
   import { uiStore } from '$lib/stores/ui';
   import { spaceStore } from '$lib/stores/spaces';
   import { authStore } from '$lib/stores/auth';
@@ -51,7 +52,17 @@
   );
 
   let joiningChannelId = $state<string | null>(null);
-  let remoteVoiceUsers = $state<Record<string, Array<{ id: string; name: string; avatarHash: string | null }>>>({});
+  interface VoiceUserEntry {
+    id: string;
+    name: string;
+    avatarHash: string | null;
+    isMuted?: boolean;
+    isDeafened?: boolean;
+    isVideoOn?: boolean;
+    isScreenSharing?: boolean;
+    isSpeaking?: boolean;
+  }
+  let remoteVoiceUsers = $state<Record<string, VoiceUserEntry[]>>({});
 
   onMount(() => {
     const unlisten = listen('veilanon:broadcast', (e: any) => {
@@ -62,16 +73,31 @@
         const name = p.display_name || p.username || 'Kullanıcı';
         const avatarHash = p.avatar_hash || null;
         if (!uid) return;
-        if (p.action === 'join' && cid) {
+        if ((p.action === 'join' || p.action === 'state') && cid) {
           const list = remoteVoiceUsers[cid] ?? [];
-          if (!list.some((u) => u.id === uid)) {
+          const existingIdx = list.findIndex((u) => u.id === uid);
+          const entry: VoiceUserEntry = {
+            id: uid,
+            name,
+            avatarHash,
+            isMuted: p.is_muted ?? false,
+            isDeafened: p.is_deafened ?? false,
+            isVideoOn: p.is_camera_on ?? false,
+            isScreenSharing: p.is_screen_sharing ?? false,
+            isSpeaking: p.is_speaking ?? false,
+          };
+          if (existingIdx !== -1) {
+            const copy = [...list];
+            copy[existingIdx] = { ...copy[existingIdx], ...entry };
+            remoteVoiceUsers = { ...remoteVoiceUsers, [cid]: copy };
+          } else {
             remoteVoiceUsers = {
               ...remoteVoiceUsers,
-              [cid]: [...list, { id: uid, name, avatarHash }],
+              [cid]: [...list, entry],
             };
           }
         } else if (p.action === 'leave') {
-          const updated: Record<string, Array<{ id: string; name: string; avatarHash: string | null }>> = {};
+          const updated: Record<string, VoiceUserEntry[]> = {};
           for (const c in remoteVoiceUsers) {
             updated[c] = (remoteVoiceUsers[c] ?? []).filter((u) => u.id !== uid);
           }
@@ -83,6 +109,22 @@
     return () => {
       unlisten.then((fn) => fn()).catch(() => {});
     };
+  });
+
+  // Broadcast local voice state to space members when active in a channel
+  $effect(() => {
+    if (media.isInCall && media.channelId) {
+      void invoke('broadcast_voice_state', {
+        input: {
+          channel_id: media.channelId,
+          is_muted: media.isMuted,
+          is_deafened: media.isDeafened,
+          is_camera_on: media.isCameraOn,
+          is_screen_sharing: media.isScreenSharing,
+          is_speaking: media.isSpeaking,
+        },
+      }).catch(() => {});
+    }
   });
 
   async function handleVoiceClick(ch: { id: string; name: string; channelType: string }) {
@@ -533,9 +575,20 @@
                     >
                       <Avatar name={p.name} hash={p.avatarHash} size="sm" speaking={p.isSpeaking} />
                       <span class="veil-voice-member-name" class:speaking={p.isSpeaking}>{p.name}</span>
-                      {#if p.isMuted}
-                        <span class="veil-voice-muted"><Icon name="mic-off" size={11} /></span>
-                      {/if}
+                      <div class="veil-voice-badges">
+                        {#if p.isMuted}
+                          <span class="veil-voice-status-icon muted" title="Mikrofon Kapalı"><Icon name="mic-off" size={12} /></span>
+                        {/if}
+                        {#if p.isDeafened}
+                          <span class="veil-voice-status-icon deafened" title="Kulaklık Kapalı"><Icon name="volume-x" size={12} /></span>
+                        {/if}
+                        {#if p.isVideoOn}
+                          <span class="veil-voice-status-icon camera" title="Kamera Açık"><Icon name="camera" size={12} /></span>
+                        {/if}
+                        {#if p.isScreenSharing}
+                          <span class="veil-voice-status-icon screen" title="Ekran Paylaşıyor"><Icon name="broadcast" size={12} /></span>
+                        {/if}
+                      </div>
                     </div>
                   {/each}
                   <div
@@ -552,17 +605,47 @@
                     <span class="veil-voice-member-name" class:speaking={media.isSpeaking}>
                       {auth.identity?.displayName || auth.identity?.username || 'Sen'}
                     </span>
-                    {#if media.isMuted}
-                      <span class="veil-voice-muted"><Icon name="mic-off" size={11} /></span>
-                    {/if}
+                    <div class="veil-voice-badges">
+                      {#if media.isMuted}
+                        <span class="veil-voice-status-icon muted" title="Mikrofon Kapalı"><Icon name="mic-off" size={12} /></span>
+                      {/if}
+                      {#if media.isDeafened}
+                        <span class="veil-voice-status-icon deafened" title="Kulaklık Kapalı"><Icon name="volume-x" size={12} /></span>
+                      {/if}
+                      {#if media.isCameraOn}
+                        <span class="veil-voice-status-icon camera" title="Kamera Açık"><Icon name="camera" size={12} /></span>
+                      {/if}
+                      {#if media.isScreenSharing}
+                        <span class="veil-voice-status-icon screen" title="Ekran Paylaşıyor"><Icon name="broadcast" size={12} /></span>
+                      {/if}
+                    </div>
                   </div>
                 </div>
               {:else if (remoteVoiceUsers[ch.id]?.length ?? 0) > 0}
                 <div class="veil-voice-members" role="list" aria-label="Ses kanalındakiler">
                   {#each remoteVoiceUsers[ch.id] as user (user.id)}
-                    <div class="veil-voice-member" role="listitem" title={user.name}>
-                      <Avatar name={user.name} hash={user.avatarHash} size="sm" />
-                      <span class="veil-voice-member-name">{user.name}</span>
+                    <div
+                      class="veil-voice-member"
+                      role="listitem"
+                      title={user.name}
+                      oncontextmenu={(e) => openVoiceParticipantMenu(e, user)}
+                    >
+                      <Avatar name={user.name} hash={user.avatarHash} size="sm" speaking={user.isSpeaking} />
+                      <span class="veil-voice-member-name" class:speaking={user.isSpeaking}>{user.name}</span>
+                      <div class="veil-voice-badges">
+                        {#if user.isMuted}
+                          <span class="veil-voice-status-icon muted" title="Mikrofon Kapalı"><Icon name="mic-off" size={12} /></span>
+                        {/if}
+                        {#if user.isDeafened}
+                          <span class="veil-voice-status-icon deafened" title="Kulaklık Kapalı"><Icon name="volume-x" size={12} /></span>
+                        {/if}
+                        {#if user.isVideoOn}
+                          <span class="veil-voice-status-icon camera" title="Kamera Açık"><Icon name="camera" size={12} /></span>
+                        {/if}
+                        {#if user.isScreenSharing}
+                          <span class="veil-voice-status-icon screen" title="Ekran Paylaşıyor"><Icon name="broadcast" size={12} /></span>
+                        {/if}
+                      </div>
                     </div>
                   {/each}
                 </div>
@@ -731,7 +814,25 @@
     text-overflow: ellipsis;
   }
   .veil-voice-member-name.speaking { color: var(--veil-text-primary); }
-  .veil-voice-muted { color: var(--veil-danger); flex-shrink: 0; }
+  .veil-voice-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .veil-voice-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.85;
+  }
+  .veil-voice-status-icon.muted { color: var(--veil-danger); }
+  .veil-voice-status-icon.deafened { color: var(--veil-danger); }
+  .veil-voice-status-icon.camera { color: var(--veil-success); }
+  .veil-voice-status-icon.screen { color: var(--veil-brand); }
 
   .veil-dm-header-bar {
     display: flex;

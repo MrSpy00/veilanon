@@ -298,7 +298,7 @@
     }
   }
 
-  const isDeleted = $derived(!message.content && message.status !== 'sending' && message.attachments.length === 0);
+  const isDeleted = $derived(Boolean(message.deletedAt));
   const displayContent = $derived(isDeleted ? '[Mesaj silindi]' : (message.content ?? ''));
 
   // ── Kaybolan Mesaj Geri Sayım Sayacı ────────────────────────────────────
