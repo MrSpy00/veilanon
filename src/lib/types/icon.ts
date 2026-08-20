@@ -107,5 +107,12 @@ export type IconName =
   | 'code'
   | 'palette'
   | 'layers'
-  | 'aperture';
+  | 'aperture'
+  | 'tor'
+  | 'wireguard'
+  | 'warp'
+  | 'proxy'
+  | 'routing'
+  | 'leak-check'
+  | 'bolt';
 

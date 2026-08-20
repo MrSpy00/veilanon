@@ -1723,27 +1723,26 @@ pub async fn set_avatar(path: String, state: State<'_, AppState>) -> Result<Stri
         }
     }
 
-    // Kontrol düzlemine yansıt (best-effort).
+    // Kontrol düzlemine yansıt.
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .upload_blob(&format!("avatars/{}", hash), bytes.clone())
-                .await;
-            let _ = network
-                .api
-                .upsert(
-                    "users",
-                    &serde_json::json!({
-                        "id": identity_id.to_string(),
-                        "username": username,
-                        "display_name": display_name,
-                        "avatar_hash": hash,
-                    }),
-                    "id",
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .await;
+        let _ = network
+            .api
+            .upsert(
+                "users",
+                &serde_json::json!({
+                    "id": identity_id.to_string(),
+                    "username": username,
+                    "display_name": display_name,
+                    "avatar_hash": hash,
+                }),
+                "id",
+            )
+            .await;
     }
 
     let _ = state.app.emit("user:updated", serde_json::json!({ "userId": identity_id.to_string() }));
@@ -1790,29 +1789,28 @@ pub async fn set_banner(path: String, state: State<'_, AppState>) -> Result<Stri
 
     // Mirror to Supabase control plane so other users see the new banner
     if config::configured("VEILANON_SUPABASE_URL") {
-        if let Ok(network) = state.network.try_read() {
-            let _ = network
-                .api
-                .upload_blob(&format!("banners/{}", hash), bytes.clone())
-                .await;
-            let _ = network
-                .api
-                .upload_blob(&format!("avatars/{}", hash), bytes.clone())
-                .await;
-            let _ = network
-                .api
-                .upsert(
-                    "users",
-                    &serde_json::json!({
-                        "id": identity_id.to_string(),
-                        "username": username,
-                        "display_name": display_name,
-                        "banner_hash": hash,
-                    }),
-                    "id",
-                )
-                .await;
-        }
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upload_blob(&format!("banners/{}", hash), bytes.clone())
+            .await;
+        let _ = network
+            .api
+            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .await;
+        let _ = network
+            .api
+            .upsert(
+                "users",
+                &serde_json::json!({
+                    "id": identity_id.to_string(),
+                    "username": username,
+                    "display_name": display_name,
+                    "banner_hash": hash,
+                }),
+                "id",
+            )
+            .await;
     }
 
     let _ = state.app.emit("user:updated", serde_json::json!({ "userId": identity_id.to_string() }));

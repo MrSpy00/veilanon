@@ -524,27 +524,31 @@
           {#if netPriv.mode === 'tor'}
             <span class="net-badge net-badge-ok">
               <span class="pulse-dot"></span>
-              🧅 Tor SOCKS5h Aktif
+              <Icon name="tor" size={13} />
+              <span>Tor SOCKS5h Aktif</span>
             </span>
           {:else if netPriv.mode === 'cloudflare_warp'}
             <span class="net-badge net-badge-ok">
               <span class="pulse-dot"></span>
-              ⚡ Cloudflare WARP Aktif
+              <Icon name="warp" size={13} />
+              <span>Cloudflare WARP Aktif</span>
             </span>
           {:else if netPriv.mode === 'wireguard'}
             <span class="net-badge net-badge-ok">
               <span class="pulse-dot"></span>
-              🛡️ WireGuard Tüneli
+              <Icon name="wireguard" size={13} />
+              <span>WireGuard Tüneli</span>
             </span>
           {:else if netPriv.mode === 'custom_socks' || netPriv.mode === 'custom_http'}
             <span class="net-badge net-badge-ok">
               <span class="pulse-dot"></span>
-              🔒 Özel Proxy Aktif
+              <Icon name="proxy" size={13} />
+              <span>Özel Proxy Aktif</span>
             </span>
           {:else}
             <span class="net-badge net-badge-neutral">
               <Icon name="wifi" size={12} />
-              🌐 Doğrudan Bağlantı
+              <span>Doğrudan Bağlantı</span>
             </span>
           {/if}
         </div>
@@ -560,12 +564,12 @@
         </div>
         <VeilSelect
           options={[
-            { value: 'direct', label: '🌐 Doğrudan Bağlantı (Açık Ağ)' },
-            { value: 'tor', label: '🧅 Tor Ağı (Yerel Tor Daemon / SOCKS5h)' },
-            { value: 'cloudflare_warp', label: '⚡ Cloudflare WARP (1.1.1.1)' },
-            { value: 'wireguard', label: '🛡️ WireGuard VPN Profili' },
-            { value: 'custom_socks', label: '🔒 Özel SOCKS5 / SOCKS5h Proxy' },
-            { value: 'custom_http', label: '⚙️ Özel HTTP / HTTPS Proxy' },
+            { value: 'direct', label: 'Doğrudan Bağlantı (Açık Ağ)' },
+            { value: 'tor', label: 'Tor Ağı (Yerel Tor Daemon / SOCKS5h)' },
+            { value: 'cloudflare_warp', label: 'Cloudflare WARP (1.1.1.1 WireGuard)' },
+            { value: 'wireguard', label: 'WireGuard VPN Profili' },
+            { value: 'custom_socks', label: 'Özel SOCKS5 / SOCKS5h Proxy' },
+            { value: 'custom_http', label: 'Özel HTTP / HTTPS Proxy' },
           ]}
           value={netPriv.mode}
           onChange={(v) => updateNetworkPrivacy({ mode: v as NetworkProxyMode })}
@@ -603,7 +607,7 @@
             class:preset-card-active={netPriv.mode === 'tor' && netPriv.proxyPort === 9050}
             onclick={() => setProxyPreset('tor', 9050, '127.0.0.1', 'Tor SOCKS5h')}
           >
-            <div class="preset-card-icon">🧅</div>
+            <div class="preset-card-icon"><Icon name="tor" size={20} /></div>
             <div class="preset-card-body">
               <span class="preset-card-title">Tor Daemon</span>
               <span class="preset-card-desc">Port 9050 • Yerel 3-Hop Soğan Ağı</span>
@@ -620,7 +624,7 @@
             class:preset-card-active={netPriv.mode === 'tor' && netPriv.proxyPort === 9150}
             onclick={() => setProxyPreset('tor', 9150, '127.0.0.1', 'Tor Browser')}
           >
-            <div class="preset-card-icon">🌐</div>
+            <div class="preset-card-icon"><Icon name="globe" size={20} /></div>
             <div class="preset-card-body">
               <span class="preset-card-title">Tor Browser</span>
               <span class="preset-card-desc">Port 9150 • Tarayıcı Tüneli</span>
@@ -637,7 +641,7 @@
             class:preset-card-active={netPriv.mode === 'cloudflare_warp'}
             onclick={() => setProxyPreset('cloudflare_warp', 40000, '127.0.0.1', 'Cloudflare WARP')}
           >
-            <div class="preset-card-icon">⚡</div>
+            <div class="preset-card-icon"><Icon name="warp" size={20} /></div>
             <div class="preset-card-body">
               <span class="preset-card-title">Cloudflare WARP</span>
               <span class="preset-card-desc">1.1.1.1 WireGuard Gizlilik Katmanı</span>
@@ -654,7 +658,7 @@
             class:preset-card-active={netPriv.mode === 'wireguard'}
             onclick={() => updateNetworkPrivacy({ mode: 'wireguard' })}
           >
-            <div class="preset-card-icon">🛡️</div>
+            <div class="preset-card-icon"><Icon name="wireguard" size={20} /></div>
             <div class="preset-card-body">
               <span class="preset-card-title">WireGuard VPN</span>
               <span class="preset-card-desc">Özel .conf Profili & Şifreleme</span>

@@ -242,11 +242,21 @@ fn save_envelope(data_dir: &std::path::Path, map: &BTreeMap<String, String>) -> 
 /// embedding fails (e.g. stale build cache, CI without .env).
 fn migrate_from_dotenv(map: &mut BTreeMap<String, String>) -> usize {
     let mut imported = 0usize;
-    let candidates = [
+    let mut candidates = vec![
         PathBuf::from(".env"),
+        PathBuf::from("..").join(".env"),
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(".env"),
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env"),
     ];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join(".env"));
+            if let Some(grandparent) = parent.parent() {
+                candidates.push(grandparent.join(".env"));
+            }
+        }
+    }
+
     for path in &candidates {
         let Ok(contents) = std::fs::read_to_string(path) else {
             continue;
@@ -258,10 +268,6 @@ fn migrate_from_dotenv(map: &mut BTreeMap<String, String>) -> usize {
             }
             let Some((k, v)) = line.split_once('=') else { continue };
             let key = k.trim();
-            // Import ALL VEILANON_* keys — both secret and non-secret.
-            // Non-secret keys are normally resolved via embedded (compile-time)
-            // but this migration provides a runtime fallback for installed builds
-            // where the binary was compiled without the .env values.
             if !key.starts_with("VEILANON_") {
                 continue;
             }
@@ -273,11 +279,15 @@ fn migrate_from_dotenv(map: &mut BTreeMap<String, String>) -> usize {
                     value = value[1..value.len() - 1].to_string();
                 }
             }
-            if value.is_empty() || map.contains_key(key) {
+            if value.is_empty() {
                 continue;
             }
-            map.insert(key.to_string(), value);
-            imported += 1;
+            // Insert or update if missing or empty
+            let existing_empty = map.get(key).map(|v| v.trim().is_empty()).unwrap_or(true);
+            if existing_empty || !map.contains_key(key) {
+                map.insert(key.to_string(), value);
+                imported += 1;
+            }
         }
         if imported > 0 {
             break;

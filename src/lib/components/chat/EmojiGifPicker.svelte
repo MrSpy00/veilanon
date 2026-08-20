@@ -311,7 +311,7 @@
       {/if}
 
       {#if gifs.length > 0}
-        <div class="veil-eg-section-label">{gifQuery.trim() ? `Sonuçlar — ${gifs.length}` : 'Popüler'}</div>
+        <div class="veil-eg-section-label">{gifQuery.trim() ? `Sonuçlar — ${gifs.length}` : 'Popüler GIF\'ler'}</div>
         <div class="veil-eg-gif-grid">
           {#each gifs as gif (gif.id)}
             <button
@@ -336,7 +336,24 @@
           {/each}
         </div>
       {:else if !gifLoading && !gifError && gifFavorites.length === 0}
-        <p class="veil-eg-empty">Yukarıya bir şey yaz ve Ara'ya bas. 🎬</p>
+        <div class="veil-eg-empty-state">
+          <Icon name="film" size={28} />
+          <p class="veil-eg-empty">Popüler GIF'leri keşfet veya yukarıdan ara</p>
+          <div class="veil-eg-quick-chips">
+            {#each ['Trend', 'Tepkiler', 'Gaming', 'Anime', 'Memeler', 'Komik'] as chip}
+              <button
+                type="button"
+                class="btn btn-secondary btn-xs"
+                onclick={() => {
+                  gifQuery = chip;
+                  void searchGifs();
+                }}
+              >
+                {chip}
+              </button>
+            {/each}
+          </div>
+        </div>
       {/if}
     </div>
   {/if}
@@ -531,11 +548,28 @@
   .veil-eg-gif:hover .veil-eg-fav-gif { display: inline-flex; }
   .veil-eg-fav-gif.on { display: inline-flex; }
 
-  .veil-eg-empty {
+  .veil-eg-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: var(--space-6) var(--space-3);
     text-align: center;
     color: var(--veil-text-muted);
+  }
+  .veil-eg-empty {
+    padding: var(--space-2) var(--space-3);
+    text-align: center;
+    color: var(--veil-text-muted);
     font-size: var(--text-sm);
+    margin: 0;
+  }
+  .veil-eg-quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    justify-content: center;
+    margin-top: var(--space-3);
   }
   .veil-eg-loading {
     display: flex;

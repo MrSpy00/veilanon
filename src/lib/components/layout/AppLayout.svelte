@@ -196,6 +196,8 @@
 <div
   class="veil-app"
   class:with-members={shouldRenderMembers}
+  class:veil-has-custom-bg={!!(ui.customBgVideo || ui.customBgImage)}
+  data-has-custom-bg={!!(ui.customBgVideo || ui.customBgImage)}
 >
   <!-- Space sidebar -->
   <Sidebar />

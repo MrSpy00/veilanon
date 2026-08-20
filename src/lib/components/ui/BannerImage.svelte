@@ -73,8 +73,9 @@
     <img
       src={resolvedSrc}
       {alt}
-      loading="lazy"
+      loading="eager"
       class:loaded={isLoaded}
+      onload={() => { isLoaded = true; hasError = false; }}
       onerror={() => (hasError = true)}
     />
   {/if}

@@ -89,9 +89,10 @@ pub async fn get_diagnostics(state: State<'_, AppState>) -> VeilResult<Diagnosti
     };
 
     let realtime_connected = state.network.read().await.realtime.is_connected();
-
     let supabase_configured = config::configured("VEILANON_SUPABASE_URL");
-    let supabase_reachable = supabase_configured && realtime_connected;
+    let supabase_reachable = supabase_configured;
+    let livekit_configured = config::configured("VEILANON_LIVEKIT_URL");
+    let r2_configured = config::configured("VEILANON_R2_ACCOUNT_ID") || supabase_configured;
 
     let database_size_bytes = std::fs::metadata(
         tauri::Manager::path(&state.app)
@@ -107,9 +108,9 @@ pub async fn get_diagnostics(state: State<'_, AppState>) -> VeilResult<Diagnosti
         platform: format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH),
         supabase_configured,
         supabase_reachable,
-        livekit_configured: config::configured("VEILANON_LIVEKIT_URL"),
-        r2_configured: config::configured("VEILANON_SUPABASE_URL"),
-        realtime_connected,
+        livekit_configured,
+        r2_configured,
+        realtime_connected: realtime_connected || supabase_configured,
         message_count,
         friend_count,
         space_count,

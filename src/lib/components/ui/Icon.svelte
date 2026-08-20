@@ -195,6 +195,20 @@
       '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
     aperture:
       '<circle cx="12" cy="12" r="10"/><line x1="14.31" y1="8" x2="20.05" y2="17.94"/><line x1="9.69" y1="8" x2="21.17" y2="8"/><line x1="7.38" y1="12" x2="13.12" y2="2.06"/><line x1="9.69" y1="16" x2="3.95" y2="6.06"/><line x1="14.31" y1="16" x2="2.83" y2="16"/><line x1="16.62" y1="12" x2="10.88" y2="21.94"/>',
+    tor:
+      '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 4a6 6 0 1 1-6 6 6 6 0 0 1 6-6zm0 4a2 2 0 1 0 2 2 2 2 0 0 0-2-2z"/><path d="M12 2v20M2 12h20" stroke-dasharray="1 3"/>',
+    wireguard:
+      '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/><path d="m12 8 0-2M12 16l0-2M9 11l-2 0M17 11l-2 0"/>',
+    warp:
+      '<polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2"/><path d="M4 14h2M18 10h2"/>',
+    proxy:
+      '<rect x="2" y="3" width="20" height="6" rx="2"/><rect x="2" y="15" width="20" height="6" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/><path d="M12 9v6M9 12h6"/>',
+    routing:
+      '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a3 3 0 0 0 3 3h6"/>',
+    'leak-check':
+      '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="2.5"/><path d="M12 8v1.5M12 14.5V16"/>',
+    bolt:
+      '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   };
 
   let {

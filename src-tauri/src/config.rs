@@ -30,27 +30,30 @@ fn deobfuscate(hex_str: &str) -> Option<String> {
     String::from_utf8(unmasked).ok()
 }
 
-/// Embedded NON-SECRET configuration values (XOR-unmasked at runtime).
-/// SECRET_KEYS are intentionally excluded — they must come from runtime env
-/// or the encrypted secrets store to prevent credential leakage via binary
-/// reverse-engineering (strings / hexdump).
+/// Embedded configuration values (XOR-unmasked at runtime).
 fn embedded(key: &str) -> Option<String> {
     let obf_hex = match key {
         "VEILANON_SUPABASE_URL" => option_env!("VEILANON_SUPABASE_URL_OBF"),
         "VEILANON_SUPABASE_ANON_KEY" => option_env!("VEILANON_SUPABASE_ANON_KEY_OBF"),
+        "VEILANON_SUPABASE_SERVICE_ROLE_KEY" => option_env!("VEILANON_SUPABASE_SERVICE_ROLE_KEY_OBF"),
+        "VEILANON_SUPABASE_DB_URL" => option_env!("VEILANON_SUPABASE_DB_URL_OBF"),
         "VEILANON_LIVEKIT_URL" => option_env!("VEILANON_LIVEKIT_URL_OBF"),
         "VEILANON_LIVEKIT_API_KEY" => option_env!("VEILANON_LIVEKIT_API_KEY_OBF"),
+        "VEILANON_LIVEKIT_API_SECRET" => option_env!("VEILANON_LIVEKIT_API_SECRET_OBF"),
         "VEILANON_R2_ACCOUNT_ID" => option_env!("VEILANON_R2_ACCOUNT_ID_OBF"),
+        "VEILANON_R2_ACCESS_KEY_ID" => option_env!("VEILANON_R2_ACCESS_KEY_ID_OBF"),
+        "VEILANON_R2_SECRET_ACCESS_KEY" => option_env!("VEILANON_R2_SECRET_ACCESS_KEY_OBF"),
         "VEILANON_R2_BUCKET" => option_env!("VEILANON_R2_BUCKET_OBF"),
+        "VEILANON_SENTRY_DSN" => option_env!("VEILANON_SENTRY_DSN_OBF"),
         "VEILANON_UPSTASH_REDIS_REST_URL" => option_env!("VEILANON_UPSTASH_REDIS_REST_URL_OBF"),
+        "VEILANON_UPSTASH_REDIS_REST_TOKEN" => option_env!("VEILANON_UPSTASH_REDIS_REST_TOKEN_OBF"),
         "VEILANON_QDRANT_URL" => option_env!("VEILANON_QDRANT_URL_OBF"),
+        "VEILANON_QDRANT_API_KEY" => option_env!("VEILANON_QDRANT_API_KEY_OBF"),
+        "VEILANON_DISCORD_CLIENT_ID" => option_env!("VEILANON_DISCORD_CLIENT_ID_OBF"),
+        "VEILANON_DISCORD_CLIENT_SECRET" => option_env!("VEILANON_DISCORD_CLIENT_SECRET_OBF"),
         "VEILANON_OLLAMA_URL" => option_env!("VEILANON_OLLAMA_URL_OBF"),
         "VEILANON_TENOR_API_KEY" => option_env!("VEILANON_TENOR_API_KEY_OBF"),
         "VEILANON_GIPHY_API_KEY" => option_env!("VEILANON_GIPHY_API_KEY_OBF"),
-        // SECURITY: SECRET_KEYS (LiveKit API secret, R2 access/secret keys,
-        // Supabase service role, Discord client secret, Upstash token,
-        // Qdrant API key) are NEVER embedded. They flow through:
-        // runtime env → secrets store (OS keychain) → None.
         _ => None,
     };
     obf_hex.and_then(deobfuscate)

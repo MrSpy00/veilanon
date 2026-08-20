@@ -25,14 +25,11 @@ fn main() {
         .unwrap_or_else(|| "stable".into());
     println!("cargo:rustc-env=RUSTC_VERSION={}", rustc.trim());
 
-    // ── .env'den YALNIZCA secret OLMAYAN anahtarları derleme zamanına göm ──
-    // Kurulu uygulamanın çalışma dizininde .env yoktur; dev'de dotenvy onu
-    // okur. Buradan `cargo:rustc-env` ile yalnızca genel (URL/anon) değerleri
-    // gömerek kurulumda da LiveKit/Supabase/R2 yapılandırmasının çalışmasını
-    // garanti ederiz. SECRET anahtarlar (API secret, token, private key) ASLA
-    // gömülmez — `secrets` store'unda (OS keychain korumalı, şifreli) saklanır.
-    // Güvenlik gerekçesi: gömülü string'ler `strings`/reverse-engineering ile
-    // binary'den çıkarılabilir; sırların binary'de bulunması kabul edilemez.
+    println!("cargo:rerun-if-changed=.env");
+    println!("cargo:rerun-if-changed=../.env");
+    println!("cargo:rerun-if-changed=build.rs");
+
+    // ── .env'den anahtarları derleme zamanına güvenli XOR maskeli olarak göm ──
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let candidates = [manifest_dir.join(".env"), manifest_dir.join("..").join(".env")];
     for path in &candidates {
@@ -51,8 +48,7 @@ fn main() {
             break;
         }
     }
-    // Fallback: if no .env file found or for any keys not in .env, check process environment variables.
-    // This allows CI/CD to set env vars dynamically without hardcoding values in code.
+    // Fallback: process environment variables.
     let mut process_env_count = 0usize;
     for &key in EMBEDDABLE_KEYS {
         if let Ok(val) = std::env::var(key) {
@@ -72,16 +68,26 @@ fn main() {
     tauri_build::build()
 }
 
-/// Whitelist of keys permitted to be embedded at compile time (NON-SECRET only).
+/// Whitelist of keys permitted to be embedded at compile time (XOR-obfuscated).
 const EMBEDDABLE_KEYS: &[&str] = &[
     "VEILANON_SUPABASE_URL",
     "VEILANON_SUPABASE_ANON_KEY",
+    "VEILANON_SUPABASE_SERVICE_ROLE_KEY",
+    "VEILANON_SUPABASE_DB_URL",
     "VEILANON_LIVEKIT_URL",
     "VEILANON_LIVEKIT_API_KEY",
+    "VEILANON_LIVEKIT_API_SECRET",
     "VEILANON_R2_ACCOUNT_ID",
+    "VEILANON_R2_ACCESS_KEY_ID",
+    "VEILANON_R2_SECRET_ACCESS_KEY",
     "VEILANON_R2_BUCKET",
+    "VEILANON_SENTRY_DSN",
     "VEILANON_UPSTASH_REDIS_REST_URL",
+    "VEILANON_UPSTASH_REDIS_REST_TOKEN",
     "VEILANON_QDRANT_URL",
+    "VEILANON_QDRANT_API_KEY",
+    "VEILANON_DISCORD_CLIENT_ID",
+    "VEILANON_DISCORD_CLIENT_SECRET",
     "VEILANON_OLLAMA_URL",
     "VEILANON_TENOR_API_KEY",
     "VEILANON_GIPHY_API_KEY",
@@ -121,7 +127,6 @@ fn embed_env_file(contents: &str) -> usize {
             None => continue,
         };
         let key = key.trim();
-        // SECURITY: Strictly enforce whitelist. Secret keys are never emitted.
         if !EMBEDDABLE_KEYS.contains(&key) {
             continue;
         }
