@@ -71,6 +71,29 @@
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Tiny local release-notes formatter: blank lines -> <p>, bullet lines -> <ul><li>,
+  // `inline code` -> <code>, single newlines -> <br>. Input is HTML-escaped first.
+  function formatReleaseNotes(raw?: string | null): string {
+    if (!raw) return '';
+    const esc = escapeHtml(raw);
+    const blocks = esc.split(/\n\s*\n/).filter((b) => b.trim() !== '');
+    return blocks
+      .map((block) => {
+        const lines = block.split('\n');
+        if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
+          const items = lines.map((l) => l.replace(/^\s*[-*]\s+/, '')).join('</li><li>');
+          return `<ul><li>${items}</li></ul>`;
+        }
+        return `<p>${lines.join('<br>')}</p>`;
+      })
+      .join('')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
 </script>
 
 <div class="veil-updater-card">
@@ -122,7 +145,7 @@
         {#if result.releaseNotes}
           <div class="veil-updater-notes">
             <div class="veil-notes-label">Yenilikler & Değişiklikler:</div>
-            <pre class="veil-notes-content">{result.releaseNotes}</pre>
+            <div class="veil-notes-content">{@html formatReleaseNotes(result.releaseNotes)}</div>
           </div>
         {/if}
 
@@ -149,7 +172,12 @@
         <Icon name="check" size={20} />
         <div class="veil-updater-uptodate-body">
           <strong>veilanon güncel!</strong>
-          <p>{result.statusMessage}</p>
+          <div class="veil-uptodate-status-row">
+            <p>{result.statusMessage}</p>
+            {#if result.detectionMethod === 'commit'}
+              <span class="veil-method-tag">commit farkı ile doğrulandı</span>
+            {/if}
+          </div>
           {#if result.publishedAt}
             <span class="veil-updater-rel-date">
               Son sürüm tarihi: {new Date(result.publishedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -159,7 +187,7 @@
           {#if result.releaseNotes}
             <div class="veil-updater-notes" style="margin-top: var(--space-2);">
               <div class="veil-notes-label">Mevcut Sürüm Yenilikleri:</div>
-              <pre class="veil-notes-content">{result.releaseNotes}</pre>
+              <div class="veil-notes-content">{@html formatReleaseNotes(result.releaseNotes)}</div>
             </div>
           {/if}
 
@@ -337,9 +365,48 @@
     font-family: var(--font-sans);
     line-height: var(--leading-relaxed);
     color: var(--veil-text-secondary);
-    white-space: pre-wrap;
     word-break: break-word;
     margin: 0;
+  }
+  .veil-notes-content :global(p) {
+    margin: 0 0 var(--space-1);
+  }
+  .veil-notes-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .veil-notes-content :global(ul) {
+    margin: 0;
+    padding-left: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .veil-notes-content :global(code) {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--veil-bg-overlay);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0 4px;
+    color: var(--veil-text-primary);
+  }
+  .veil-method-tag {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    padding: 1px 8px;
+    background: var(--veil-brand-subtle);
+    color: var(--veil-brand);
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .veil-uptodate-status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
   }
   .veil-updater-actions {
     display: flex;
