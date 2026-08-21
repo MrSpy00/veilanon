@@ -52,34 +52,49 @@ impl Database {
         before_id: Option<&Uuid>,
         limit: u32,
     ) -> VeilResult<Vec<Message>> {
-        let limit = limit.min(100) as i64; // Hard cap at 100
+        let limit = limit.min(100) as i64;
         let channel_str = channel_id.to_string();
 
-        let sql = match before_id {
-            Some(_) => r#"SELECT id, channel_id, sender_id, sender_device_id, ciphertext, iv,
+        if let Some(before) = before_id {
+            let cursor_created: Option<i64> = self.query_row(
+                "SELECT created_at FROM messages WHERE id = ?1 AND channel_id = ?2",
+                params![before.to_string(), channel_str],
+                |r| r.get(0),
+            ).ok();
+            if let Some(ts) = cursor_created {
+                return self.query_map(
+                    r#"SELECT id, channel_id, sender_id, sender_device_id, ciphertext, iv,
+                                  message_type, status, reply_to_id, pinned, reactions, attachments,
+                                  edited_at, created_at, deleted_at, disappears_at, schema_version, crypto_meta
+                           FROM messages
+                           WHERE channel_id = ?1 AND deleted_at IS NULL AND (created_at < ?2 OR (created_at = ?2 AND id < ?3))
+                           ORDER BY created_at DESC, id DESC LIMIT ?4"#,
+                    params![channel_str, ts, before.to_string(), limit],
+                    row_to_message,
+                );
+            }
+            return self.query_map(
+                r#"SELECT id, channel_id, sender_id, sender_device_id, ciphertext, iv,
                                  message_type, status, reply_to_id, pinned, reactions, attachments,
                                  edited_at, created_at, deleted_at, disappears_at, schema_version, crypto_meta
                           FROM messages
                           WHERE channel_id = ?1 AND deleted_at IS NULL AND id < ?2
                           ORDER BY created_at DESC LIMIT ?3"#,
-            None => r#"SELECT id, channel_id, sender_id, sender_device_id, ciphertext, iv,
+                params![channel_str, before.to_string(), limit],
+                row_to_message,
+            );
+        }
+
+        self.query_map(
+            r#"SELECT id, channel_id, sender_id, sender_device_id, ciphertext, iv,
                               message_type, status, reply_to_id, pinned, reactions, attachments,
                               edited_at, created_at, deleted_at, disappears_at, schema_version, crypto_meta
                        FROM messages
                        WHERE channel_id = ?1 AND deleted_at IS NULL
                        ORDER BY created_at DESC LIMIT ?2"#,
-        };
-
-        let messages = match before_id {
-            Some(before) => self.query_map(
-                sql,
-                params![channel_str, before.to_string(), limit],
-                row_to_message,
-            )?,
-            None => self.query_map(sql, params![channel_str, limit], row_to_message)?,
-        };
-
-        Ok(messages)
+            params![channel_str, limit],
+            row_to_message,
+        )
     }
 
     /// Mark message as deleted (soft delete — cryptographic delete on server)
@@ -375,18 +390,43 @@ impl Database {
         attachments: &[AttachmentRef],
         disappears_at: Option<i64>,
     ) -> VeilResult<()> {
+        self.insert_pending_dm_encrypted(id, channel_id, peer_id, content, message_type, reply_to_id, attachments, disappears_at, None)
+    }
+
+    pub fn insert_pending_dm_encrypted(
+        &self,
+        id: &Uuid,
+        channel_id: &Uuid,
+        peer_id: &Uuid,
+        content: &str,
+        message_type: &str,
+        reply_to_id: Option<&Uuid>,
+        attachments: &[AttachmentRef],
+        disappears_at: Option<i64>,
+        db_key: Option<&[u8; 32]>,
+    ) -> VeilResult<()> {
         let attachments_json = serde_json::to_string(attachments)
             .map_err(|_| VeilError::SerializationError)?;
+        let (store_content, cipher, nonce) = if let Some(k) = db_key {
+            let (ct, n) = cipher::encrypt(k, content.as_bytes())?;
+            (String::new(), Some(ct), Some(n))
+        } else {
+            (content.to_string(), None, None)
+        };
+        let c_cipher: Option<String> = cipher;
+        let c_nonce: Option<String> = nonce;
         self.execute(
             r#"INSERT INTO pending_dm_messages
-               (id, channel_id, peer_id, content, message_type, reply_to_id,
+               (id, channel_id, peer_id, content, content_cipher, content_nonce, message_type, reply_to_id,
                 attachments, disappears_at, created_at)
-               VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"#,
+               VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)"#,
             params![
                 id.to_string(),
                 channel_id.to_string(),
                 peer_id.to_string(),
-                content,
+                store_content,
+                c_cipher,
+                c_nonce,
                 message_type,
                 reply_to_id.map(|id| id.to_string()),
                 attachments_json,
@@ -398,29 +438,44 @@ impl Database {
     }
 
     pub fn get_pending_dms_by_peer(&self, peer_id: &Uuid) -> VeilResult<Vec<(Uuid, Uuid, String, String, Option<String>, Vec<AttachmentRef>, Option<i64>)>> {
-        self.query_map(
-            "SELECT id, channel_id, content, message_type, reply_to_id, attachments, disappears_at FROM pending_dm_messages WHERE peer_id = ?1 ORDER BY created_at ASC",
+        self.get_pending_dms_by_peer_decrypted(peer_id, None)
+    }
+
+    pub fn get_pending_dms_by_peer_decrypted(
+        &self,
+        peer_id: &Uuid,
+        db_key: Option<&[u8; 32]>,
+    ) -> VeilResult<Vec<(Uuid, Uuid, String, String, Option<String>, Vec<AttachmentRef>, Option<i64>)>> {
+        let rows: Vec<(String, String, String, Option<String>, Option<String>, String, Option<String>, String, Option<i64>)> = self.query_map(
+            "SELECT id, channel_id, content, content_cipher, content_nonce, message_type, reply_to_id, attachments, disappears_at FROM pending_dm_messages WHERE peer_id = ?1 ORDER BY created_at ASC",
             params![peer_id.to_string()],
-            |row| {
-                let id: String = row.get(0)?;
-                let channel_id: String = row.get(1)?;
-                let content: String = row.get(2)?;
-                let message_type: String = row.get(3)?;
-                let reply_to_id: Option<String> = row.get(4)?;
-                let attachments_json: String = row.get(5)?;
-                let disappears_at: Option<i64> = row.get(6)?;
-                let attachments: Vec<AttachmentRef> = serde_json::from_str(&attachments_json).unwrap_or_default();
-                Ok((
-                    Uuid::parse_str(&id).unwrap_or_default(),
-                    Uuid::parse_str(&channel_id).unwrap_or_default(),
-                    content,
-                    message_type,
-                    reply_to_id,
-                    attachments,
-                    disappears_at,
-                ))
-            },
-        )
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?)),
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for (id_s, ch_s, content_plain, c_cipher, c_nonce, mtype, reply, att_json, dis) in rows {
+            let is_encrypted = c_cipher.is_some();
+            let content = if let (Some(ct), Some(nc)) = (c_cipher, c_nonce) {
+                if let Some(k) = db_key {
+                    cipher::decrypt(k, &ct, &nc).ok().and_then(|b| String::from_utf8(b).ok()).unwrap_or_default()
+                } else {
+                    String::new()
+                }
+            } else {
+                content_plain
+            };
+            if content.is_empty() && is_encrypted { continue; }
+            let attachments: Vec<AttachmentRef> = serde_json::from_str(&att_json).unwrap_or_default();
+            out.push((
+                Uuid::parse_str(&id_s).unwrap_or_default(),
+                Uuid::parse_str(&ch_s).unwrap_or_default(),
+                content,
+                mtype,
+                reply,
+                attachments,
+                dis,
+            ));
+        }
+        Ok(out)
     }
 
     pub fn delete_pending_dm(&self, id: &Uuid) -> VeilResult<()> {

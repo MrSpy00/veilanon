@@ -29,7 +29,6 @@ fn main() {
     println!("cargo:rerun-if-changed=../.env");
     println!("cargo:rerun-if-changed=build.rs");
 
-    // ── .env'den anahtarları derleme zamanına güvenli XOR maskeli olarak göm ──
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let candidates = [manifest_dir.join(".env"), manifest_dir.join("..").join(".env")];
     for path in &candidates {
@@ -37,8 +36,15 @@ fn main() {
             match std::fs::read_to_string(path) {
                 Ok(contents) => {
                     let embedded_count = embed_env_file(&contents);
+                    let secret_skipped = contents.lines().filter(|l| {
+                        let k = l.split_once('=').map(|(k,_)| k.trim()).unwrap_or("");
+                        SECRET_KEYS.contains(&k)
+                    }).count();
+                    if secret_skipped > 0 {
+                        println!("cargo:warning=veilanon: {} secret keys SKIPPED (never embedded) from {}", secret_skipped, path.display());
+                    }
                     println!(
-                        "cargo:warning=veilanon: {} environment variables embedded from {}",
+                        "cargo:warning=veilanon: {} public environment variables embedded from {}",
                         embedded_count,
                         path.display()
                     );
@@ -68,29 +74,30 @@ fn main() {
     tauri_build::build()
 }
 
-/// Whitelist of keys permitted to be embedded at compile time (XOR-obfuscated).
 const EMBEDDABLE_KEYS: &[&str] = &[
     "VEILANON_SUPABASE_URL",
     "VEILANON_SUPABASE_ANON_KEY",
-    "VEILANON_SUPABASE_SERVICE_ROLE_KEY",
-    "VEILANON_SUPABASE_DB_URL",
     "VEILANON_LIVEKIT_URL",
     "VEILANON_LIVEKIT_API_KEY",
-    "VEILANON_LIVEKIT_API_SECRET",
     "VEILANON_R2_ACCOUNT_ID",
-    "VEILANON_R2_ACCESS_KEY_ID",
-    "VEILANON_R2_SECRET_ACCESS_KEY",
     "VEILANON_R2_BUCKET",
-    "VEILANON_SENTRY_DSN",
     "VEILANON_UPSTASH_REDIS_REST_URL",
-    "VEILANON_UPSTASH_REDIS_REST_TOKEN",
     "VEILANON_QDRANT_URL",
-    "VEILANON_QDRANT_API_KEY",
-    "VEILANON_DISCORD_CLIENT_ID",
-    "VEILANON_DISCORD_CLIENT_SECRET",
     "VEILANON_OLLAMA_URL",
     "VEILANON_TENOR_API_KEY",
     "VEILANON_GIPHY_API_KEY",
+];
+const SECRET_KEYS: &[&str] = &[
+    "VEILANON_SUPABASE_SERVICE_ROLE_KEY",
+    "VEILANON_SUPABASE_DB_URL",
+    "VEILANON_LIVEKIT_API_SECRET",
+    "VEILANON_R2_ACCESS_KEY_ID",
+    "VEILANON_R2_SECRET_ACCESS_KEY",
+    "VEILANON_SENTRY_DSN",
+    "VEILANON_UPSTASH_REDIS_REST_TOKEN",
+    "VEILANON_QDRANT_API_KEY",
+    "VEILANON_DISCORD_CLIENT_ID",
+    "VEILANON_DISCORD_CLIENT_SECRET",
 ];
 
 const OBF_KEY: &[u8] = b"vEiLaNoN_sEcUrE_sTrInG_mAsK_2026_xOr";

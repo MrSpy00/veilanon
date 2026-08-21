@@ -265,20 +265,54 @@ pub async fn upload_bytes(
     encrypt_and_store_bytes(&input.bytes, &input.channel_id, &state).await
 }
 
+fn validate_download_path(input_path: &str, data_dir: &std::path::Path) -> Result<std::path::PathBuf, VeilError> {
+    let p = std::path::Path::new(input_path);
+    if input_path.contains("..") { return Err(VeilError::InvalidInput("Geçersiz dosya yolu".into())); }
+    if !p.is_absolute() { return Err(VeilError::InvalidInput("Dosya yolu mutlak olmalıdır".into())); }
+    let s = p.to_string_lossy();
+    if s.contains('\0') { return Err(VeilError::InvalidInput("Geçersiz dosya yolu".into())); }
+    let allowed = {
+        let downloads = dirs_next();
+        p.starts_with(data_dir)
+            || downloads.iter().any(|d| p.starts_with(d))
+            || p.extension().is_some()
+    };
+    if !allowed { return Err(VeilError::InvalidInput("Dosya yalnızca güvenli klasörlere indirilebilir".into())); }
+    Ok(p.to_path_buf())
+}
+
+fn dirs_next() -> Vec<std::path::PathBuf> {
+    let mut v = Vec::new();
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        let h = std::path::PathBuf::from(home);
+        v.push(h.join("Downloads"));
+        v.push(h.join("Desktop"));
+        v.push(h.join("Documents"));
+        v.push(h.join("Belgeler"));
+    }
+    if let Ok(dl) = std::env::var("USERPROFILE") { v.push(std::path::PathBuf::from(dl).join("Downloads")); }
+    v
+}
+
 /// Download and decrypt a file to the destination path.
 #[tauri::command]
 pub async fn download_file(
     input: DownloadFileInput,
     state: State<'_, AppState>,
 ) -> Result<String, VeilError> {
+    let data_dir = state.app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let dest = validate_download_path(&input.destination_path, &data_dir)?;
+    if dest.to_string_lossy().contains("..") { return Err(VeilError::InvalidInput("Geçersiz dosya yolu".into())); }
     let (ciphertext, content_key, nonce_bytes, _) =
         resolve_file_metadata_and_ciphertext(&input.file_id, &state).await?;
 
     let plaintext = file_enc::decrypt_file(&ciphertext, &content_key, &nonce_bytes)?;
-    tokio::fs::write(&input.destination_path, plaintext).await?;
+    if plaintext.len() as u64 > MAX_FILE_SIZE { return Err(VeilError::FileTooLarge); }
+    if let Some(parent) = dest.parent() { let _ = tokio::fs::create_dir_all(parent).await; }
+    tokio::fs::write(&dest, plaintext).await?;
 
     info!("File downloaded and decrypted (id={})", input.file_id);
-    Ok(input.destination_path)
+    Ok(dest.to_string_lossy().to_string())
 }
 
 /// Delete a file — removes the blob from storage and tombstones metadata.

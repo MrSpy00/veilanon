@@ -464,7 +464,8 @@ pub async fn send_message(
                 let disappears_ts = input.disappear_seconds.map(|secs| {
                     (chrono::Utc::now() + chrono::Duration::seconds(secs as i64)).timestamp()
                 });
-                (*db).insert_pending_dm(
+                let db_key = state.get_db_key().await;
+                (*db).insert_pending_dm_encrypted(
                     &message_id,
                     &channel_id,
                     &peer_id_from_dm_channel(&state, &channel_id).await.unwrap_or_default(),
@@ -473,6 +474,7 @@ pub async fn send_message(
                     reply_uuid.as_ref(),
                     &input.attachments,
                     disappears_ts,
+                    db_key.as_ref(),
                 )?;
                 drop(db);
                 let temp_msg = Message {
@@ -1518,9 +1520,10 @@ pub(crate) async fn flush_pending_dm_messages(state: &AppState) {
     };
 
     for peer_id in peer_ids {
+        let db_key = state.get_db_key().await;
         let pending = {
             let db = state.db.read().await;
-            match (*db).get_pending_dms_by_peer(&peer_id) {
+            match (*db).get_pending_dms_by_peer_decrypted(&peer_id, db_key.as_ref()) {
                 Ok(p) => p,
                 Err(_) => continue,
             }

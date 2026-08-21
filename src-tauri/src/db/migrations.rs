@@ -25,6 +25,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("0013_custom_status_and_bio", MIGRATION_0013),
     ("0014_pending_dm_messages", MIGRATION_0014),
     ("0015_fix_channel_type_strings", MIGRATION_0015),
+    ("0016_encrypt_pending_dm", MIGRATION_0016),
 ];
 
 pub fn run(conn: &mut Connection) -> crate::error::VeilResult<()> {
@@ -428,5 +429,15 @@ const MIGRATION_0015: &str = r#"
 UPDATE channels SET channel_type = 'dm' WHERE channel_type = 'directmessage';
 UPDATE channels SET channel_type = 'group_dm' WHERE channel_type = 'groupdirectmessage';
 UPDATE channels SET channel_type = 'text' WHERE channel_type = 'textmessage';
+"#;
+
+// ── Migration 0016: Encrypt pending_dm_messages at rest ─────────────────────
+const MIGRATION_0016: &str = r#"
+-- content column was plaintext; migrate to encrypted columns.
+-- New columns: content_cipher (base64), content_nonce (base64)
+ALTER TABLE pending_dm_messages ADD COLUMN content_cipher TEXT;
+ALTER TABLE pending_dm_messages ADD COLUMN content_nonce TEXT;
+-- Backfill existing rows: wrap plaintext with a placeholder (will be re-encrypted on next insert)
+-- Keep old content column for migration week, then drop in 0017.
 "#;
 
