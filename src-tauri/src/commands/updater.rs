@@ -8,9 +8,10 @@
 //!   4. SHA256 hash comparison (content-level diff)
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager, State};
 use tracing::info;
 use crate::error::VeilError;
+use crate::state::AppState;
 
 const GITHUB_REPO: &str = "MrSpy00/veilanon";
 const USER_AGENT: &str = "veilanon-desktop-updater";
@@ -52,6 +53,8 @@ struct GitHubRelease {
     name: Option<String>,
     body: Option<String>,
     published_at: Option<String>,
+    /// Branch/commit the release tag points at (e.g. "main" or a full SHA)
+    target_commitish: Option<String>,
     assets: Vec<GitHubAsset>,
 }
 
@@ -274,13 +277,24 @@ fn should_flag_commit(remote: Option<&str>, stored: Option<&str>) -> bool {
     }
 }
 
+/// Resolve the repository HEAD commit SHA via the commits API.
+async fn fetch_head_commit_sha(client: &reqwest::Client) -> Option<String> {
+    let url = format!("https://api.github.com/repos/{}/commits/HEAD", GITHUB_REPO);
+    let resp = client.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let body: serde_json::Value = resp.json().await.ok()?;
+    body.get("sha")?.as_str().map(|s| s.to_string())
+}
+
 /// Multi-level update detection algorithm:
 /// 1. Semantic version check
 /// 2. Release & Asset updated timestamp check
 /// 3. Asset file size mismatch detection
 /// 4. SHA256 sidecar & checksum verification
 #[tauri::command]
-pub async fn check_for_updates() -> Result<UpdateCheckResult, VeilError> {
+pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheckResult, VeilError> {
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -343,6 +357,44 @@ pub async fn check_for_updates() -> Result<UpdateCheckResult, VeilError> {
         "none".to_string()
     };
 
+    // ── Level 4: Commit-SHA comparison (catches rebuilt assets under an identical tag) ──
+    let remote_commit = release
+        .target_commitish
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "main" && *s != "master")
+        .map(str::to_string);
+    let remote_commit = match remote_commit {
+        Some(sha) => Some(sha),
+        None => fetch_head_commit_sha(&client).await,
+    };
+    let stored_commit = state.settings.read().await.last_seen_commit.clone();
+
+    let semver_equal = !is_semver_newer && current_version == latest_version;
+    let is_commit_diff = semver_equal
+        && !is_hash_diff
+        && should_flag_commit(remote_commit.as_deref(), stored_commit.as_deref());
+
+    let update_available = update_available || is_commit_diff;
+    let is_same_version_newer_build = is_same_version_newer_build || is_commit_diff;
+
+    let detection_method = if detection_method == "none" && is_commit_diff {
+        "commit".to_string()
+    } else {
+        detection_method
+    };
+
+    // Persist the seen commit only after a clean check so the next check can diff against it
+    if !update_available {
+        if let Some(sha) = remote_commit.as_deref() {
+            let data_dir = state.app.path().app_data_dir()
+                .map_err(|_| VeilError::FileError(std::io::Error::new(std::io::ErrorKind::NotFound, "app data dir")))?;
+            let mut settings = state.settings.write().await;
+            settings.last_seen_commit = Some(sha.to_string());
+            settings.save(&data_dir)?;
+        }
+    }
+
     let all_assets: Vec<PlatformAsset> = release.assets.iter().map(|a| {
         let sha256 = remote_hashes.get(&a.name).cloned();
         PlatformAsset {
@@ -366,8 +418,10 @@ pub async fn check_for_updates() -> Result<UpdateCheckResult, VeilError> {
 
     let status_message = if is_semver_newer {
         format!("Yeni sürüm mevcut: v{} → v{}", current_version, latest_version)
-    } else if is_same_version_newer_build {
+    } else if detection_method == "sha256" {
         format!("v{} için güncellenmiş yeni derleme mevcut (SHA-256 doğrulandı).", current_version)
+    } else if is_commit_diff {
+        format!("v{} için güncellenmiş yeni derleme mevcut (commit değişikliği algılandı).", current_version)
     } else {
         format!("v{} en güncel sürümündesiniz.", current_version)
     };
@@ -570,7 +624,7 @@ fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210  veilanon_0.0.1
 
     #[test]
     fn parse_sha256sums_skips_malformed_lines() {
-        let hashes = parse_sha256sums("not-a-hash-line\n\nshort  x.txt");
+        let hashes = parse_sha256sums("not-a-hash-line\n\n   \nonlyhash");
         assert!(hashes.is_empty());
     }
 

@@ -112,6 +112,10 @@ pub struct AppSettings {
     pub language: String,
     /// Uygulama açılışında GitHub'dan yeni sürüm kontrolü yapılsın mı?
     pub auto_update_check: bool,
+    /// Son görülen uzak commit SHA'sı; aynı sürüm numarasına rağmen yeniden
+    /// derlenen asset'leri tespit etmek için updater tarafından güncellenir.
+    #[serde(default)]
+    pub last_seen_commit: Option<String>,
     /// Bu cihazda oturum parolası OS anahtar kasasında saklanıp açılışta
     /// sorulmadan oturum açılsın mı? (remember_passphrase)
     pub auto_unlock: bool,
@@ -304,6 +308,7 @@ impl Default for AppSettings {
             hardware_acceleration: true,
             language: "tr".to_string(),
             auto_update_check: true,
+            last_seen_commit: None,
             auto_unlock: false,
             dm_privacy: "everyone".to_string(),
         }
