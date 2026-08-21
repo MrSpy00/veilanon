@@ -1206,7 +1206,7 @@ textarea,
 
 .veil-message-content {
   font-size: 0.9375rem;
-  line-height: 1.3;
+  line-height: 1.32;
   letter-spacing: -0.005em;
   color: var(--veil-text-primary);
   word-break: break-word;

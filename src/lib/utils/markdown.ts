@@ -125,7 +125,8 @@ function renderToken(token: Token): string {
  */
 export function renderMarkdown(content: string): string {
   if (!content) return '';
-  const tokens = tokenize(content);
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  const tokens = tokenize(normalized);
   return tokens.map(renderToken).join('');
 }
 

@@ -61,7 +61,7 @@
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
-    line-height: 1.375;
+    line-height: 1.32;
   }
   .veil-markdown :global(a) {
     color: var(--veil-brand);
