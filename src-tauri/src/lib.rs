@@ -469,6 +469,7 @@ pub fn run() {
             media::toggle_mute,
             media::toggle_camera,
             media::broadcast_voice_state,
+            media::read_image_as_base64,
             // Files
             files::upload_file,
             files::upload_bytes,
@@ -476,6 +477,7 @@ pub fn run() {
             files::delete_file,
             files::get_file_info,
             files::get_file_data_url,
+            files::write_text_file_user,
             // Settings
             settings::get_settings,
             settings::update_settings,

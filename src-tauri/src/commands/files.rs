@@ -442,3 +442,64 @@ pub async fn get_file_data_url(
 
     Ok(format!("data:{mime};base64,{}", B64.encode(&plaintext)))
 }
+
+/// Write UTF-8 text contents to a user-chosen path (.json exports only).
+#[tauri::command]
+pub async fn write_text_file_user(path: String, contents: String) -> Result<(), VeilError> {
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase());
+    if ext.as_deref() != Some("json") {
+        return Err(VeilError::InvalidInput("Yalnızca .json dosyaları kaydedilebilir.".into()));
+    }
+
+    let dest = std::path::PathBuf::from(&path);
+    if let Some(parent) = dest.parent().filter(|p| !p.as_os_str().is_empty()) {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::write(&dest, contents.as_bytes()).await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_files_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("veil-files-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        dir
+    }
+
+    #[tokio::test]
+    async fn write_text_file_user_writes_json_contents() {
+        let dir = temp_files_dir();
+        let path = dir.join("nested").join("export.json");
+        let contents = r#"{"hello":"dünya"}"#.to_string();
+
+        write_text_file_user(path.to_string_lossy().to_string(), contents.clone())
+            .await
+            .expect("json export must succeed");
+
+        let written = std::fs::read_to_string(&path).expect("file must exist after write");
+        assert_eq!(written, contents);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn write_text_file_user_rejects_non_json_extension() {
+        let dir = temp_files_dir();
+        let path = dir.join("export.txt");
+
+        let err =
+            write_text_file_user(path.to_string_lossy().to_string(), "{}".to_string())
+                .await
+                .unwrap_err();
+        assert!(matches!(err, VeilError::InvalidInput(_)));
+        assert!(!path.exists(), "rejected path must not be written");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

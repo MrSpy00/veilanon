@@ -9,6 +9,8 @@ use tauri::{Manager, State};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
 
 use crate::state::AppState;
 use crate::config;
@@ -413,6 +415,23 @@ pub async fn broadcast_voice_state(
     Ok(())
 }
 
+/// Read a local image file and return it as a base64 data URL for inline preview.
+#[tauri::command]
+pub async fn read_image_as_base64(path: String) -> Result<String, VeilError> {
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
+        .ok_or_else(|| VeilError::InvalidInput("Geçersiz görüntü dosyası.".into()))?;
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "jpeg",
+        other => other,
+    };
+    let bytes = std::fs::read(&path).map_err(VeilError::FileError)?;
+    Ok(format!("data:image/{mime};base64,{}", B64.encode(&bytes)))
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -451,5 +470,46 @@ mod tests {
     fn livekit_token_rejects_missing_config() {
         let err = generate_livekit_token("", "", "alice-uuid", "Alice", "room-1", None).unwrap_err();
         assert!(matches!(err, VeilError::NotConfigured(_)));
+    }
+
+    fn temp_media_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("veil-media-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        dir
+    }
+
+    #[tokio::test]
+    async fn read_image_as_base64_rejects_non_image_extension() {
+        let dir = temp_media_dir();
+        let path = dir.join("note.txt");
+        std::fs::write(&path, b"not an image").expect("fixture write");
+
+        let err =
+            read_image_as_base64(path.to_string_lossy().to_string()).await.unwrap_err();
+        assert!(matches!(err, VeilError::InvalidInput(_)));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn read_image_as_base64_round_trips_png_bytes() {
+        use base64::Engine as _;
+
+        let source: &[u8] = b"\x89PNG\r\n\x1a\nfake-png-payload";
+        let dir = temp_media_dir();
+        let path = dir.join("avatar.png");
+        std::fs::write(&path, source).expect("fixture write");
+
+        let data_url =
+            read_image_as_base64(path.to_string_lossy().to_string()).await.unwrap();
+        assert!(data_url.starts_with("data:image/png;base64,"));
+
+        let payload = data_url.split_once(',').expect("data URL must contain a comma").1;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .expect("payload must be valid base64");
+        assert_eq!(decoded, source);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

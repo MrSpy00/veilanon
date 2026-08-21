@@ -251,6 +251,29 @@ async fn fetch_recent_changelog(client: &reqwest::Client) -> Option<String> {
     }
 }
 
+/// Parse a SHA256SUMS.txt manifest into (filename -> lowercase hash) pairs.
+fn parse_sha256sums(text: &str) -> std::collections::HashMap<String, String> {
+    let mut hashes = std::collections::HashMap::new();
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let hash = parts[0].to_lowercase();
+            let fname = parts[1].trim_start_matches('*');
+            hashes.insert(fname.to_string(), hash);
+        }
+    }
+    hashes
+}
+
+/// Commit-SHA truth table; missing stored value counts as different.
+fn should_flag_commit(remote: Option<&str>, stored: Option<&str>) -> bool {
+    match (remote, stored) {
+        (Some(r), Some(s)) => !r.eq_ignore_ascii_case(s),
+        (Some(_), None) => true,
+        (None, _) => false,
+    }
+}
+
 /// Multi-level update detection algorithm:
 /// 1. Semantic version check
 /// 2. Release & Asset updated timestamp check
@@ -283,14 +306,7 @@ pub async fn check_for_updates() -> Result<UpdateCheckResult, VeilError> {
         if let Ok(sums_resp) = client.get(&sums_asset.browser_download_url).timeout(std::time::Duration::from_secs(5)).send().await {
             if sums_resp.status().is_success() {
                 if let Ok(sums_text) = sums_resp.text().await {
-                    for line in sums_text.lines() {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            let hash = parts[0].to_lowercase();
-                            let fname = parts[1].trim_start_matches('*');
-                            remote_hashes.insert(fname.to_string(), hash);
-                        }
-                    }
+                    remote_hashes = parse_sha256sums(&sums_text);
                 }
             }
         }
@@ -303,12 +319,14 @@ pub async fn check_for_updates() -> Result<UpdateCheckResult, VeilError> {
     // Level 1: Semver comparison
     let is_semver_newer = is_newer_version(&current_version, &release.tag_name);
 
-    // Level 2: SHA256 binary hash comparison
+    // Level 2: SHA256 binary hash comparison (keyed by the matched asset's own name)
     let mut is_hash_diff = false;
     if let Some(ref loc_sha) = local_sha {
-        if let Some(rem_exe_hash) = remote_hashes.get("veilanon.exe") {
-            if !rem_exe_hash.is_empty() && rem_exe_hash.to_lowercase() != loc_sha.to_lowercase() {
-                is_hash_diff = true;
+        if let Some(asset) = matched_asset {
+            if let Some(rem_exe_hash) = remote_hashes.get(asset.name.as_str()) {
+                if !rem_exe_hash.is_empty() && rem_exe_hash.to_lowercase() != loc_sha.to_lowercase() {
+                    is_hash_diff = true;
+                }
             }
         }
     }
@@ -519,4 +537,66 @@ pub async fn download_and_install_update(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FIXTURE_SHA256SUMS: &str = "\
+abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890  veilanon_0.0.1_x64-setup.exe
+111222333444555666777888999aaabbbcccdddeeefff000111222333444555 *veilanon_0.0.1_x64_en-US.msi
+fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210  veilanon_0.0.1_amd64.AppImage
+";
+
+    #[test]
+    fn parse_sha256sums_finds_hash_by_matched_asset_name() {
+        let hashes = parse_sha256sums(FIXTURE_SHA256SUMS);
+        let exe = hashes.get("veilanon_0.0.1_x64-setup.exe");
+        assert!(exe.is_some(), "versioned .exe entry missing from parsed map");
+        assert_eq!(exe.unwrap(), "abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890");
+
+        let msi = hashes.get("veilanon_0.0.1_x64_en-US.msi");
+        assert!(msi.is_some(), "star-prefixed .msi entry missing");
+        assert_eq!(msi.unwrap(), "111222333444555666777888999aaabbbcccdddeeefff000111222333444555");
+
+        let appimage = hashes.get("veilanon_0.0.1_amd64.AppImage");
+        assert!(appimage.is_some());
+        assert_eq!(appimage.unwrap(), "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+
+        // The old hardcoded key must NOT exist — this is the dead-detection bug
+        assert!(hashes.get("veilanon.exe").is_none(), "legacy bare 'veilanon.exe' key should not be present");
+    }
+
+    #[test]
+    fn parse_sha256sums_skips_malformed_lines() {
+        let hashes = parse_sha256sums("not-a-hash-line\n\nshort  x.txt");
+        assert!(hashes.is_empty());
+    }
+
+    #[test]
+    fn should_flag_commit_both_none_is_false() {
+        assert!(!should_flag_commit(None, None));
+    }
+
+    #[test]
+    fn should_flag_commit_equal_is_false() {
+        assert!(!should_flag_commit(Some("abc123"), Some("abc123")));
+        assert!(!should_flag_commit(Some("ABC123"), Some("abc123")));
+    }
+
+    #[test]
+    fn should_flag_commit_differs_is_true() {
+        assert!(should_flag_commit(Some("abc123"), Some("def456")));
+    }
+
+    #[test]
+    fn should_flag_commit_stored_none_remote_some_is_true() {
+        assert!(should_flag_commit(Some("abc123"), None));
+    }
+
+    #[test]
+    fn should_flag_commit_remote_none_is_false() {
+        assert!(!should_flag_commit(None, Some("abc123")));
+    }
 }
