@@ -299,8 +299,9 @@
             class:idle={diagnostics?.status === 'idle_ready'}
             class:loading={diagnostics?.status === 'loading_models'}
             class:offline={diagnostics?.status === 'camera_off' || diagnostics?.status === 'offline'}
+            class:error={diagnostics?.status === 'error'}
           ></span>
-          <span class="veil-fx-status-text">
+          <span class="veil-fx-status-text" class:error={diagnostics?.status === 'error'}>
             {#if diagnostics?.status === 'running'}
               Efekt Motoru Aktif ({activeCount} Katman)
             {:else if diagnostics?.status === 'loading_models'}
@@ -308,7 +309,10 @@
             {:else if diagnostics?.status === 'idle_ready'}
               Hazır — Efekt Seçin
             {:else if diagnostics?.status === 'error'}
-              {diagnostics.error || 'Motor Hatası'}
+              <span class="veil-fx-error-chip">
+                <Icon name="warning" size={12} />
+                {diagnostics.error || 'Motor Hatası'}
+              </span>
             {:else}
               Kamera Beklemede • GPU Hazır
             {/if}
@@ -806,6 +810,33 @@
   .veil-fx-status-dot.loading {
     background: #f59e0b;
     box-shadow: 0 0 6px #f59e0b;
+  }
+
+  .veil-fx-status-dot.error {
+    background: var(--veil-danger, hsl(0, 72%, 62%));
+  }
+
+  .veil-fx-status-text.error {
+    color: var(--veil-warning, hsl(38, 92%, 50%));
+  }
+
+  .veil-fx-error-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 2px 8px;
+    border: 1px solid var(--veil-border-subtle, hsl(220, 13%, 16%));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--veil-danger, hsl(0, 72%, 62%)) 10%, transparent);
+    color: var(--veil-text, #f1f5f9);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .veil-fx-error-chip :global(svg) {
+    flex-shrink: 0;
+    color: var(--veil-warning, hsl(38, 92%, 50%));
   }
 
   .veil-fx-status-text {

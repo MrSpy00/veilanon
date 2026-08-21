@@ -37,11 +37,26 @@ function smoothLandmarks(current: Landmark[], previous: Landmark[] | null, facto
   }));
 }
 
-// ── Model URLs (Google Storage, float16 for smaller download) ────────────────
+// ── Asset sources: bundled locally first, CDN only as fallback ───────────────
+// Local copies in static/mediapipe/ make the engine work fully offline; CDNs are tried per-resource only on failure.
 
-const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task';
-const HANDS_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task';
-const POSE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task';
+const LOCAL_WASM_BASE = '/mediapipe/wasm';
+const LOCAL_MODEL_BASE = '/mediapipe/models';
+
+const WASM_CDN_BASES = [
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm',
+  'https://unpkg.com/@mediapipe/tasks-vision@0.10.18/wasm',
+] as const;
+
+const MODEL_CDN_URLS = {
+  face: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
+  hand: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task',
+  pose: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
+} as const;
+
+const FACE_MODEL_URLS = [`${LOCAL_MODEL_BASE}/face_landmarker.task`, MODEL_CDN_URLS.face] as const;
+const HANDS_MODEL_URLS = [`${LOCAL_MODEL_BASE}/hand_landmarker.task`, MODEL_CDN_URLS.hand] as const;
+const POSE_MODEL_URLS = [`${LOCAL_MODEL_BASE}/pose_landmarker_lite.task`, MODEL_CDN_URLS.pose] as const;
 
 // ── Model load status ────────────────────────────────────────────────────────
 
@@ -301,19 +316,41 @@ class EffectEngine {
     }
   }
 
+  private async loadWasmFileset(): Promise<Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>> {
+    let lastError: unknown;
+    for (const base of [LOCAL_WASM_BASE, ...WASM_CDN_BASES]) {
+      try {
+        return await FilesetResolver.forVisionTasks(base);
+      } catch (err) {
+        lastError = err;
+        console.warn(`MediaPipe wasm yüklenemedi (${base}):`, err);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Hiçbir MediaPipe wasm kaynağı yüklenemedi');
+  }
+
+  /** Try each URL in order, GPU delegate first then CPU, until one succeeds. */
+  private async tryLoadAcross(
+    urls: readonly string[],
+    attempt: (url: string, delegate: 'GPU' | 'CPU') => Promise<void>,
+  ): Promise<boolean> {
+    for (const url of urls) {
+      for (const delegate of ['GPU', 'CPU'] as const) {
+        try {
+          await attempt(url, delegate);
+          return true;
+        } catch (err) {
+          console.warn(`Model yüklenemedi (${delegate}, ${url}):`, err);
+        }
+      }
+    }
+    return false;
+  }
+
   private async loadMediaPipe() {
     if (this.faceLandmarker && this.handLandmarker && this.poseLandmarker) return;
 
-    let vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
-    try {
-      vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm',
-      );
-    } catch {
-      vision = await FilesetResolver.forVisionTasks(
-        'https://unpkg.com/@mediapipe/tasks-vision@0.10.18/wasm',
-      );
-    }
+    const vision = await this.loadWasmFileset();
 
     const MODEL_TIMEOUT = 25000;
 
@@ -325,66 +362,48 @@ class EffectEngine {
 
     const loadFace = async () => {
       if (this.faceLandmarker) return true;
-      const ok = await this.loadWithTimeout(async () => {
-        try {
+      const ok = await this.loadWithTimeout(
+        () => this.tryLoadAcross(FACE_MODEL_URLS, async (url, delegate) => {
           this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'GPU' },
+            baseOptions: { modelAssetPath: url, delegate },
             runningMode: 'VIDEO', numFaces: 1,
             minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
           });
-        } catch {
-          this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'CPU' },
-            runningMode: 'VIDEO', numFaces: 1,
-            minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
-          });
-        }
-        return true;
-      }, MODEL_TIMEOUT, 'Yüz modeli');
+        }),
+        MODEL_TIMEOUT, 'Yüz modeli',
+      );
       this.modelStatus.face = ok ? 'loaded' : 'failed';
       return ok;
     };
 
     const loadHand = async () => {
       if (this.handLandmarker) return true;
-      const ok = await this.loadWithTimeout(async () => {
-        try {
+      const ok = await this.loadWithTimeout(
+        () => this.tryLoadAcross(HANDS_MODEL_URLS, async (url, delegate) => {
           this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: HANDS_MODEL_URL, delegate: 'GPU' },
+            baseOptions: { modelAssetPath: url, delegate },
             runningMode: 'VIDEO', numHands: 2,
             minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
           });
-        } catch {
-          this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: HANDS_MODEL_URL, delegate: 'CPU' },
-            runningMode: 'VIDEO', numHands: 2,
-            minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
-          });
-        }
-        return true;
-      }, MODEL_TIMEOUT, 'El modeli');
+        }),
+        MODEL_TIMEOUT, 'El modeli',
+      );
       this.modelStatus.hand = ok ? 'loaded' : 'failed';
       return ok;
     };
 
     const loadPose = async () => {
       if (this.poseLandmarker) return true;
-      const ok = await this.loadWithTimeout(async () => {
-        try {
+      const ok = await this.loadWithTimeout(
+        () => this.tryLoadAcross(POSE_MODEL_URLS, async (url, delegate) => {
           this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate: 'GPU' },
+            baseOptions: { modelAssetPath: url, delegate },
             runningMode: 'VIDEO',
             minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
           });
-        } catch {
-          this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate: 'CPU' },
-            runningMode: 'VIDEO',
-            minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
-          });
-        }
-        return true;
-      }, MODEL_TIMEOUT, 'Vücut modeli');
+        }),
+        MODEL_TIMEOUT, 'Vücut modeli',
+      );
       this.modelStatus.pose = ok ? 'loaded' : 'failed';
       return ok;
     };
@@ -395,7 +414,7 @@ class EffectEngine {
     this.updateState({});
 
     if (!this.faceLandmarker && !this.handLandmarker && !this.poseLandmarker) {
-      throw new Error('Hiçbir MediaPipe modeli yüklenemedi. İnternet bağlantınızı kontrol edin.');
+      throw new Error('Hiçbir MediaPipe modeli yüklenemedi. Yerel model dosyaları eksik olabilir; CDN yedekleri de başarısız oldu.');
     }
   }
 
