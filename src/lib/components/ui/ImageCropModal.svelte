@@ -35,18 +35,29 @@
   let imgNaturalHeight = $state(0);
   let isProcessing = $state(false);
   let isImageLoaded = $state(false);
+  let loadError = $state(false);
 
   $effect(() => {
     let active = true;
     if (src) {
-      void readLocalImageAsDataUrl(src).then((dataUrl) => {
-        if (active) {
-          resolvedSrc = dataUrl;
-          resetPosition();
-        }
-      });
+      void readLocalImageAsDataUrl(src)
+        .then((dataUrl) => {
+          if (active) {
+            resolvedSrc = dataUrl;
+            loadError = false;
+            resetPosition();
+          }
+        })
+        .catch((err) => {
+          console.warn('Görsel kaynağı çözümlenemedi:', err);
+          if (active) {
+            resolvedSrc = '';
+            loadError = true;
+          }
+        });
     } else {
       resolvedSrc = '';
+      loadError = false;
     }
     return () => {
       active = false;
@@ -261,6 +272,7 @@
             class="veil-crop-source-img"
             style="transform: translate({posX}px, {posY}px) scale({scale});"
             onload={handleImageLoad}
+            onerror={() => (loadError = true)}
             draggable="false"
           />
         {:else}
@@ -272,6 +284,10 @@
 
         <div class="veil-crop-grid-overlay" class:circle-mask={shape === 'circle'}></div>
       </div>
+
+      {#if loadError}
+        <p class="veil-crop-error" role="alert">Görsel yüklenemedi.</p>
+      {/if}
 
       <!-- Controls: Zoom slider & buttons -->
       <div class="veil-crop-controls">
@@ -321,7 +337,7 @@
       <button class="btn btn-ghost btn-sm" onclick={onClose} disabled={isProcessing}>
         İptal
       </button>
-      <button class="btn btn-primary btn-sm" onclick={applyCrop} disabled={isProcessing || !isImageLoaded}>
+      <button class="btn btn-primary btn-sm" onclick={applyCrop} disabled={isProcessing || !resolvedSrc || loadError}>
         {#if isProcessing}
           <div class="veil-spinner veil-spinner-sm"></div>
           İşleniyor…
@@ -406,6 +422,12 @@
     font-size: var(--text-xs);
     color: var(--veil-text-muted);
     line-height: var(--leading-normal);
+  }
+
+  .veil-crop-error {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--veil-danger, #ef4444);
   }
 
   .veil-crop-viewport-container {

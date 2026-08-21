@@ -40,18 +40,30 @@
   let imgNaturalHeight = $state(0);
   let isProcessing = $state(false);
   let isImageLoaded = $state(false);
+  let loadError = $state(false);
+  let cropError = $state(false);
 
   $effect(() => {
     let active = true;
     if (src) {
-      void readLocalImageAsDataUrl(src).then((dataUrl) => {
-        if (active) {
-          resolvedSrc = dataUrl;
-          resetPosition();
-        }
-      });
+      void readLocalImageAsDataUrl(src)
+        .then((dataUrl) => {
+          if (active) {
+            resolvedSrc = dataUrl;
+            loadError = false;
+            resetPosition();
+          }
+        })
+        .catch((err) => {
+          console.warn('Görsel kaynağı çözümlenemedi:', err);
+          if (active) {
+            resolvedSrc = '';
+            loadError = true;
+          }
+        });
     } else {
       resolvedSrc = '';
+      loadError = false;
     }
     return () => {
       active = false;
@@ -135,8 +147,9 @@
   }
 
   async function applyCrop() {
-    if (!resolvedSrc) return;
+    if (!resolvedSrc || loadError) return;
     isProcessing = true;
+    cropError = false;
     try {
       const cropWidth = 1200;
       const cropHeight = Math.round(1200 / aspectRatio);
@@ -199,7 +212,7 @@
       onSave(dataUrl);
     } catch (err) {
       console.error('Crop error:', err);
-      if (resolvedSrc) onSave(resolvedSrc);
+      cropError = true;
     } finally {
       isProcessing = false;
     }
@@ -240,6 +253,7 @@
             src={resolvedSrc}
             alt="Banner Önizleme"
             onload={handleImageLoad}
+            onerror={() => (loadError = true)}
             draggable="false"
             style="transform: translate({posX}px, {posY}px) scale({scale});"
           />
@@ -255,6 +269,12 @@
 
         <div class="veil-crop-grid-overlay" aria-hidden="true"></div>
       </div>
+
+      {#if loadError}
+        <p class="veil-crop-error" role="alert">Görsel yüklenemedi.</p>
+      {:else if cropError}
+        <p class="veil-crop-error" role="alert">Kırpma işlemi başarısız oldu, lütfen tekrar deneyin.</p>
+      {/if}
 
       <div class="veil-crop-controls">
         <div class="veil-crop-slider-row">
@@ -278,7 +298,7 @@
 
     <div class="veil-crop-footer">
       <button class="btn btn-ghost" onclick={onClose} disabled={isProcessing} type="button">İptal</button>
-      <button class="btn btn-primary" onclick={applyCrop} disabled={isProcessing || !resolvedSrc} type="button">
+      <button class="btn btn-primary" onclick={applyCrop} disabled={isProcessing || !resolvedSrc || loadError} type="button">
         {#if isProcessing}
           <div class="veil-spinner veil-spinner-sm"></div>
           Kaydediliyor…
@@ -340,6 +360,11 @@
     font-size: var(--text-xs);
     color: var(--veil-text-muted);
     margin: 0;
+  }
+  .veil-crop-error {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--veil-danger, #ef4444);
   }
   .veil-crop-viewport {
     width: 100%;
