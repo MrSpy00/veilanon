@@ -52,8 +52,7 @@ impl ApiClient {
     }
 
     pub fn new() -> Self {
-        let base_url = config::var("VEILANON_SUPABASE_URL")
-            .unwrap_or_else(|| "https://your-project.supabase.co".to_string());
+        let base_url = config::var("VEILANON_SUPABASE_URL").unwrap_or_default();
         let anon_key = config::var("VEILANON_SUPABASE_ANON_KEY")
             .unwrap_or_default();
 

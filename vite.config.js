@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 
@@ -6,7 +7,25 @@ const host = process?.env?.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [sveltekit()],
-  envPrefix: ['VITE_', 'PUBLIC_', 'VEILANON_'],
+  // SECURITY: Only public Vite prefixes are exposed to the browser bundle.
+  // VEILANON_* secrets MUST NOT be exposed via Vite (they are resolved
+  // in Rust via config::var > secrets.enc > XOR-obfuscated embed). Including
+  // VEILANON_ here would inline secrets like LIVEKIT_API_SECRET into JS.
+  envPrefix: ['VITE_', 'PUBLIC_'],
+
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks: (id /*: string*/) => {
+          if (id.includes('node_modules/livekit-client')) return 'livekit';
+          if (id.includes('node_modules/@tauri-apps')) return 'tauri';
+          if (id.includes('node_modules/svelte')) return 'svelte';
+          return undefined;
+        },
+      },
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

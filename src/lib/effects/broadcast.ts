@@ -7,7 +7,8 @@
  * Landmarks are compressed to flattened number[] for bandwidth efficiency.
  */
 
-import { RoomEvent, type Room, type LocalParticipant, type RemoteParticipant, DataPacket_Kind } from 'livekit-client';
+import { RoomEvent, type Room, type LocalParticipant, type RemoteParticipant } from 'livekit-client';
+import type { DataPacket_Kind } from 'livekit-client';
 import type { EffectBroadcastPayload, EffectParams, TrackingResult } from './types';
 import { subscribeToEffectEvents, type EffectsEventType } from './store';
 import { effectEngine } from './engine';

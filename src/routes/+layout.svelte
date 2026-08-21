@@ -160,10 +160,14 @@
 
       const bridge = (orig: (...args: any[]) => void, level: string) => (...args: unknown[]) => {
         try { orig(...args); } catch { /* best effort */ }
-        const text = args
+        let text = args
           .map(a => (typeof a === 'string' ? a : (a instanceof Error ? `${a.name}: ${a.message}` : JSON.stringify(a))))
           .join(' ')
           .slice(0, 1000);
+        const lower = text.toLowerCase();
+        if (lower.includes('token') || lower.includes('passphrase') || lower.includes('ciphertext') || lower.includes('veilanon_supabase') || lower.includes('livekit_secret') || lower.includes('authorization')) {
+          text = `[redacted ${level}]`;
+        }
         invoke('log_client_error', { level, message: text }).catch(() => {});
       };
       console.debug = bridge(origDebug, 'debug');

@@ -555,56 +555,6 @@
     gap: 2px;
   }
 
-  /* ── Discover Public Communities ────────────────────────────── */
-  .veil-discover-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .veil-discover-heading {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .veil-discover-sub {
-    font-size: var(--text-xs);
-    color: var(--veil-text-muted);
-  }
-
-  .veil-discover-search-bar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--veil-bg-elevated);
-    border: 1px solid var(--veil-border-subtle);
-    border-radius: var(--radius-lg);
-    color: var(--veil-text-muted);
-    transition: border-color var(--t-fast);
-  }
-
-  .veil-discover-search-bar:focus-within {
-    border-color: var(--veil-brand);
-  }
-
-  .veil-discover-input {
-    flex: 1;
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    font-size: var(--text-sm);
-    box-shadow: none !important;
-  }
-
-  .veil-discover-cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--space-3);
-    margin-top: var(--space-1);
-  }
-
   .veil-community-card {
     background: var(--veil-bg-elevated);
     border: 1px solid var(--veil-border-subtle);
@@ -635,39 +585,12 @@
     display: block;
   }
 
-  .veil-community-banner-placeholder {
-    width: 100%;
-    height: 100%;
-    background:
-      radial-gradient(120% 160% at 15% 0%, var(--veil-brand-subtle), transparent 55%),
-      linear-gradient(160deg, var(--veil-bg-surface), var(--veil-bg-void));
-  }
-
-  .veil-community-avatar-wrap {
-    position: absolute;
-    bottom: -16px;
-    left: var(--space-3);
-    z-index: 2;
-  }
-
-  .veil-community-avatar-wrap :global(.veil-avatar) {
-    border: 2px solid var(--veil-bg-elevated);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  }
-
   .veil-community-card-body {
     padding: var(--space-4) var(--space-3) var(--space-3);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
     flex: 1;
-  }
-
-  .veil-community-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
   }
 
   .veil-community-name {
@@ -678,19 +601,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .veil-community-members-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--veil-text-muted);
-    background: var(--veil-bg-surface);
-    padding: 2px 6px;
-    border-radius: var(--radius-full);
-    flex-shrink: 0;
   }
 
   .veil-community-desc {
