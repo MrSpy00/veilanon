@@ -80,6 +80,53 @@ pub struct AttachmentRef {
     /// Encrypted content key (base64) — required to decrypt the file
     pub content_key_ciphertext: String,
     pub mime_type_hint: Option<String>,
+    /// Original plaintext filename, preserved end-to-end for download UX
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_name: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_attachment() -> AttachmentRef {
+        AttachmentRef {
+            file_id: Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").unwrap(),
+            r2_key: "files/genel/abc.bin".to_string(),
+            size_bytes: 1024,
+            content_key_ciphertext: "a2V5Om5vbmNl".to_string(),
+            mime_type_hint: Some("image/png".to_string()),
+            file_name: None,
+        }
+    }
+
+    #[test]
+    fn round_trip_preserves_file_name_when_present() {
+        // Given an attachment carrying its original filename
+        let mut att = sample_attachment();
+        att.file_name = Some("gorsel.png".to_string());
+        // When it is serialized and deserialized back
+        let json = serde_json::to_string(&att).unwrap();
+        let parsed: AttachmentRef = serde_json::from_str(&json).unwrap();
+        // Then the filename survives the round-trip
+        assert_eq!(parsed.file_name.as_deref(), Some("gorsel.png"));
+    }
+
+    #[test]
+    fn legacy_json_without_file_name_deserializes_to_none() {
+        // Given legacy JSON produced before the field existed
+        let legacy = serde_json::json!({
+            "fileId": "123e4567-e89b-12d3-a456-426614174000",
+            "r2Key": "files/genel/abc.bin",
+            "sizeBytes": 1024,
+            "contentKeyCiphertext": "a2V5Om5vbmNl",
+            "mimeTypeHint": "image/png"
+        });
+        // When it is deserialized
+        let parsed: AttachmentRef = serde_json::from_value(legacy).unwrap();
+        // Then file_name defaults to None (backward compatible)
+        assert_eq!(parsed.file_name, None);
+    }
 }
 
 /// Offline queue entry
