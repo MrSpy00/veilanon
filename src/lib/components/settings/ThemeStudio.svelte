@@ -1,6 +1,11 @@
+<script module lang="ts">
+  // Session-lifetime retention: survives ThemeStudio remounts (settings reopen), no persistence.
+  let lastStudioTab: 'editor' | 'ai' | 'media' | 'import-export' | null = null;
+</script>
+
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { uiStore } from '$lib/stores/ui';
+  import { uiStore, type BgPlaylistItem } from '$lib/stores/ui';
   import { settingsApi } from '$lib/api/tauri';
   import { toastStore } from '$lib/stores/notifications';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -23,8 +28,15 @@
   } from '$lib/utils/theme-apply';
 
   const ui = $derived($uiStore);
+  const activePlaylist = $derived(ui.playlists.find(p => p.id === ui.activePlaylistId) ?? null);
 
-  let activeStudioTab = $state<'editor' | 'ai' | 'media' | 'import-export'>('editor');
+  type StudioTab = NonNullable<typeof lastStudioTab>;
+  let activeStudioTab = $state<StudioTab>(lastStudioTab ?? 'editor');
+
+  function switchStudioTab(tab: StudioTab) {
+    activeStudioTab = tab;
+    lastStudioTab = tab;
+  }
 
   // Editor State
   let customCssInput = $state('');
@@ -88,37 +100,71 @@
 
   function addCurrentMediaToPlaylist() {
     const url = mediaUrlInput.trim();
-    if (!url) return;
+    if (!url || !activePlaylist) return;
     const type = (detectedMediaType === 'video' || detectedMediaType === 'unknown') ? 'video' : 'image';
-    uiStore.addPlaylistItem({
+    uiStore.addToPlaylist(activePlaylist.id, {
       id: crypto.randomUUID(),
       url,
       type,
-      title: filenameFromUrl(url) || `Medya ${ui.bgPlaylist.length + 1}`,
+      title: filenameFromUrl(url) || `Medya ${activePlaylist.items.length + 1}`,
     });
-    toastStore.success('Medya arka plan playlistine eklendi.');
+    toastStore.success(`"${activePlaylist.name}" listesine eklendi.`);
+  }
+
+  async function handleCreatePlaylist() {
+    const name = await uiStore.promptInput('Yeni arka plan listesi için bir ad girin', {
+      title: 'Yeni Liste',
+      placeholder: 'örn. uzay, arabalar…',
+      confirmLabel: 'Oluştur',
+    });
+    if (name === null || !name.trim()) return;
+    uiStore.addPlaylist(name);
+    toastStore.success(`"${name.trim()}" listesi oluşturuldu.`);
+  }
+
+  async function handleRenamePlaylist() {
+    if (!activePlaylist) return;
+    const result = await uiStore.promptInput(`"${activePlaylist.name}" listesinin adını düzenle`, {
+      title: 'Listeyi Yeniden Adlandır',
+      defaultValue: activePlaylist.name,
+      placeholder: 'Liste adı',
+    });
+    if (result === null || !result.trim()) return;
+    uiStore.renamePlaylist(activePlaylist.id, result);
+    toastStore.success('Liste adı güncellendi.');
+  }
+
+  async function handleDeletePlaylist() {
+    if (!activePlaylist) return;
+    const ok = await uiStore.confirm(
+      `"${activePlaylist.name}" listesini ve içindeki ${activePlaylist.items.length} medyayı silmek istediğinize emin misiniz?`,
+      { title: 'Listeyi Sil', danger: true, confirmLabel: 'Sil' }
+    );
+    if (!ok) return;
+    uiStore.deletePlaylist(activePlaylist.id);
+    toastStore.info('Liste silindi.');
   }
 
   function handleExportPlaylist() {
-    if (!ui.bgPlaylist || ui.bgPlaylist.length === 0) {
-      toastStore.info('Playlist henüz boş.');
+    if (!activePlaylist || activePlaylist.items.length === 0) {
+      toastStore.info('Aktif liste henüz boş.');
       return;
     }
-    const jsonStr = JSON.stringify(ui.bgPlaylist, null, 2);
+    const jsonStr = JSON.stringify(activePlaylist.items, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `veilanon-playlist-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `veilanon-playlist-${activePlaylist.name.toLowerCase().replace(/\s+/g, '-')}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toastStore.success('Playlist dosyası indirildi.');
   }
 
   function handleImportPlaylist() {
-    if (!playlistImportText.trim()) return;
+    if (!playlistImportText.trim() || !activePlaylist) return;
     try {
-      let items: any[] = [];
+      let items: Array<{ id: string; url: string; type: string; title?: string }> = [];
       if (playlistImportText.trim().startsWith('[')) {
         items = JSON.parse(playlistImportText);
       } else {
@@ -134,10 +180,22 @@
           }));
       }
       if (Array.isArray(items) && items.length > 0) {
-        uiStore.setPlaylist(items);
+        const normalized: BgPlaylistItem[] = items.map(it => ({
+          id: typeof it.id === 'string' && it.id ? it.id : crypto.randomUUID(),
+          url: String(it.url),
+          type: it.type === 'video' ? 'video' : 'image',
+          title: it.title,
+        }));
+        uiStore.setPlaylists(
+          ui.playlists.map(p =>
+            p.id === activePlaylist.id
+              ? { ...p, items: [...p.items.filter(existing => !normalized.some(n => n.url === existing.url)), ...normalized] }
+              : p
+          )
+        );
         playlistImportModalOpen = false;
         playlistImportText = '';
-        toastStore.success(`${items.length} medya playliste aktarıldı.`);
+        toastStore.success(`${normalized.length} medya "${activePlaylist.name}" listesine aktarıldı.`);
       }
     } catch {
       toastStore.error('Geçersiz playlist formatı.');
@@ -305,11 +363,22 @@
     }
   }
 
-  function handleSelectScrapedMedia(url: string, mediaType: string) {
-    mediaUrlInput = url;
-    detectedMediaType = mediaType as 'image' | 'video';
-    scrapeResults = [];
-    applyCurrentMedia();
+  // Apply a scraped candidate directly without touching the URL input field.
+  function applyScrapedDirect(url: string, mediaType: 'image' | 'video') {
+    const check = validateMediaUrl(url);
+    if (!check.isValid) {
+      mediaError = check.error;
+      return;
+    }
+    mediaError = null;
+    if (mediaType === 'video') {
+      uiStore.setCustomBackground('', url, bgOpacityInput);
+      saveSettings({ customBgImage: '', customBgVideo: url, customBgOpacity: bgOpacityInput });
+    } else {
+      uiStore.setCustomBackground(url, '', bgOpacityInput);
+      saveSettings({ customBgImage: url, customBgVideo: '', customBgOpacity: bgOpacityInput });
+    }
+    toastStore.success('Arka plan medyası uygulandı.');
   }
 
   // Safe hostname extraction for result cards
@@ -321,8 +390,9 @@
     }
   }
 
-  // Add a scraped candidate directly to the background playlist
+  // Add a scraped candidate directly to the active background playlist
   function addScrapedMediaToPlaylist(item: {url: string; mediaType: string}) {
+    if (!activePlaylist) return;
     let filename = '';
     try {
       const path = new URL(item.url).pathname;
@@ -330,13 +400,13 @@
     } catch {
       filename = '';
     }
-    uiStore.addPlaylistItem({
+    uiStore.addToPlaylist(activePlaylist.id, {
       id: crypto.randomUUID(),
       url: item.url,
       type: item.mediaType === 'video' ? 'video' : 'image',
-      title: filename || `Medya ${ui.bgPlaylist.length + 1}`,
+      title: filename || `Medya ${activePlaylist.items.length + 1}`,
     });
-    toastStore.success('Medya arka plan playlistine eklendi.');
+    toastStore.success(`"${activePlaylist.name}" listesine eklendi.`);
   }
 
   function removeMedia() {
@@ -468,7 +538,7 @@
   }
 
   // JSON Export / Import
-  function handleExportJson() {
+  async function handleExportJson() {
     const data: ThemeExportData = {
       version: 1,
       name: customThemeNameInput,
@@ -481,16 +551,38 @@
       customBgOpacity: bgOpacityInput,
     };
     const jsonStr = exportThemeJson(data);
+    const fileName = `${customThemeNameInput.toLowerCase().replace(/\s+/g, '-')}-theme.json`;
 
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${customThemeNameInput.toLowerCase().replace(/\s+/g, '-')}-theme.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // Browser preview (no Tauri runtime): fall back to Blob download.
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toastStore.success('Tema dosyası indirildi (.json).');
+      return;
+    }
 
-    toastStore.success('Tema dosyası indirildi (.json).');
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const path = await save({
+        title: 'Tema dosyasını kaydet',
+        defaultPath: fileName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!path) {
+        toastStore.info('Kaydetme iptal edildi.');
+        return;
+      }
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('write_text_file_user', { path, contents: jsonStr });
+      toastStore.success(`Tema dosyası kaydedildi: ${path}`);
+    } catch (err) {
+      toastStore.error('Tema dosyası kaydedilemedi: ' + String(err));
+    }
   }
 
   function handleImportJsonSubmit() {
@@ -577,7 +669,7 @@
       type="button"
       class="veil-studio-tab"
       class:active={activeStudioTab === 'editor'}
-      onclick={() => (activeStudioTab = 'editor')}
+      onclick={() => switchStudioTab('editor')}
     >
       <Icon name="code" size={14} />
       <span>CSS Editörü</span>
@@ -586,7 +678,7 @@
       type="button"
       class="veil-studio-tab"
       class:active={activeStudioTab === 'ai'}
-      onclick={() => (activeStudioTab = 'ai')}
+      onclick={() => switchStudioTab('ai')}
     >
       <Icon name="sparkle" size={14} />
       <span>AI Tema Sihirbazı</span>
@@ -595,7 +687,7 @@
       type="button"
       class="veil-studio-tab"
       class:active={activeStudioTab === 'media'}
-      onclick={() => (activeStudioTab = 'media')}
+      onclick={() => switchStudioTab('media')}
     >
       <Icon name="film" size={14} />
       <span>Medya Arka Planı</span>
@@ -607,7 +699,7 @@
       type="button"
       class="veil-studio-tab"
       class:active={activeStudioTab === 'import-export'}
-      onclick={() => (activeStudioTab = 'import-export')}
+      onclick={() => switchStudioTab('import-export')}
     >
       <Icon name="download" size={14} />
       <span>İçe / Dışa Aktar</span>
@@ -860,7 +952,7 @@
                     <button
                       type="button"
                       class="scrape-thumb"
-                      onclick={() => handleSelectScrapedMedia(item.url, item.mediaType)}
+                      onclick={() => applyScrapedDirect(item.url, item.mediaType === 'video' ? 'video' : 'image')}
                       title={item.url}
                     >
                       {#if item.mediaType === 'video'}
@@ -878,7 +970,7 @@
                     </button>
                     <span class="scrape-host" title={item.url}>{getHostname(item.url)}</span>
                     <div class="scrape-actions">
-                      <button type="button" class="btn btn-primary btn-xs" onclick={() => handleSelectScrapedMedia(item.url, item.mediaType)}>
+                      <button type="button" class="btn btn-primary btn-xs" onclick={() => applyScrapedDirect(item.url, item.mediaType === 'video' ? 'video' : 'image')}>
                         Uygula
                       </button>
                       <button type="button" class="btn btn-secondary btn-xs" onclick={() => addScrapedMediaToPlaylist(item)}>
@@ -949,94 +1041,180 @@
         </div>
 
         <!-- Playlist Section -->
-        {#if ui.bgPlaylist && ui.bgPlaylist.length > 0}
-          <div class="veil-playlist-section">
-            <div class="veil-playlist-header">
-              <div class="veil-playlist-title">
-                <Icon name="film" size={15} />
-                <span>Arka Plan Playlisti ({ui.bgPlaylist.length} Medya)</span>
-              </div>
-              <div class="veil-playlist-tools">
-                <button type="button" class="btn btn-ghost btn-xs" onclick={() => uiStore.cyclePlaylistNext()} title="Sonraki Medyaya Geç">
+        <div class="veil-playlist-section">
+          <div class="veil-playlist-header">
+            <div class="veil-playlist-title">
+              <Icon name="film" size={15} />
+              <span>Arka Plan Listeleri</span>
+            </div>
+            <div class="veil-playlist-tools">
+              {#if activePlaylist && activePlaylist.items.length > 0}
+                <button type="button" class="btn btn-ghost btn-xs" onclick={() => uiStore.advancePlayback()} title="Sonraki Medyaya Geç">
                   <Icon name="arrow-right" size={13} />
                   <span>Sonraki</span>
                 </button>
-                <button type="button" class="btn btn-ghost btn-xs" onclick={handleExportPlaylist} title="Playlisti Dışa Aktar">
+                <button type="button" class="btn btn-ghost btn-xs" onclick={handleExportPlaylist} title="Aktif Listeyi Dışa Aktar">
                   <Icon name="download" size={13} />
                   <span>Dışa Aktar</span>
                 </button>
-                <button type="button" class="btn btn-ghost btn-xs" onclick={() => (playlistImportModalOpen = true)} title="Playlisti İçe Aktar">
+                <button type="button" class="btn btn-ghost btn-xs" onclick={() => (playlistImportModalOpen = true)} title="Listeye İçe Aktar">
                   <Icon name="upload" size={13} />
                   <span>İçe Aktar</span>
                 </button>
-              </div>
-            </div>
-
-            <div class="veil-playlist-grid">
-              {#each ui.bgPlaylist as item}
-                {@const isCurrent = ui.customBgImage === item.url || ui.customBgVideo === item.url}
-                <div class="veil-playlist-card" class:active={isCurrent}>
-                  <div class="veil-playlist-info">
-                    <span class="media-type-badge badge-small" class:badge-video={item.type === 'video'} class:badge-image={item.type === 'image'}>
-                      {item.type === 'video' ? 'Video' : 'Görsel'}
-                    </span>
-                    <div class="veil-playlist-meta">
-                      <span class="veil-playlist-title-text" title={item.title || filenameFromUrl(item.url)}>
-                        {item.title || filenameFromUrl(item.url)}
-                      </span>
-                      <span class="veil-playlist-url" title={item.url}>{item.url}</span>
-                    </div>
-                  </div>
-                  <div class="veil-playlist-card-actions">
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs"
-                      onclick={() => {
-                        mediaUrlInput = item.url;
-                        detectedMediaType = item.type;
-                        if (item.type === 'video') {
-                          uiStore.setCustomBackground('', item.url, bgOpacityInput);
-                          saveSettings({ customBgImage: '', customBgVideo: item.url, customBgOpacity: bgOpacityInput });
-                        } else {
-                          uiStore.setCustomBackground(item.url, '', bgOpacityInput);
-                          saveSettings({ customBgImage: item.url, customBgVideo: '', customBgOpacity: bgOpacityInput });
-                        }
-                      }}
-                      title="Bu Medyayı Seç"
-                    >
-                      {isCurrent ? 'Aktif' : 'Seç'}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs"
-                      onclick={async () => {
-                        const result = await uiStore.promptInput('Medya adını düzenle', {
-                          title: 'Yeniden Adlandır',
-                          defaultValue: item.title || filenameFromUrl(item.url),
-                          placeholder: 'Medya adı',
-                        });
-                        if (result === null) return;
-                        uiStore.renamePlaylistItem(item.id, result);
-                        toastStore.success('Medya adı güncellendi.');
-                      }}
-                      title="Medya Adını Düzenle"
-                    >
-                      <Icon name="edit" size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-ghost btn-xs text-danger"
-                      onclick={() => uiStore.removePlaylistItem(item.id)}
-                      title="Playlistten Kaldır"
-                    >
-                      <Icon name="trash" size={12} />
-                    </button>
-                  </div>
-                </div>
-              {/each}
+              {/if}
             </div>
           </div>
-        {/if}
+
+          <div class="veil-playlist-chips">
+            {#each ui.playlists as pl (pl.id)}
+              <button
+                type="button"
+                class="playlist-chip"
+                class:active={pl.id === ui.activePlaylistId}
+                onclick={() => uiStore.setActivePlaylist(pl.id)}
+                title="{pl.name} ({pl.items.length} medya)"
+              >
+                {pl.name}
+                <span class="chip-count">{pl.items.length}</span>
+              </button>
+            {/each}
+            <button type="button" class="playlist-chip chip-new" onclick={handleCreatePlaylist} title="Yeni Liste Oluştur">
+              <Icon name="plus" size={12} />
+              <span>Yeni Liste</span>
+            </button>
+          </div>
+
+          {#if activePlaylist}
+            <div class="veil-playlist-actions-row">
+              <span class="actions-row-label">"{activePlaylist.name}" listesi:</span>
+              <button
+                type="button"
+                class="btn btn-secondary btn-xs"
+                onclick={handleRenamePlaylist}
+                title="Listeyi Yeniden Adlandır"
+              >
+                <Icon name="edit" size={12} />
+                <span>Yeniden Adlandır</span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger btn-xs"
+                onclick={handleDeletePlaylist}
+                disabled={ui.playlists.length <= 1}
+                title={ui.playlists.length <= 1 ? 'Son liste silinemez' : 'Listeyi Sil'}
+              >
+                <Icon name="trash" size={12} />
+                <span>Sil</span>
+              </button>
+
+              <div class="mode-segmented" role="group" aria-label="Oynatma modu">
+                <button
+                  type="button"
+                  class="mode-btn"
+                  class:active={ui.playbackMode === 'sequential'}
+                  onclick={() => uiStore.setPlaybackMode('sequential')}
+                  title="Sırayla oynat"
+                >Sırayla</button>
+                <button
+                  type="button"
+                  class="mode-btn"
+                  class:active={ui.playbackMode === 'shuffle'}
+                  onclick={() => uiStore.setPlaybackMode('shuffle')}
+                  title="Karışık oynat"
+                >Karışık</button>
+                <button
+                  type="button"
+                  class="mode-btn"
+                  class:active={ui.playbackMode === 'timed'}
+                  onclick={() => uiStore.setPlaybackMode('timed')}
+                  title="Zamanlı oynat"
+                >Zamanlı</button>
+              </div>
+
+              {#if ui.playbackMode === 'timed'}
+                <select
+                  class="interval-select"
+                  value={String(ui.playbackIntervalSec)}
+                  onchange={(e) => uiStore.setPlaybackIntervalSec(Number((e.currentTarget as HTMLSelectElement).value))}
+                  aria-label="Zamanlı oynatma aralığı"
+                >
+                  <option value="30">30 sn</option>
+                  <option value="60">1 dk</option>
+                  <option value="300">5 dk</option>
+                  <option value="900">15 dk</option>
+                </select>
+              {/if}
+            </div>
+
+            {#if activePlaylist.items.length > 0}
+              <div class="veil-playlist-grid">
+                {#each activePlaylist.items as item (item.id)}
+                  {@const isCurrent = ui.customBgImage === item.url || ui.customBgVideo === item.url}
+                  <div class="veil-playlist-card" class:active={isCurrent}>
+                    <div class="veil-playlist-info">
+                      <span class="media-type-badge badge-small" class:badge-video={item.type === 'video'} class:badge-image={item.type === 'image'}>
+                        {item.type === 'video' ? 'Video' : 'Görsel'}
+                      </span>
+                      <div class="veil-playlist-meta">
+                        <span class="veil-playlist-title-text" title={item.title || filenameFromUrl(item.url)}>
+                          {item.title || filenameFromUrl(item.url)}
+                        </span>
+                        <span class="veil-playlist-url" title={item.url}>{item.url}</span>
+                      </div>
+                    </div>
+                    <div class="veil-playlist-card-actions">
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        onclick={() => {
+                          mediaUrlInput = item.url;
+                          detectedMediaType = item.type;
+                          if (item.type === 'video') {
+                            uiStore.setCustomBackground('', item.url, bgOpacityInput);
+                            saveSettings({ customBgImage: '', customBgVideo: item.url, customBgOpacity: bgOpacityInput });
+                          } else {
+                            uiStore.setCustomBackground(item.url, '', bgOpacityInput);
+                            saveSettings({ customBgImage: item.url, customBgVideo: '', customBgOpacity: bgOpacityInput });
+                          }
+                        }}
+                        title="Bu Medyayı Seç"
+                      >
+                        {isCurrent ? 'Aktif' : 'Seç'}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        onclick={async () => {
+                          const result = await uiStore.promptInput('Medya adını düzenle', {
+                            title: 'Yeniden Adlandır',
+                            defaultValue: item.title || filenameFromUrl(item.url),
+                            placeholder: 'Medya adı',
+                          });
+                          if (result === null) return;
+                          uiStore.renamePlaylistItem(item.id, result);
+                          toastStore.success('Medya adı güncellendi.');
+                        }}
+                        title="Medya Adını Düzenle"
+                      >
+                        <Icon name="edit" size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs text-danger"
+                        onclick={() => uiStore.removePlaylistItem(activePlaylist.id, item.id)}
+                        title="Playlistten Kaldır"
+                      >
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <p class="veil-playlist-empty">Bu liste boş. Yukarıdaki "Playliste Ekle" ile medya ekleyin.</p>
+            {/if}
+          {/if}
+        </div>
       </div>
     </div>
 
@@ -1513,12 +1691,6 @@
     color: var(--veil-brand);
   }
 
-  .veil-range-slider {
-    width: 100%;
-    accent-color: var(--veil-brand);
-    cursor: pointer;
-  }
-
   .veil-media-actions {
     display: flex;
     align-items: center;
@@ -1966,5 +2138,130 @@
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+  }
+
+  .veil-playlist-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .playlist-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--veil-text-secondary);
+    background: var(--veil-bg-elevated);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: 999px;
+    cursor: pointer;
+    transition:
+      color var(--t-fast, 150ms ease),
+      border-color var(--t-fast, 150ms ease),
+      background var(--t-fast, 150ms ease);
+  }
+
+  .playlist-chip:hover {
+    color: var(--veil-text-primary);
+    border-color: var(--veil-border);
+  }
+
+  .playlist-chip.active {
+    background: var(--veil-brand);
+    border-color: var(--veil-brand);
+    color: var(--veil-brand-foreground, #fff);
+  }
+
+  .playlist-chip.active .chip-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: var(--veil-brand-foreground, #fff);
+  }
+
+  .chip-count {
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--veil-bg-overlay);
+    color: var(--veil-text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .playlist-chip.chip-new {
+    border-style: dashed;
+    color: var(--veil-brand);
+  }
+
+  .veil-playlist-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .actions-row-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--veil-text-secondary);
+    margin-right: 2px;
+  }
+
+  .mode-segmented {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    background: var(--veil-bg-elevated);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-md, 0.5rem);
+    margin-left: auto;
+  }
+
+  .mode-btn {
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--veil-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--radius-md, 0.5rem) - 2px);
+    cursor: pointer;
+    transition:
+      color var(--t-fast, 150ms ease),
+      background var(--t-fast, 150ms ease);
+  }
+
+  .mode-btn:hover {
+    color: var(--veil-text-primary);
+  }
+
+  .mode-btn.active {
+    background: var(--veil-brand);
+    color: var(--veil-brand-foreground, #fff);
+  }
+
+  .interval-select {
+    height: 26px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-family: var(--font-sans);
+    color: var(--veil-text-primary);
+    background: var(--veil-bg-elevated);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-md, 0.5rem);
+    cursor: pointer;
+  }
+
+  .veil-playlist-empty {
+    margin: 0;
+    padding: var(--space-2, 0.5rem) 0;
+    font-size: 12px;
+    color: var(--veil-text-muted);
   }
 </style>

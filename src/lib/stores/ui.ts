@@ -29,6 +29,17 @@ export interface BgPlaylistItem {
   title?: string;
 }
 
+/** Playback mode of the active background playlist. */
+export type PlaybackMode = 'sequential' | 'shuffle' | 'timed';
+
+/** A user-named background playlist ('uzay', 'arabalar', …). */
+export interface NamedPlaylist {
+  id: string;
+  name: string;
+  items: BgPlaylistItem[];
+  createdAt: string;
+}
+
 interface UiState {
   theme: Theme;
   presetThemeId: string;
@@ -40,6 +51,10 @@ interface UiState {
   customBgOpacity: number;
   messageBackdropBlur: number;
   bgPlaylist: BgPlaylistItem[];
+  playlists: NamedPlaylist[];
+  activePlaylistId: string;
+  playbackMode: PlaybackMode;
+  playbackIntervalSec: number;
   activeSpaceId: string | null;
   activeChannelId: string | null;
   activeDmId: string | null;
@@ -79,6 +94,10 @@ function createUiStore() {
     customBgOpacity: 0.26,
     messageBackdropBlur: 8,
     bgPlaylist: [],
+    playlists: [],
+    activePlaylistId: '',
+    playbackMode: 'sequential',
+    playbackIntervalSec: 30,
     activeSpaceId: null,
     activeChannelId: null,
     activeDmId: null,
@@ -97,6 +116,66 @@ function createUiStore() {
 
   let confirmResolver: ((value: boolean) => void) | null = null;
   let inputResolver: ((value: string | null) => void) | null = null;
+
+  function persistPlaylists(s: UiState, playlists: NamedPlaylist[], activeId: string): UiState {
+    const next: UiState = {
+      ...s,
+      playlists,
+      activePlaylistId: activeId,
+      bgPlaylist: playlists.find(p => p.id === activeId)?.items ?? [],
+    };
+    if (activeUserId) {
+      localStorage.setItem(userBgKey('veilanon-playlists'), JSON.stringify(playlists));
+      localStorage.setItem(userBgKey('veilanon-active-playlist'), activeId);
+    }
+    return next;
+  }
+
+  function loadNamedPlaylists(userId: string | null): { playlists: NamedPlaylist[]; activeId: string } {
+    let playlists: NamedPlaylist[] = [];
+    try {
+      const raw = localStorage.getItem(userBgKey('veilanon-playlists', userId));
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          playlists = parsed.filter(
+            (p): p is NamedPlaylist =>
+              Boolean(p) && typeof (p as NamedPlaylist).id === 'string' && Array.isArray((p as NamedPlaylist).items)
+          );
+        }
+      }
+    } catch { /* corrupt storage — start fresh */ }
+
+    let activeId = localStorage.getItem(userBgKey('veilanon-active-playlist', userId)) || '';
+
+    // Legacy single-playlist migration → default 'Genel' playlist. Idempotent:
+    // after the first run the playlists key is non-empty and this branch is skipped.
+    if (playlists.length === 0) {
+      let legacyItems: BgPlaylistItem[] = [];
+      try {
+        const rawLegacy = localStorage.getItem(userBgKey('veilanon-bg-playlist', userId));
+        if (rawLegacy) {
+          const parsedLegacy: unknown = JSON.parse(rawLegacy);
+          if (Array.isArray(parsedLegacy)) legacyItems = parsedLegacy as BgPlaylistItem[];
+        }
+      } catch { /* ignored */ }
+      const fallback: NamedPlaylist = {
+        id: crypto.randomUUID(),
+        name: 'Genel',
+        items: legacyItems,
+        createdAt: new Date().toISOString(),
+      };
+      playlists = [fallback];
+      activeId = fallback.id;
+      if (userId) {
+        localStorage.setItem(userBgKey('veilanon-playlists', userId), JSON.stringify(playlists));
+        localStorage.setItem(userBgKey('veilanon-active-playlist', userId), activeId);
+      }
+    }
+
+    if (!playlists.some(p => p.id === activeId)) activeId = playlists[0].id;
+    return { playlists, activeId };
+  }
 
   function refreshDomTheme(state: UiState) {
     if (typeof document === 'undefined') return;
@@ -145,6 +224,12 @@ function createUiStore() {
         if (raw) storedPlaylist = JSON.parse(raw);
       } catch { /* ignored */ }
 
+      const { playlists, activeId } = loadNamedPlaylists(userId);
+      const storedModeRaw = localStorage.getItem(userBgKey('veilanon-playback-mode', userId));
+      const storedMode: PlaybackMode =
+        storedModeRaw === 'shuffle' || storedModeRaw === 'timed' ? storedModeRaw : 'sequential';
+      const storedInterval = parseInt(localStorage.getItem(userBgKey('veilanon-playback-interval', userId)) || '', 10);
+
       update(s => {
         const next = {
           ...s,
@@ -155,6 +240,10 @@ function createUiStore() {
           customBgOpacity: isNaN(storedOpacity) ? 0.26 : storedOpacity,
           messageBackdropBlur: isNaN(storedBlur) ? 8 : storedBlur,
           bgPlaylist: storedPlaylist,
+          playlists,
+          activePlaylistId: activeId,
+          playbackMode: storedMode,
+          playbackIntervalSec: Number.isFinite(storedInterval) && storedInterval > 0 ? storedInterval : 30,
         };
         refreshDomTheme(next);
         return next;
@@ -273,29 +362,66 @@ function createUiStore() {
       });
     },
 
-    setPlaylist(playlist: BgPlaylistItem[]) {
+    setPlaylists(playlists: NamedPlaylist[]) {
       update(s => {
-        const next = { ...s, bgPlaylist: playlist };
-        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(playlist));
-        return next;
+        const activeId = playlists.some(p => p.id === s.activePlaylistId)
+          ? s.activePlaylistId
+          : (playlists[0]?.id ?? '');
+        return persistPlaylists(s, playlists, activeId);
       });
     },
 
-    addPlaylistItem(item: BgPlaylistItem) {
+    setActivePlaylist(id: string) {
       update(s => {
-        const list = [...s.bgPlaylist.filter(p => p.url !== item.url), item];
-        const next = { ...s, bgPlaylist: list };
-        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
-        return next;
+        if (!s.playlists.some(p => p.id === id)) return s;
+        return persistPlaylists(s, s.playlists, id);
       });
     },
 
-    removePlaylistItem(id: string) {
+    addPlaylist(name: string) {
+      const clean = name.trim().slice(0, 40);
+      if (!clean) return;
       update(s => {
-        const list = s.bgPlaylist.filter(p => p.id !== id);
-        const next = { ...s, bgPlaylist: list };
-        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
-        return next;
+        const pl: NamedPlaylist = { id: crypto.randomUUID(), name: clean, items: [], createdAt: new Date().toISOString() };
+        return persistPlaylists(s, [...s.playlists, pl], pl.id);
+      });
+    },
+
+    renamePlaylist(id: string, name: string) {
+      const clean = name.trim().slice(0, 40);
+      if (!clean) return;
+      update(s => {
+        const playlists = s.playlists.map(p => (p.id === id ? { ...p, name: clean } : p));
+        return persistPlaylists(s, playlists, s.activePlaylistId);
+      });
+    },
+
+    deletePlaylist(id: string) {
+      update(s => {
+        if (s.playlists.length <= 1) return s;
+        const idx = s.playlists.findIndex(p => p.id === id);
+        if (idx === -1) return s;
+        const playlists = s.playlists.filter(p => p.id !== id);
+        const activeId = s.activePlaylistId === id ? playlists[Math.max(0, idx - 1)].id : s.activePlaylistId;
+        return persistPlaylists(s, playlists, activeId);
+      });
+    },
+
+    addToPlaylist(playlistId: string, item: BgPlaylistItem) {
+      update(s => {
+        const playlists = s.playlists.map(p =>
+          p.id === playlistId ? { ...p, items: [...p.items.filter(i => i.url !== item.url), item] } : p
+        );
+        return persistPlaylists(s, playlists, s.activePlaylistId);
+      });
+    },
+
+    removePlaylistItem(playlistId: string, itemId: string) {
+      update(s => {
+        const playlists = s.playlists.map(p =>
+          p.id === playlistId ? { ...p, items: p.items.filter(i => i.id !== itemId) } : p
+        );
+        return persistPlaylists(s, playlists, s.activePlaylistId);
       });
     },
 
@@ -303,20 +429,45 @@ function createUiStore() {
       const clean = title.trim().slice(0, 60);
       if (!clean) return;
       update(s => {
-        const list = s.bgPlaylist.map(p => (p.id === id ? { ...p, title: clean } : p));
-        const next = { ...s, bgPlaylist: list };
-        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
-        return next;
+        const playlists = s.playlists.map(p =>
+          p.id === s.activePlaylistId
+            ? { ...p, items: p.items.map(i => (i.id === id ? { ...i, title: clean } : i)) }
+            : p
+        );
+        return persistPlaylists(s, playlists, s.activePlaylistId);
       });
     },
 
-    cyclePlaylistNext() {
+    setPlaybackMode(mode: PlaybackMode) {
       update(s => {
-        if (!s.bgPlaylist || s.bgPlaylist.length === 0) return s;
+        localStorage.setItem(userBgKey('veilanon-playback-mode'), mode);
+        return { ...s, playbackMode: mode };
+      });
+    },
+
+    setPlaybackIntervalSec(sec: number) {
+      const clamped = Math.max(5, Math.min(3600, Math.round(sec)));
+      update(s => {
+        localStorage.setItem(userBgKey('veilanon-playback-interval'), String(clamped));
+        return { ...s, playbackIntervalSec: clamped };
+      });
+    },
+
+    advancePlayback() {
+      update(s => {
+        const playlist = s.playlists.find(p => p.id === s.activePlaylistId) ?? s.playlists[0];
+        if (!playlist || playlist.items.length === 0) return s;
         const curUrl = s.customBgImage || s.customBgVideo;
-        const curIdx = s.bgPlaylist.findIndex(p => p.url === curUrl);
-        const nextIdx = (curIdx + 1) % s.bgPlaylist.length;
-        const target = s.bgPlaylist[nextIdx];
+        const curIdx = playlist.items.findIndex(p => p.url === curUrl);
+        let nextIdx: number;
+        if (s.playbackMode === 'shuffle' && playlist.items.length > 1) {
+          do {
+            nextIdx = Math.floor(Math.random() * playlist.items.length);
+          } while (nextIdx === curIdx);
+        } else {
+          nextIdx = (curIdx + 1) % playlist.items.length;
+        }
+        const target = playlist.items[nextIdx];
         if (!target) return s;
         const img = target.type === 'image' ? target.url : '';
         const vid = target.type === 'video' ? target.url : '';
@@ -381,6 +532,8 @@ function createUiStore() {
       const customBgVideo = activeUserId ? (localStorage.getItem(userBgKey('veilanon-bg-video')) || '') : '';
       const storedOpacity = parseFloat(localStorage.getItem(userBgKey('veilanon-bg-opacity')) || '0.26');
       const customThemeName = localStorage.getItem('veilanon-custom-theme-name') || 'Kişisel Tema';
+      const { playlists, activeId } = loadNamedPlaylists(activeUserId);
+      const restoredSettingsTab = localStorage.getItem('veilanon-settings-tab');
 
       update(s => {
         const next = {
@@ -393,6 +546,10 @@ function createUiStore() {
           customBgImage,
           customBgVideo,
           customBgOpacity: isNaN(storedOpacity) ? 0.26 : storedOpacity,
+          playlists,
+          activePlaylistId: activeId,
+          bgPlaylist: playlists.find(p => p.id === activeId)?.items ?? [],
+          settingsTab: restoredSettingsTab || s.settingsTab,
         };
         refreshDomTheme(next);
         return next;
@@ -473,12 +630,15 @@ function createUiStore() {
     openModal(modal: Modal, data?: unknown) {
       update(s => {
         const tab = (data as { tab?: string } | null)?.tab;
-        return {
-          ...s,
-          openModal: modal,
-          modalData: data ?? null,
-          settingsTab: tab && modal === 'settings' ? tab : s.settingsTab,
-        };
+        if (tab && modal === 'settings') {
+          localStorage.setItem('veilanon-settings-tab', tab);
+          return { ...s, openModal: modal, modalData: data ?? null, settingsTab: tab };
+        }
+        if (modal === 'settings') {
+          const restored = localStorage.getItem('veilanon-settings-tab');
+          if (restored) return { ...s, openModal: modal, modalData: data ?? null, settingsTab: restored };
+        }
+        return { ...s, openModal: modal, modalData: data ?? null };
       });
     },
 
@@ -495,6 +655,7 @@ function createUiStore() {
     },
 
     setSettingsTab(tab: string) {
+      localStorage.setItem('veilanon-settings-tab', tab);
       update(s => ({ ...s, settingsTab: tab }));
     },
 

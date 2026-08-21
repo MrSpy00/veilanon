@@ -88,6 +88,20 @@
     }
   });
 
+  // Timed playlist playback: interval advances the active playlist; skipped while hidden.
+  $effect(() => {
+    const mode = ui.playbackMode;
+    const intervalSec = ui.playbackIntervalSec;
+    const itemCount = ui.playlists.find(p => p.id === ui.activePlaylistId)?.items.length ?? 0;
+    if (mode !== 'timed' || itemCount < 2) return;
+
+    const timer = setInterval(() => {
+      if (!document.hidden) uiStore.advancePlayback();
+    }, Math.max(1, intervalSec) * 1000);
+
+    return () => clearInterval(timer);
+  });
+
   function toggleStreamerManual() {
     if ($streamerMode.enabled) {
       userExplicitlyDisabled = true;
