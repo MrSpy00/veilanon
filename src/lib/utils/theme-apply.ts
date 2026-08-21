@@ -299,7 +299,7 @@ export function importThemeJson(jsonStr: string): { data: ThemeExportData | null
       customCssEnabled: parsed.customCssEnabled !== false,
       customBgImage: typeof parsed.customBgImage === 'string' ? parsed.customBgImage : '',
       customBgVideo: typeof parsed.customBgVideo === 'string' ? parsed.customBgVideo : '',
-      customBgOpacity: typeof parsed.customBgOpacity === 'number' ? Math.max(0, Math.min(0.6, parsed.customBgOpacity)) : 0.26,
+      customBgOpacity: typeof parsed.customBgOpacity === 'number' ? Math.max(0, Math.min(1.0, parsed.customBgOpacity)) : 0.26,
       accentColor: typeof parsed.accentColor === 'string' ? parsed.accentColor : null,
     };
 
@@ -341,4 +341,40 @@ export function deleteSavedTheme(id: string): void {
   try {
     localStorage.setItem(SAVED_THEMES_KEY, JSON.stringify(themes));
   } catch { /* quota exceeded */ }
+}
+
+export function renameSavedTheme(id: string, newName: string): boolean {
+  const clean = newName.trim().slice(0, 50);
+  if (!clean) return false;
+  const themes = getSavedThemes();
+  const target = themes.find(t => t.id === id);
+  if (!target) return false;
+  const oldName = target.name;
+  target.name = clean;
+  try {
+    localStorage.setItem(SAVED_THEMES_KEY, JSON.stringify(themes));
+    if (getActiveThemeName() === oldName) setActiveThemeName(clean);
+    return true;
+  } catch { /* quota exceeded */ }
+  return false;
+}
+
+const ACTIVE_THEME_KEY = 'veilanon-active-theme';
+
+export function setActiveThemeName(name: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (!name || !name.trim()) {
+    localStorage.removeItem(ACTIVE_THEME_KEY);
+  } else {
+    localStorage.setItem(ACTIVE_THEME_KEY, name.trim().slice(0, 50));
+  }
+}
+
+export function getActiveThemeName(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(ACTIVE_THEME_KEY);
+  } catch {
+    return null;
+  }
 }

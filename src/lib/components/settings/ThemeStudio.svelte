@@ -15,6 +15,9 @@
     getSavedThemes,
     deleteSavedTheme,
     generateThemeId,
+    renameSavedTheme,
+    setActiveThemeName,
+    getActiveThemeName,
     type ThemeExportData,
     type SavedTheme,
   } from '$lib/utils/theme-apply';
@@ -34,15 +37,19 @@
   let mediaUrlInput = $state('');
   let detectedMediaType = $state<'image' | 'video' | 'page' | 'unknown'>('unknown');
   let isScrapingUrl = $state(false);
-  let scrapeResults = $state<Array<{url: string; mediaType: string; source: string}>>([]);
+  let scrapeResults = $state<Array<{url: string; mediaType: string; source: string; poster?: string | null}>>([]);
   let bgOpacityInput = $state(0.26);
   let messageBlurInput = $state(8);
   let mediaError = $state<string | null>(null);
   let playlistImportModalOpen = $state(false);
   let playlistImportText = $state('');
+  let lastAutoScrapedUrl = $state('');
+  let autoScrapeToken = 0;
+  let autoScrapeTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Saved Themes State
   let savedThemesList = $state<Array<{id: string; name: string; savedAt: string}>>([]);
+  let activeThemeName = $state<string | null>(null);
   let showSaveDialog = $state(false);
   let saveThemeName = $state('');
 
@@ -67,8 +74,17 @@
     bgOpacityInput = ui.customBgOpacity ?? 0.26;
     messageBlurInput = ui.messageBackdropBlur ?? 8;
     customThemeNameInput = ui.customThemeName || 'Kişisel Tema';
+    activeThemeName = getActiveThemeName();
     refreshSavedThemes();
   });
+
+  function filenameFromUrl(url: string): string {
+    try {
+      return decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+    } catch {
+      return '';
+    }
+  }
 
   function addCurrentMediaToPlaylist() {
     const url = mediaUrlInput.trim();
@@ -78,7 +94,7 @@
       id: crypto.randomUUID(),
       url,
       type,
-      title: `Medya ${ui.bgPlaylist.length + 1}`,
+      title: filenameFromUrl(url) || `Medya ${ui.bgPlaylist.length + 1}`,
     });
     toastStore.success('Medya arka plan playlistine eklendi.');
   }
@@ -199,6 +215,8 @@
       customThemeName: 'Kişisel Tema',
     });
 
+    setActiveThemeName(null);
+    activeThemeName = null;
     toastStore.info('Kişisel tema katmanı sıfırlandı.');
   }
 
@@ -243,6 +261,27 @@
     mediaUrlInput = val;
     detectedMediaType = detectMediaType(val);
     scrapeResults = [];
+    scheduleAutoScrape(val);
+  }
+
+  // Debounced auto-scrape for pasted page links (no manual click needed)
+  function scheduleAutoScrape(val: string) {
+    autoScrapeToken += 1;
+    const token = autoScrapeToken;
+    if (autoScrapeTimer) clearTimeout(autoScrapeTimer);
+    autoScrapeTimer = setTimeout(() => {
+      if (token !== autoScrapeToken) return;
+      const trimmed = val.trim();
+      if (
+        detectedMediaType === 'page' &&
+        /^https?:\/\//i.test(trimmed) &&
+        trimmed.length >= 8 &&
+        trimmed !== lastAutoScrapedUrl
+      ) {
+        lastAutoScrapedUrl = trimmed;
+        handleScrapeUrl();
+      }
+    }, 800);
   }
 
   async function handleScrapeUrl() {
@@ -252,9 +291,9 @@
     mediaError = null;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<{success: boolean; media_urls: Array<{url: string; media_type: string; source: string}>; title?: string; error?: string}>('scrape_url', { url: mediaUrlInput.trim() });
+      const result = await invoke<{success: boolean; media_urls: Array<{url: string; media_type: string; source: string; poster?: string | null}>; title?: string; error?: string}>('scrape_url', { url: mediaUrlInput.trim() });
       if (result.success && result.media_urls.length > 0) {
-        scrapeResults = result.media_urls.map(m => ({ url: m.url, mediaType: m.media_type, source: m.source }));
+        scrapeResults = result.media_urls.map(m => ({ url: m.url, mediaType: m.media_type, source: m.source, poster: m.poster ?? undefined }));
         toastStore.success(`${result.media_urls.length} medya bulundu${result.title ? ': ' + result.title : ''}`);
       } else {
         mediaError = result.error || 'Bu sayfada medya bulunamadı.';
@@ -273,11 +312,44 @@
     applyCurrentMedia();
   }
 
+  // Safe hostname extraction for result cards
+  function getHostname(url: string): string {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url.length > 24 ? url.slice(0, 24) + '…' : url;
+    }
+  }
+
+  // Add a scraped candidate directly to the background playlist
+  function addScrapedMediaToPlaylist(item: {url: string; mediaType: string}) {
+    let filename = '';
+    try {
+      const path = new URL(item.url).pathname;
+      filename = decodeURIComponent(path.split('/').pop() || '');
+    } catch {
+      filename = '';
+    }
+    uiStore.addPlaylistItem({
+      id: crypto.randomUUID(),
+      url: item.url,
+      type: item.mediaType === 'video' ? 'video' : 'image',
+      title: filename || `Medya ${ui.bgPlaylist.length + 1}`,
+    });
+    toastStore.success('Medya arka plan playlistine eklendi.');
+  }
+
   function removeMedia() {
     mediaUrlInput = '';
     detectedMediaType = 'unknown';
     scrapeResults = [];
     mediaError = null;
+    lastAutoScrapedUrl = '';
+    autoScrapeToken += 1;
+    if (autoScrapeTimer) {
+      clearTimeout(autoScrapeTimer);
+      autoScrapeTimer = null;
+    }
     uiStore.setCustomBackground('', '', bgOpacityInput);
     saveSettings({ customBgImage: '', customBgVideo: '' });
     toastStore.info('Arka plan medyası kaldırıldı.');
@@ -286,14 +358,26 @@
   // Named Theme Save / Load
   function refreshSavedThemes() {
     savedThemesList = getSavedThemes().map(t => ({ id: t.id, name: t.name, savedAt: t.savedAt }));
+    activeThemeName = getActiveThemeName();
   }
 
-  function handleSaveNamedTheme() {
-    if (!saveThemeName.trim()) return;
+  async function handleSaveNamedTheme() {
+    const name = saveThemeName.trim();
+    if (!name) return;
     const accent = localStorage.getItem('veilanon-accent') || null;
+
+    const existing = getSavedThemes().find(t => t.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      const ok = await uiStore.confirm(
+        `"${name}" adıyla bir tema zaten var. Üzerine yazılsın mı?`,
+        { title: 'Üzerine Yaz', danger: true, confirmLabel: 'Üzerine Yaz' }
+      );
+      if (!ok) return;
+    }
+
     const theme: SavedTheme = {
-      id: generateThemeId(),
-      name: saveThemeName.trim(),
+      id: existing ? existing.id : generateThemeId(),
+      name,
       presetThemeId: ui.presetThemeId,
       customCss: customCssInput,
       customCssEnabled: isCustomCssActive,
@@ -304,6 +388,8 @@
       savedAt: new Date().toISOString(),
     };
     saveNamedTheme(theme);
+    setActiveThemeName(theme.name);
+    activeThemeName = theme.name;
     refreshSavedThemes();
     showSaveDialog = false;
     saveThemeName = '';
@@ -328,6 +414,8 @@
       customBgImage: theme.customBgImage, customBgVideo: theme.customBgVideo,
       customBgOpacity: theme.customBgOpacity, accentColor: theme.accentColor,
     });
+    setActiveThemeName(theme.name);
+    activeThemeName = theme.name;
     toastStore.success(`"${theme.name}" teması yüklendi.`);
   }
 
@@ -337,6 +425,22 @@
     deleteSavedTheme(id);
     refreshSavedThemes();
     toastStore.info(`"${name}" silindi.`);
+  }
+
+  async function handleRenameSavedTheme(theme: { id: string; name: string }) {
+    const result = await uiStore.promptInput(`"${theme.name}" temasının adını düzenle`, {
+      title: 'Yeniden Adlandır',
+      defaultValue: theme.name,
+      placeholder: 'Tema adı',
+    });
+    if (result === null || !result.trim()) return;
+    const ok = renameSavedTheme(theme.id, result);
+    if (!ok) {
+      toastStore.error('Tema adı güncellenemedi.');
+      return;
+    }
+    refreshSavedThemes();
+    toastStore.success('Tema adı güncellendi.');
   }
 
   // AI Prompt Copy
@@ -371,8 +475,9 @@
       presetThemeId: ui.presetThemeId,
       customCss: customCssInput,
       customCssEnabled: isCustomCssActive,
-      customBgImage: detectedMediaType === 'image' ? mediaUrlInput : '',
-      customBgVideo: detectedMediaType === 'video' || detectedMediaType === 'unknown' ? mediaUrlInput : '',
+      // Export the APPLIED background (source of truth), not the raw input field.
+      customBgImage: ui.customBgImage || '',
+      customBgVideo: ui.customBgVideo || '',
       customBgOpacity: bgOpacityInput,
     };
     const jsonStr = exportThemeJson(data);
@@ -450,6 +555,9 @@
       handleImportJsonSubmit();
     } catch {
       toastStore.error('Dosya okunamadı.');
+    } finally {
+      // Reset so re-selecting the same file fires onchange again.
+      input.value = '';
     }
   }
 
@@ -594,13 +702,21 @@
             {#each savedThemesList as theme}
               <div class="saved-theme-row">
                 <div class="saved-theme-info">
-                  <span class="saved-theme-name">{theme.name}</span>
+                  <div class="saved-theme-name-row">
+                    <span class="saved-theme-name">{theme.name}</span>
+                    {#if theme.name === activeThemeName}
+                      <span class="dot-active" title="Aktif tema"></span>
+                    {/if}
+                  </div>
                   <span class="saved-theme-date">{new Date(theme.savedAt).toLocaleDateString('tr-TR')}</span>
                 </div>
                 <div class="saved-theme-actions">
                   <button type="button" class="btn btn-secondary btn-xs" onclick={() => handleLoadSavedTheme(theme.id)} title="Temayı Yükle">
                     <Icon name="download" size={12} />
                     <span>Yükle</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-xs" onclick={() => handleRenameSavedTheme(theme)} title="Temayı Yeniden Adlandır">
+                    <Icon name="edit" size={12} />
                   </button>
                   <button type="button" class="btn btn-danger btn-xs" onclick={() => handleDeleteSavedTheme(theme.id, theme.name)} title="Temayı Sil">
                     <Icon name="trash" size={12} />
@@ -718,17 +834,61 @@
           {/if}
         </div>
 
-        {#if scrapeResults.length > 0}
+        {#if isScrapingUrl || scrapeResults.length > 0}
           <div class="scrape-results">
-            {#each scrapeResults as item}
-              <button type="button" class="scrape-result-item" onclick={() => handleSelectScrapedMedia(item.url, item.mediaType)}>
-                <span class="media-type-badge badge-small" class:badge-video={item.mediaType === 'video'} class:badge-image={item.mediaType === 'image'}>
-                  {item.mediaType === 'video' ? 'Video' : 'Görsel'}
-                </span>
-                <span class="scrape-result-url" title={item.url}>{item.url.length > 60 ? item.url.slice(0, 60) + '…' : item.url}</span>
-                {#if item.source}<span class="scrape-result-source">{item.source}</span>{/if}
-              </button>
-            {/each}
+            {#if isScrapingUrl}
+              <div class="scrape-results-header">
+                <Icon name="search" size={13} />
+                <span>Sayfa taranıyor…</span>
+              </div>
+              <div class="scrape-grid">
+                {#each [0, 1, 2, 3, 4, 5] as _sk, i (i)}
+                  <div class="scrape-card scrape-skeleton" aria-hidden="true">
+                    <div class="scrape-thumb"></div>
+                    <span class="skeleton-line"></span>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="scrape-results-header">
+                <Icon name="search" size={13} />
+                <span>{scrapeResults.length} medya bulundu — uygulamak istediğine tıkla</span>
+              </div>
+              <div class="scrape-grid">
+                {#each scrapeResults as item (item.url)}
+                  <div class="scrape-card">
+                    <button
+                      type="button"
+                      class="scrape-thumb"
+                      onclick={() => handleSelectScrapedMedia(item.url, item.mediaType)}
+                      title={item.url}
+                    >
+                      {#if item.mediaType === 'video'}
+                        {#if item.poster}
+                          <img src={item.poster} alt="" loading="lazy" referrerpolicy="no-referrer" />
+                        {:else}
+                          <span class="scrape-play-tile"><Icon name="play" size={22} /></span>
+                        {/if}
+                      {:else}
+                        <img src={item.url} alt="" loading="lazy" referrerpolicy="no-referrer" />
+                      {/if}
+                      <span class="media-type-badge badge-small" class:badge-video={item.mediaType === 'video'} class:badge-image={item.mediaType !== 'video'}>
+                        {item.mediaType === 'video' ? 'Video' : 'Görsel'}
+                      </span>
+                    </button>
+                    <span class="scrape-host" title={item.url}>{getHostname(item.url)}</span>
+                    <div class="scrape-actions">
+                      <button type="button" class="btn btn-primary btn-xs" onclick={() => handleSelectScrapedMedia(item.url, item.mediaType)}>
+                        Uygula
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-xs" onclick={() => addScrapedMediaToPlaylist(item)}>
+                        Playliste Ekle
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/if}
 
@@ -820,7 +980,12 @@
                     <span class="media-type-badge badge-small" class:badge-video={item.type === 'video'} class:badge-image={item.type === 'image'}>
                       {item.type === 'video' ? 'Video' : 'Görsel'}
                     </span>
-                    <span class="veil-playlist-url" title={item.url}>{item.url}</span>
+                    <div class="veil-playlist-meta">
+                      <span class="veil-playlist-title-text" title={item.title || filenameFromUrl(item.url)}>
+                        {item.title || filenameFromUrl(item.url)}
+                      </span>
+                      <span class="veil-playlist-url" title={item.url}>{item.url}</span>
+                    </div>
                   </div>
                   <div class="veil-playlist-card-actions">
                     <button
@@ -829,12 +994,34 @@
                       onclick={() => {
                         mediaUrlInput = item.url;
                         detectedMediaType = item.type;
-                        if (item.type === 'video') uiStore.setCustomBackground('', item.url, bgOpacityInput);
-                        else uiStore.setCustomBackground(item.url, '', bgOpacityInput);
+                        if (item.type === 'video') {
+                          uiStore.setCustomBackground('', item.url, bgOpacityInput);
+                          saveSettings({ customBgImage: '', customBgVideo: item.url, customBgOpacity: bgOpacityInput });
+                        } else {
+                          uiStore.setCustomBackground(item.url, '', bgOpacityInput);
+                          saveSettings({ customBgImage: item.url, customBgVideo: '', customBgOpacity: bgOpacityInput });
+                        }
                       }}
                       title="Bu Medyayı Seç"
                     >
                       {isCurrent ? 'Aktif' : 'Seç'}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      onclick={async () => {
+                        const result = await uiStore.promptInput('Medya adını düzenle', {
+                          title: 'Yeniden Adlandır',
+                          defaultValue: item.title || filenameFromUrl(item.url),
+                          placeholder: 'Medya adı',
+                        });
+                        if (result === null) return;
+                        uiStore.renamePlaylistItem(item.id, result);
+                        toastStore.success('Medya adı güncellendi.');
+                      }}
+                      title="Medya Adını Düzenle"
+                    >
+                      <Icon name="edit" size={12} />
                     </button>
                     <button
                       type="button"
@@ -1459,49 +1646,143 @@
   .scrape-results {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1px solid var(--veil-border-subtle);
-    border-radius: var(--radius-md, 0.5rem);
-    background: var(--veil-bg-surface);
-    padding: 4px;
+    gap: 8px;
   }
 
-  .scrape-result-item {
+  .scrape-results-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-sm, 0.375rem);
-    cursor: pointer;
-    text-align: left;
-    width: 100%;
-    color: var(--veil-text-primary);
-    transition: background var(--t-fast, 150ms ease);
-  }
-
-  .scrape-result-item:hover {
-    background: var(--veil-bg-overlay);
-  }
-
-  .scrape-result-url {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    gap: 6px;
     font-size: 11px;
-    font-family: var(--font-mono, monospace);
+    font-weight: 600;
     color: var(--veil-text-secondary);
   }
 
-  .scrape-result-source {
-    font-size: 10px;
-    color: var(--veil-text-muted);
+  .scrape-results-header :global(svg) {
+    color: var(--veil-brand);
     flex-shrink: 0;
+  }
+
+  .scrape-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 2px;
+  }
+
+  .scrape-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    background: var(--veil-bg-surface);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-md, 0.5rem);
+    transition:
+      transform var(--t-fast, 150ms ease),
+      border-color var(--t-fast, 150ms ease),
+      box-shadow var(--t-fast, 150ms ease);
+  }
+
+  .scrape-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--veil-brand);
+    box-shadow:
+      0 0 0 1px var(--veil-brand),
+      0 6px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  .scrape-thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm, 0.375rem);
+    background: var(--veil-bg-elevated);
+    cursor: pointer;
+  }
+
+  .scrape-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .scrape-thumb .media-type-badge {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 1;
+  }
+
+  .scrape-play-tile {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--veil-bg-overlay);
+    color: var(--veil-text-muted);
+  }
+
+  .scrape-host {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+    color: var(--veil-text-muted);
+  }
+
+  .scrape-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .scrape-actions .btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Skeleton tiles while scraping */
+  .scrape-skeleton .scrape-thumb,
+  .skeleton-line {
+    animation: veil-pulse 1.2s ease-in-out infinite;
+  }
+
+  .skeleton-line {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--veil-bg-overlay);
+  }
+
+  @keyframes veil-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scrape-card,
+    .scrape-card:hover {
+      transform: none;
+      transition: none;
+    }
+    .scrape-skeleton .scrape-thumb,
+    .skeleton-line {
+      animation: none;
+    }
   }
 
   .saved-themes-section {
@@ -1557,6 +1838,13 @@
     flex-direction: column;
     min-width: 0;
     flex: 1;
+  }
+
+  .saved-theme-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
 
   .saved-theme-name {
@@ -1645,6 +1933,23 @@
     gap: 6px;
     min-width: 0;
     flex: 1;
+  }
+
+  .veil-playlist-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .veil-playlist-title-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--veil-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .veil-playlist-url {

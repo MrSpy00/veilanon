@@ -299,6 +299,17 @@ function createUiStore() {
       });
     },
 
+    renamePlaylistItem(id: string, title: string) {
+      const clean = title.trim().slice(0, 60);
+      if (!clean) return;
+      update(s => {
+        const list = s.bgPlaylist.map(p => (p.id === id ? { ...p, title: clean } : p));
+        const next = { ...s, bgPlaylist: list };
+        localStorage.setItem(userBgKey('veilanon-bg-playlist'), JSON.stringify(list));
+        return next;
+      });
+    },
+
     cyclePlaylistNext() {
       update(s => {
         if (!s.bgPlaylist || s.bgPlaylist.length === 0) return s;
