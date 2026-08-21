@@ -50,6 +50,11 @@ pub enum VeilError {
     #[error("network request failed")]
     NetworkError(#[from] reqwest::Error),
 
+    /// User-facing network fault carrying a Turkish message for IPC toasts
+    /// (distinct from `NetworkError`, which flattens the underlying cause).
+    #[error("{0}")]
+    Network(String),
+
     #[error("websocket connection error")]
     #[allow(dead_code)]
     WebSocketError,

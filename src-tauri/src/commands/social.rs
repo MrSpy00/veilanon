@@ -6,7 +6,7 @@
 use tauri::{Emitter, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use tracing::{info, debug};
+use tracing::{debug, info, warn};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 
@@ -93,27 +93,59 @@ fn sanitize_username_input(input: &str) -> String {
     s.trim().trim_start_matches('@').trim().to_string()
 }
 
-/// Best-effort remote profile lookup with multi-level fallback strategies
+/// Distinct user-facing messages so friend-request toasts never show
+/// "Kullanıcı bulunamadı" for transport or auth faults.
+const PROFILE_UNREACHABLE_MSG: &str = "Profil servisine ulaşılamadı. Bağlantınızı kontrol edin.";
+const PROFILE_AUTH_MSG: &str = "Profil servisi erişiminizi reddetti. Lütfen tekrar oturum açın.";
+
+fn map_fetch_error(err: String) -> VeilError {
+    let lower = err.to_lowercase();
+    if lower.contains("timed out") || lower.contains("timeout") || lower.contains("connection") {
+        return VeilError::Network(PROFILE_UNREACHABLE_MSG.into());
+    }
+    const STATUS_HINTS: [&str; 6] = [
+        "authenticated",
+        "permission denied",
+        "server returned",
+        "rate limit",
+        "http status",
+        "status client error",
+    ];
+    if STATUS_HINTS.iter().any(|hint| lower.contains(hint)) {
+        return VeilError::Network(PROFILE_AUTH_MSG.into());
+    }
+    VeilError::Network(PROFILE_UNREACHABLE_MSG.into())
+}
+
+/// Best-effort remote profile lookup with multi-level fallback strategies.
+/// Returns Ok(None) only when the service is unconfigured or every strategy
+/// completed successfully with no hit; transport/auth failures propagate.
 async fn fetch_profile_remotely(
     state: &AppState,
     username_or_id: &str,
-) -> Option<(Uuid, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> {
+) -> Result<Option<(Uuid, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>, VeilError> {
     if !config::configured("VEILANON_SUPABASE_URL") {
-        return None;
+        return Ok(None);
     }
     let network = state.network.read().await;
     let clean = sanitize_username_input(username_or_id);
     if clean.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let mut found_item: Option<serde_json::Value> = None;
 
     // 1. Direct UUID match if input is a valid UUID
     if let Ok(uid) = Uuid::parse_str(&clean) {
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("id=eq.{}", uid), None, Some(1)).await {
-            if let Some(item) = rows.into_iter().next() {
-                found_item = Some(item);
+        match network.api.select::<serde_json::Value>("users", &format!("id=eq.{}", uid), None, Some(1)).await {
+            Ok(rows) => {
+                if let Some(item) = rows.into_iter().next() {
+                    found_item = Some(item);
+                }
+            }
+            Err(e) => {
+                warn!("Remote profile lookup failed (uuid): {}", e);
+                return Err(map_fetch_error(e.to_string()));
             }
         }
     }
@@ -123,18 +155,30 @@ async fn fetch_profile_remotely(
 
     // 2. Exact username match (case-insensitive)
     if found_item.is_none() {
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean_enc), None, Some(1)).await {
-            if let Some(item) = rows.into_iter().next() {
-                found_item = Some(item);
+        match network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean_enc), None, Some(1)).await {
+            Ok(rows) => {
+                if let Some(item) = rows.into_iter().next() {
+                    found_item = Some(item);
+                }
+            }
+            Err(e) => {
+                warn!("Remote profile lookup failed (username): {}", e);
+                return Err(map_fetch_error(e.to_string()));
             }
         }
     }
 
     // 3. Exact display_name match (case-insensitive)
     if found_item.is_none() {
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean_enc), None, Some(1)).await {
-            if let Some(item) = rows.into_iter().next() {
-                found_item = Some(item);
+        match network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean_enc), None, Some(1)).await {
+            Ok(rows) => {
+                if let Some(item) = rows.into_iter().next() {
+                    found_item = Some(item);
+                }
+            }
+            Err(e) => {
+                warn!("Remote profile lookup failed (display_name): {}", e);
+                return Err(map_fetch_error(e.to_string()));
             }
         }
     }
@@ -142,21 +186,31 @@ async fn fetch_profile_remotely(
     // 4. Substring / wildcard search in username or display_name
     if found_item.is_none() {
         let filter = format!("or=(username.ilike.%25{}%25,display_name.ilike.%25{}%25)", clean_enc, clean_enc);
-        if let Ok(rows) = network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
-            if let Some(item) = rows.into_iter().next() {
-                found_item = Some(item);
+        match network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
+            Ok(rows) => {
+                if let Some(item) = rows.into_iter().next() {
+                    found_item = Some(item);
+                }
+            }
+            Err(e) => {
+                warn!("Remote profile lookup failed (substring): {}", e);
+                return Err(map_fetch_error(e.to_string()));
             }
         }
     }
 
-    let item = found_item?;
+    let Some(item) = found_item else {
+        return Ok(None);
+    };
 
     let uid_val = item.get("id").or_else(|| item.get("user_id"));
     let uid_str = match uid_val {
         Some(serde_json::Value::String(s)) => s.clone(),
-        _ => return None,
+        _ => return Ok(None),
     };
-    let uid = Uuid::parse_str(&uid_str).ok()?;
+    let Some(uid) = Uuid::parse_str(&uid_str).ok() else {
+        return Ok(None);
+    };
 
     let uname = item.get("username")
         .and_then(|v| v.as_str())
@@ -200,7 +254,7 @@ async fn fetch_profile_remotely(
         }
     }
 
-    Some((uid, uname, display, avatar, dh, signing, banner, bio))
+    Ok(Some((uid, uname, display, avatar, dh, signing, banner, bio)))
 }
 
 // ── Friends ─────────────────────────────────────────────────────────────────
@@ -224,8 +278,8 @@ pub async fn friends_add(
     let db = state.db.read().await;
     let profile = match db.get_profile_by_username(&clean_username)? {
         Some(profile) => Some(profile),
-        None => fetch_profile_remotely(&state, &clean_username).await.map(
-            |(id, uname, display, avatar, dh, signing, banner, bio)| {
+        None => match fetch_profile_remotely(&state, &clean_username).await {
+            Ok(Some((id, uname, display, avatar, dh, signing, banner, bio))) => {
                 let _ = db.upsert_profile(
                     &id,
                     &uname,
@@ -237,9 +291,13 @@ pub async fn friends_add(
                     bio.as_deref(),
                     None,
                 );
-                (id, uname, display, avatar)
-            },
-        ),
+                Some((id, uname, display, avatar))
+            }
+            // Every strategy completed without a hit — genuinely not found
+            Ok(None) => None,
+            // Transport/auth failure must surface distinctly, never as "not found"
+            Err(e) => return Err(e),
+        },
     };
 
     let (friend_id, friend_uname, _friend_disp, _) = profile.ok_or(VeilError::InvalidInput("Kullanıcı bulunamadı. Lütfen kullanıcı adını kontrol edin.".into()))?;
@@ -1454,8 +1512,8 @@ pub async fn resolve_username(username: String, state: State<'_, AppState>) -> R
                     created_at: None,
                 });
             }
-            fetch_profile_remotely(&state, &clean_username).await.map(
-                |(id, uname, display, avatar, dh, signing, banner, bio)| {
+            match fetch_profile_remotely(&state, &clean_username).await {
+                Ok(Some((id, uname, display, avatar, dh, signing, banner, bio))) => {
                     let _ = db.upsert_profile(
                         &id,
                         &uname,
@@ -1467,9 +1525,11 @@ pub async fn resolve_username(username: String, state: State<'_, AppState>) -> R
                         bio.as_deref(),
                         None,
                     );
-                    (id, uname, display, avatar)
-                },
-            )
+                    Some((id, uname, display, avatar))
+                }
+                Ok(None) => None,
+                Err(e) => return Err(e),
+            }
         }
     };
     let Some((target, target_username, display_name, avatar_hash)) = profile else {
@@ -1601,4 +1661,49 @@ pub async fn get_mutual_friends(
     }
 
     Ok(mutual)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_fetch_error_when_timeout_returns_unreachable_message() {
+        // Given a flattened transport timeout error
+        let err = map_fetch_error("operation timed out".to_string());
+        // Then it maps to the unreachable message, never to not-found semantics
+        match err {
+            VeilError::Network(msg) => assert_eq!(msg, PROFILE_UNREACHABLE_MSG),
+            other => panic!("expected Network, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn map_fetch_error_when_connection_failure_returns_unreachable_message() {
+        let err = map_fetch_error("error connecting to host".to_string());
+        assert!(matches!(err, VeilError::Network(m) if m == PROFILE_UNREACHABLE_MSG));
+    }
+
+    #[test]
+    fn map_fetch_error_when_auth_status_returns_auth_message() {
+        let err = map_fetch_error("not authenticated".to_string());
+        assert!(matches!(err, VeilError::Network(m) if m == PROFILE_AUTH_MSG));
+    }
+
+    #[test]
+    fn map_fetch_error_when_server_status_returns_auth_message() {
+        let err = map_fetch_error("server returned an error: 502".to_string());
+        assert!(matches!(err, VeilError::Network(m) if m == PROFILE_AUTH_MSG));
+    }
+
+    #[test]
+    fn map_fetch_error_when_unknown_returns_unreachable_by_default() {
+        let err = map_fetch_error("something odd happened".to_string());
+        assert!(matches!(err, VeilError::Network(m) if m == PROFILE_UNREACHABLE_MSG));
+    }
+
+    #[test]
+    fn unreachable_and_auth_messages_are_distinct() {
+        assert_ne!(PROFILE_UNREACHABLE_MSG, PROFILE_AUTH_MSG);
+    }
 }

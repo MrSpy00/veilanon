@@ -270,18 +270,11 @@ impl ApiClient {
             .send()
             .await?;
 
-        let resp = if resp.status() == reqwest::StatusCode::UNAUTHORIZED && self.access_token.is_some() {
-            // Expired or invalid user token — retry with anon key
-            self.client
-                .get(&url)
-                .header("apikey", &self.anon_key)
-                .header("Authorization", format!("Bearer {}", self.anon_key))
-                .header("Accept", "application/json")
-                .send()
-                .await?
-        } else {
-            resp
-        };
+        // Deliberately no 401→anon-key retry here: the restrictive-RLS migration
+        // (20260820210000) revoked all table grants from `anon`, so an anon
+        // retry can never succeed for reads and would silently mask expired
+        // tokens as "no rows". Without a token, auth_header() already sends
+        // the anon key on the first attempt, keeping offline preview working.
 
         self.check_status(resp.status())?;
         let items: Vec<T> = resp.json().await?;
