@@ -24,6 +24,7 @@
 
   let content = $state('');
   let sending = $state(false);
+  let inputFocused = $state(false);
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let pickerOpen = $state(false);
   let uploadMenuOpen = $state(false);
@@ -166,7 +167,7 @@
         fileId: f.fileId,
         r2Key: f.r2Key,
         sizeBytes: f.sizeBytes,
-        contentKeyCiphertext: f.contentKeyCiphertext ?? '',
+        contentKeyCiphertext: f.contentKeyCiphertext ?? null,
         mimeTypeHint: f.mimeTypeHint,
         fileName: f.name,
       }));
@@ -315,28 +316,59 @@
     await uploadPaths(paths);
   }
 
+  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB — mirrors server-side MAX_FILE_SIZE
+
+  function isTooLargeError(err: unknown): boolean {
+    const msg = String(err);
+    return msg.includes('FileTooLarge') || msg.includes('çok büyük');
+  }
+
+  function reportUploadOutcome(uploadedCount: number, skipped: string[], failedNames: string[]) {
+    if (uploadedCount > 0) {
+      toastStore.success(`${uploadedCount} dosya eklendi.`);
+    }
+    if (skipped.length > 0) {
+      toastStore.warning(`Boyut sınırı aşıldı: ${skipped.join(', ')}`);
+    }
+    if (failedNames.length > 0) {
+      toastStore.error(`Yüklenemedi: ${failedNames.join(', ')}`);
+    }
+  }
+
   async function uploadPaths(paths: string[]) {
     uploading = true;
+    const skipped: string[] = [];
+    const failedNames: string[] = [];
+    let uploadedCount = 0;
     try {
       for (const path of paths) {
-        const info = await fileApi.upload({ path, channelId });
         const fileName = path.split(/[\\/]/).pop() ?? 'dosya';
-        pendingFiles = [
-          ...pendingFiles,
-          {
-            name: fileName,
-            fileId: info.fileId,
-            r2Key: info.r2Key ?? '',
-            sizeBytes: info.sizeBytes,
-            mimeTypeHint: inferMime(fileName),
-            contentKeyCiphertext: info.contentKeyCiphertext ?? null,
-          },
-        ];
+        try {
+          const info = await fileApi.upload({ path, channelId });
+          pendingFiles = [
+            ...pendingFiles,
+            {
+              name: fileName,
+              fileId: info.fileId,
+              r2Key: info.r2Key ?? '',
+              sizeBytes: info.sizeBytes,
+              mimeTypeHint: inferMime(fileName),
+              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+            },
+          ];
+          uploadedCount++;
+        } catch (err) {
+          // Server-side MAX_FILE_SIZE backstop surfaces as FileTooLarge
+          if (isTooLargeError(err)) {
+            skipped.push(fileName);
+          } else {
+            failedNames.push(fileName);
+          }
+        }
       }
       syncDraft();
+      reportUploadOutcome(uploadedCount, skipped, failedNames);
       if (paths.length > 0 && !content.trim()) textareaEl?.focus();
-    } catch {
-      toastStore.error('Dosya yüklenemedi.');
     } finally {
       uploading = false;
     }
@@ -347,46 +379,63 @@
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
     uploading = true;
+    const skipped: string[] = [];
+    const failedNames: string[] = [];
+    let uploadedCount = 0;
     try {
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        const p = (f as any).path;
-        if (p && typeof p === 'string' && p.length > 0) {
-          const info = await fileApi.upload({ path: p, channelId });
-          const fileName = p.split(/[\\/]/).pop() ?? f.name ?? 'dosya';
-          pendingFiles = [
-            ...pendingFiles,
-            {
-              name: fileName,
-              fileId: info.fileId,
-              r2Key: info.r2Key ?? '',
-              sizeBytes: info.sizeBytes,
-              mimeTypeHint: inferMime(fileName) || f.type || null,
-              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
-            },
-          ];
-        } else {
-          const arrayBuf = await f.arrayBuffer();
-          const bytes = new Uint8Array(arrayBuf);
-          const fileName = f.name || `dosya-${Date.now()}`;
-          const info = await fileApi.uploadBytes({ bytes, channelId });
-          pendingFiles = [
-            ...pendingFiles,
-            {
-              name: fileName,
-              fileId: info.fileId,
-              r2Key: info.r2Key ?? '',
-              sizeBytes: info.sizeBytes,
-              mimeTypeHint: inferMime(fileName) || f.type || null,
-              contentKeyCiphertext: info.contentKeyCiphertext ?? null,
-            },
-          ];
+        // Client-side size guard — reject before any upload attempt
+        if (f.size > MAX_UPLOAD_BYTES) {
+          skipped.push(f.name || 'dosya');
+          continue;
+        }
+        try {
+          const p = (f as File & { path?: string }).path;
+          if (p && typeof p === 'string' && p.length > 0) {
+            const info = await fileApi.upload({ path: p, channelId });
+            const fileName = p.split(/[\\/]/).pop() ?? f.name ?? 'dosya';
+            pendingFiles = [
+              ...pendingFiles,
+              {
+                name: fileName,
+                fileId: info.fileId,
+                r2Key: info.r2Key ?? '',
+                sizeBytes: info.sizeBytes,
+                mimeTypeHint: inferMime(fileName) || f.type || null,
+                contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+              },
+            ];
+          } else {
+            const arrayBuf = await f.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuf);
+            const fileName = f.name || `dosya-${Date.now()}`;
+            const info = await fileApi.uploadBytes({ bytes, channelId });
+            pendingFiles = [
+              ...pendingFiles,
+              {
+                name: fileName,
+                fileId: info.fileId,
+                r2Key: info.r2Key ?? '',
+                sizeBytes: info.sizeBytes,
+                mimeTypeHint: inferMime(fileName) || f.type || null,
+                contentKeyCiphertext: info.contentKeyCiphertext ?? null,
+              },
+            ];
+          }
+          uploadedCount++;
+        } catch (err) {
+          const fileName = f.name || 'dosya';
+          if (isTooLargeError(err)) {
+            skipped.push(fileName);
+          } else {
+            failedNames.push(fileName);
+          }
         }
       }
       syncDraft();
+      reportUploadOutcome(uploadedCount, skipped, failedNames);
       if (!content.trim()) textareaEl?.focus();
-    } catch {
-      toastStore.error('Dosya yüklenemedi.');
     } finally {
       uploading = false;
     }
@@ -436,12 +485,15 @@
             },
           ];
           syncDraft();
-          toastStore.success('Ses kaydı eklendi.');
         } catch {
+          // Chip stays out of pendingFiles only on upload failure; user is notified
           toastStore.error('Ses kaydı yüklenemedi.');
+          return;
         } finally {
           uploading = false;
         }
+        // Discord-style: send the recording immediately once uploaded
+        await send();
       };
       mediaRecorder = recorder;
       recorder.start(250);
@@ -540,6 +592,7 @@
     if (charCount >= 2500) return 'notice';
     return 'normal';
   });
+  const showCharCounter = $derived((charCount > 0 || inputFocused) && !isRecordingVoice);
 </script>
 
 {#if isTimedOut}
@@ -660,12 +713,14 @@
       oninput={onInput}
       onpaste={onPaste}
       ondrop={onDrop}
+      onfocus={() => (inputFocused = true)}
+      onblur={() => (inputFocused = false)}
     ></textarea>
   {/if}
 
   <div class="veil-input-actions">
     <!-- Rich Character Counter with Radial Progress Ring -->
-    {#if charCount > 0 && !isRecordingVoice}
+    {#if showCharCounter}
       <div
         class="veil-char-counter {counterLevel}"
         class:near-limit={charCount >= 3400}
@@ -690,9 +745,9 @@
         </svg>
 
         {#if charCount >= 3400}
-          <span class="veil-char-remaining">{remainingChars}</span>
+          <span class="veil-char-remaining">{charCount}/{MAX_CHAR_LIMIT}</span>
         {:else}
-          <span class="veil-char-badge">{charCount}</span>
+          <span class="veil-char-badge">{charCount}/{MAX_CHAR_LIMIT}</span>
         {/if}
       </div>
     {/if}

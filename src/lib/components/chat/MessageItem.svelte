@@ -24,6 +24,7 @@
     sizeBytes: number;
     contentKeyCiphertext?: string | null;
     mimeTypeHint?: string | null;
+    fileName?: string | null;
   }
 
   let { message, grouped = false, isOwn = false, groupStart = false } = $props<{
@@ -284,9 +285,10 @@
   }
 
   async function downloadAttachment(att: Attachment) {
+    const realName = att.fileName?.trim();
     const path = await save({
       title: 'Dosyayı kaydet',
-      defaultPath: `veilanon-dosya-${att.fileId.slice(0, 8)}.bin`,
+      defaultPath: realName ? realName : `veilanon-dosya-${att.fileId.slice(0, 8)}.bin`,
       filters: [{ name: 'Tüm dosyalar', extensions: ['*'] }],
     });
     if (!path) return;

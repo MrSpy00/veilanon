@@ -428,6 +428,7 @@ export const messageApi = {
       sizeBytes: number;
       contentKeyCiphertext?: string | null;
       mimeTypeHint?: string | null;
+      fileName?: string | null;
     }>;
   }) {
     return invoke<MessageInfo>('send_message', { input });
