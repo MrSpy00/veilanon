@@ -19,6 +19,8 @@ export const FEATURES = {
   BACKEND_TESTS: { id: 13, name: 'Backend Rust Test Expansion', req: 'Survey / ORIGINAL_REQUEST §4' },
   E2E_SUITE: { id: 14, name: 'E2E Testing Suite (Tiers 1-4)', req: 'ORIGINAL_REQUEST §4' },
   ADVERSARIAL_HARDENING: { id: 15, name: 'Adversarial Coverage Hardening', req: 'ORIGINAL_REQUEST §4' },
+  DM_E2EE: { id: 16, name: 'DM Double Ratchet E2EE & Storage Encryption', req: 'CRYPTO_DECISIONS.md §DM + DATA_INVENTORY' },
+  STORAGE_RLS: { id: 17, name: 'Supabase RLS Zero-Knowledge & Storage Policies', req: 'THREAT_MODEL.md §Storage + RLS' },
 };
 
 export const TIERS = {
@@ -26,6 +28,7 @@ export const TIERS = {
   TIER2: { id: 2, name: 'Tier 2: Boundary & Corner Cases', minTests: 75 },
   TIER3: { id: 3, name: 'Tier 3: Pairwise Combinations', minTests: 15 },
   TIER4: { id: 4, name: 'Tier 4: Application Scenarios', minTests: 8 },
+  TIER5: { id: 5, name: 'Tier 5: DM E2EE & Storage RLS Hardening', minTests: 18 },
 };
 
 export const DEFAULT_APP_SETTINGS = {

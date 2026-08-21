@@ -13,8 +13,9 @@
   import ChannelList from './ChannelList.svelte';
   import MemberList from './MemberList.svelte';
   import ChatView from '../chat/ChatView.svelte';
-  import Home from './Home.svelte';
   import SettingsModal from '../settings/SettingsModal.svelte';
+
+  const HomePromise = import('./Home.svelte');
   import CreateSpace from '../spaces/CreateSpace.svelte';
   import CreateChannelModal from '../spaces/CreateChannelModal.svelte';
   import CreateGroupDmModal from '../social/CreateGroupDmModal.svelte';
@@ -219,7 +220,11 @@
         <div class="veil-spinner"></div>
       </div>
     {:else}
-      <Home />
+      {#await HomePromise then { default: Home }}
+        <Home />
+      {:catch}
+        <div class="veil-home-loading"><div class="veil-spinner"></div></div>
+      {/await}
     {/if}
   </main>
 

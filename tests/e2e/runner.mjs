@@ -8,6 +8,7 @@ import { runTier1Tests } from './tier1-feature-coverage.test.mjs';
 import { runTier2Tests } from './tier2-boundary-corner.test.mjs';
 import { runTier3Tests } from './tier3-pairwise-combinations.test.mjs';
 import { runTier4Tests } from './tier4-application-scenarios.test.mjs';
+import { runTier5Tests } from './tier5-dm-e2ee-storage-rls.test.mjs';
 import { TIERS, FEATURES } from './harness/types.mjs';
 
 class TestReporter {
@@ -114,16 +115,16 @@ class TestReporter {
     }
 
     console.log('\n' + '─'.repeat(78));
-    console.log(`\x1b[1mTOTAL TESTS:\x1b[0m    \x1b[1m${totalTests}\x1b[0m (Target: >= 173)`);
+    console.log(`\x1b[1mTOTAL TESTS:\x1b[0m    \x1b[1m${totalTests}\x1b[0m (Target: >= 191)`);
     console.log(`\x1b[1mPASSED:\x1b[0m         \x1b[32m\x1b[1m${this.totalPassed}\x1b[0m`);
     console.log(`\x1b[1mFAILED:\x1b[0m         ${this.totalFailed > 0 ? `\x1b[31m\x1b[1m${this.totalFailed}\x1b[0m` : '\x1b[90m0\x1b[0m'}`);
     console.log(`\x1b[1mPASS RATE:\x1b[0m      \x1b[1m${passRate}%\x1b[0m`);
     console.log(`\x1b[1mTOTAL TIME:\x1b[0m     \x1b[1m${totalDuration}s\x1b[0m`);
     console.log('─'.repeat(78));
 
-    const totalTargetMet = totalTests >= 173 && this.totalFailed === 0 && allTiersMet;
+    const totalTargetMet = totalTests >= 191 && this.totalFailed === 0 && allTiersMet;
     if (totalTargetMet) {
-      console.log(`\n\x1b[1m\x1b[42m\x1b[30m  ALL 173+ E2E TESTS PASSED WITH 100% VERIFICATION INTEGRITY  \x1b[0m\n`);
+      console.log(`\n\x1b[1m\x1b[42m\x1b[30m  ALL 191+ E2E TESTS PASSED WITH 100% VERIFICATION INTEGRITY  \x1b[0m\n`);
       return 0;
     } else {
       console.log(`\n\x1b[1m\x1b[41m\x1b[37m  E2E TEST SUITE FAILED OR CRITERIA NOT MET  \x1b[0m\n`);
@@ -144,6 +145,7 @@ async function main() {
     await runTier2Tests(reporter);
     await runTier3Tests(reporter);
     await runTier4Tests(reporter);
+    await runTier5Tests(reporter);
   } catch (fatalErr) {
     console.error('\x1b[31mFatal unhandled error during test suite run:\x1b[0m', fatalErr);
     process.exit(1);

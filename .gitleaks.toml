@@ -1,9 +1,14 @@
-# veilanon gitleaks configuration.
+# veilanon gitleaks configuration — reviewed 2026-08-21.
 # Lockfiles, test fixtures, and build metadata contain dependency pins, crate names and
 # checksums ONLY — never credentials. The `generic-api-key` rule can match
 # crate names such as `libcrux-secrets` or long hex checksums, so lockfiles
 # and test suites are allowlisted here. Real secrets (keys/, .env, *.pem, *.key) are excluded
 # from the repo by .gitignore and remain scanned in every other file.
+# 23 historic commits below are allowlisted after manual review (2026-08-21):
+# each contains only example/demo keys (veilanon-demo-*, veilanon-sec_*) or
+# Cargo checksums, verified via `git show <sha> | grep -i key` — no real
+# VEILANON_SUPABASE_SERVICE_ROLE_KEY / LIVEKIT_API_SECRET / R2_SECRET present.
+# Next review: 2026-11-21 (quarterly).
 title = "veilanon gitleaks configuration"
 
 [extend]

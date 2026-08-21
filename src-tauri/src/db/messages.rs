@@ -379,6 +379,7 @@ fn open_ratchet(key: &[u8; 32], stored: &str) -> VeilResult<String> {
 // ── Pending DM messages (peer key missing) ───────────────────────────────
 
 impl Database {
+    #[allow(dead_code)]
     pub fn insert_pending_dm(
         &self,
         id: &Uuid,
@@ -437,6 +438,7 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_pending_dms_by_peer(&self, peer_id: &Uuid) -> VeilResult<Vec<(Uuid, Uuid, String, String, Option<String>, Vec<AttachmentRef>, Option<i64>)>> {
         self.get_pending_dms_by_peer_decrypted(peer_id, None)
     }

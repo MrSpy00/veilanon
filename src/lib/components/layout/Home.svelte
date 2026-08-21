@@ -62,7 +62,10 @@
     for (const u of unlistens) {
       u();
     }
+    if (searchDebounce) clearTimeout(searchDebounce);
   });
+
+  let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
   async function searchPublicSpaces() {
     searchingPublic = true;
@@ -73,6 +76,13 @@
     } finally {
       searchingPublic = false;
     }
+  }
+
+  function debouncedSearch() {
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      void searchPublicSpaces();
+    }, 380);
   }
 
   async function joinPublicSpace(sp: SpaceInfo) {
@@ -274,7 +284,7 @@
               class="veil-input veil-home-search"
               placeholder="Topluluk ara…"
               bind:value={discoverSearch}
-              oninput={() => { searchPublicSpaces(); }}
+              oninput={() => { debouncedSearch(); }}
             />
           </div>
         </div>

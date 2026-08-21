@@ -14,13 +14,21 @@ export default defineConfig(async () => ({
   envPrefix: ['VITE_', 'PUBLIC_'],
 
   build: {
-    chunkSizeWarningLimit: 900,
+    chunkSizeWarningLimit: 850,
     rollupOptions: {
       output: {
         manualChunks: (id /*: string*/) => {
           if (id.includes('node_modules/livekit-client')) return 'livekit';
           if (id.includes('node_modules/@tauri-apps')) return 'tauri';
           if (id.includes('node_modules/svelte')) return 'svelte';
+          if (id.includes('node_modules/@mediapipe')) return 'mediapipe';
+          if (id.includes('src/lib/components/settings')) return 'settings';
+          if (id.includes('src/lib/components/chat')) return 'chat';
+          if (id.includes('src/lib/components/layout')) return 'layout';
+          if (id.includes('src/lib/components/spaces')) return 'spaces';
+          if (id.includes('src/lib/components/social')) return 'social';
+          if (id.includes('src/lib/components/media')) return 'media';
+          if (id.includes('src/lib/stores')) return 'stores';
           return undefined;
         },
       },

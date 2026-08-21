@@ -61,8 +61,16 @@
     }
     try {
       await openUrl(url);
-    } catch {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const msg = String(err ?? '');
+      if (msg.includes('not allowed') || msg.includes('forbidden') || msg.includes('capability')) {
+        toastStore.warning('Bu domain Tauri allowlist dışındadır. Bağlantı panoya kopyalandı.');
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {}
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     }
     onClose?.();
   }

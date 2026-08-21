@@ -6,8 +6,9 @@
   import { uiStore, type Theme } from '$lib/stores/ui';
   import { settingsApi, type AppSettings } from '$lib/api/tauri';
   import { toastStore } from '$lib/stores/notifications';
-  import ThemeGallery from './ThemeGallery.svelte';
-  import ThemeStudio from './ThemeStudio.svelte';
+
+  const ThemeGalleryPromise = import('./ThemeGallery.svelte');
+  const ThemeStudioPromise = import('./ThemeStudio.svelte');
 
   import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart';
 
@@ -179,7 +180,11 @@
     <p class="veil-settings-row-desc" style="margin-bottom: var(--space-3);">
       Mükemmel renk dengesi, yüksek kontrast ve WCAG standartlarına tam uyumlu 25 özel hazır tema.
     </p>
-    <ThemeGallery />
+    {#await ThemeGalleryPromise then { default: ThemeGallery }}
+      <ThemeGallery />
+    {:catch}
+      <div class="veil-home-loading"><div class="veil-spinner"></div></div>
+    {/await}
   </div>
 
   <div class="veil-settings-group">
@@ -250,7 +255,11 @@
     <p class="veil-settings-row-desc" style="margin-bottom: var(--space-3);">
       Kendi CSS kodunuzu yazın, güvenli token şablonu yükleyin, AI ile tema üretin veya arka plan medyası ekleyin.
     </p>
-    <ThemeStudio />
+    {#await ThemeStudioPromise then { default: ThemeStudio }}
+      <ThemeStudio />
+    {:catch}
+      <div class="veil-home-loading"><div class="veil-spinner"></div></div>
+    {/await}
   </div>
 
   <div class="veil-settings-group">

@@ -69,6 +69,36 @@ export function installWebviewGuard(): () => void {
     return null;
   };
 
+  const ALLOWED_EXTERNAL_HOSTS = new Set([
+    'veilanon.com',
+    'www.veilanon.com',
+    'veilanon.online',
+    'veilanon.info',
+    'github.com',
+    'aegissoft.com.tr',
+    'www.aegissoft.com.tr',
+    'buymeacoffee.com',
+    'tenor.com',
+    'giphy.com',
+    'media.tenor.com',
+    'media.giphy.com'
+  ]);
+
+  function isAllowedExternalUrl(href: string): boolean {
+    try {
+      const u = new URL(href);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      const host = u.hostname.toLowerCase();
+      if (ALLOWED_EXTERNAL_HOSTS.has(host)) return true;
+      for (const allowed of ALLOWED_EXTERNAL_HOSTS) {
+        if (host.endsWith('.' + allowed)) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   // 5. Route external (http/https) links and target="_blank" links through
   //    tauri-plugin-opener so the WebView itself never navigates away.
   function onClick(e: MouseEvent) {
@@ -77,9 +107,16 @@ export function installWebviewGuard(): () => void {
     const target = e.target as Element | null;
     const anchor = target?.closest?.('a[href]');
     if (!anchor) return;
+    if (anchor.closest('.veil-markdown')) return;
     const href = anchor.getAttribute('href') ?? '';
     const isExternal = /^https?:\/\//i.test(href);
     if (!isExternal) return;
+    if (!isAllowedExternalUrl(href)) {
+      e.preventDefault();
+      e.stopPropagation();
+      toastStore.warning('Bu bağlantı güvenli allowlist dışındadır ve engellendi.');
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     void openUrl(href).catch(() => {});
