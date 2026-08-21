@@ -487,6 +487,99 @@ textarea,
   box-shadow: 0 0 0 3px hsl(0 72% 62% / 0.2);
 }
 
+/* ── Range Slider Component ────────────────────────────────── */
+.veil-range-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.veil-range-slider:focus,
+.veil-range-slider:focus-visible { outline: none; }
+
+.veil-range-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--veil-brand) 7%, var(--veil-bg-overlay)),
+    var(--veil-bg-overlay)
+  );
+}
+.veil-range-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -4.5px; /* center on 6px track */
+  border-radius: var(--radius-full);
+  background: var(--veil-brand);
+  box-shadow: 0 1px 4px hsl(220 20% 4% / 0.35);
+  transition:
+    transform var(--t-fast),
+    filter var(--t-fast),
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.veil-range-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+  filter: brightness(1.08);
+  box-shadow:
+    0 1px 6px hsl(220 20% 4% / 0.45),
+    0 0 0 5px color-mix(in srgb, var(--veil-brand) 18%, transparent);
+}
+.veil-range-slider:active::-webkit-slider-thumb {
+  transform: scale(1.05);
+  background: var(--veil-brand-active);
+}
+.veil-range-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 1px 4px hsl(220 20% 4% / 0.35),
+    0 0 0 4px color-mix(in srgb, var(--veil-brand) 30%, transparent);
+}
+
+.veil-range-slider::-moz-range-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--veil-brand) 7%, var(--veil-bg-overlay)),
+    var(--veil-bg-overlay)
+  );
+}
+.veil-range-slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--veil-brand);
+  box-shadow: 0 1px 4px hsl(220 20% 4% / 0.35);
+  transition:
+    transform var(--t-fast),
+    filter var(--t-fast),
+    background var(--t-fast),
+    box-shadow var(--t-fast);
+}
+.veil-range-slider:hover::-moz-range-thumb {
+  transform: scale(1.15);
+  filter: brightness(1.08);
+  box-shadow:
+    0 1px 6px hsl(220 20% 4% / 0.45),
+    0 0 0 5px color-mix(in srgb, var(--veil-brand) 18%, transparent);
+}
+.veil-range-slider:active::-moz-range-thumb {
+  transform: scale(1.05);
+  background: var(--veil-brand-active);
+}
+.veil-range-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 1px 4px hsl(220 20% 4% / 0.35),
+    0 0 0 4px color-mix(in srgb, var(--veil-brand) 30%, transparent);
+}
+
 /* ── Avatar ────────────────────────────────────────────────── */
 .veil-avatar {
   border-radius: var(--radius-full);
@@ -1119,18 +1212,17 @@ textarea,
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: 1px var(--space-4);
-  margin-top: 1px;
+  padding: 0 var(--space-4);
+  margin-top: 0;
   position: relative;
   border-radius: var(--radius-sm);
   transition: background var(--t-fast);
-  min-height: 20px;
 }
 .veil-message:first-child {
   margin-top: 2px;
 }
 .veil-message.group-start {
-  margin-top: 4px;
+  margin-top: 12px;
 }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
@@ -1138,7 +1230,6 @@ textarea,
   margin-top: 0;
   padding-top: 0px;
   padding-bottom: 0px;
-  min-height: 18px;
 }
 
 /* Message actions appear on hover */
