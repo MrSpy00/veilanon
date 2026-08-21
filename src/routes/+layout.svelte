@@ -18,6 +18,15 @@
   let mounted = $state(false);
   let cleanupWebviewGuard: (() => void) | undefined;
 
+  /** Resolves null if `p` doesn't settle within `ms` — keeps startup resilient
+   *  against slow IPC / Argon2 / keychain stalls instead of hanging the splash. */
+  function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+    return Promise.race([
+      p,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+  }
+
   $effect(() => {
     if (typeof document === 'undefined') return;
     const sm = $streamerMode;
@@ -80,33 +89,35 @@
 
     try {
       const { settingsApi } = await import('$lib/api/tauri');
-      const s = await settingsApi.get();
-      if (s.theme) {
-        uiStore.setTheme(s.theme as any);
+      const s = await withTimeout(settingsApi.get(), 4000);
+      if (s) {
+        if (s.theme) {
+          uiStore.setTheme(s.theme as any);
+        }
+        if (s.presetThemeId) {
+          uiStore.setPresetTheme(s.presetThemeId);
+        }
+        if (s.customCss !== undefined) {
+          uiStore.setCustomCss(s.customCss);
+        }
+        if (s.customCssEnabled !== undefined) {
+          uiStore.toggleCustomCss(s.customCssEnabled);
+        }
+        if (s.customThemeName) {
+          uiStore.setCustomThemeName(s.customThemeName);
+        }
+        if (s.fontSize && s.fontSize !== 14) {
+          document.documentElement.style.fontSize = `${s.fontSize}px`;
+        }
+        if (s.reduceMotion) {
+          document.documentElement.setAttribute('data-reduce-motion', 'true');
+        }
+        if (s.compactMode) {
+          document.documentElement.setAttribute('data-compact', 'true');
+        }
+        if (s.accentColor) uiStore.setAccentColor(s.accentColor);
+        if (s.amoledMode !== undefined) uiStore.setAmoledMode(s.amoledMode);
       }
-      if (s.presetThemeId) {
-        uiStore.setPresetTheme(s.presetThemeId);
-      }
-      if (s.customCss !== undefined) {
-        uiStore.setCustomCss(s.customCss);
-      }
-      if (s.customCssEnabled !== undefined) {
-        uiStore.toggleCustomCss(s.customCssEnabled);
-      }
-      if (s.customThemeName) {
-        uiStore.setCustomThemeName(s.customThemeName);
-      }
-      if (s.fontSize && s.fontSize !== 14) {
-        document.documentElement.style.fontSize = `${s.fontSize}px`;
-      }
-      if (s.reduceMotion) {
-        document.documentElement.setAttribute('data-reduce-motion', 'true');
-      }
-      if (s.compactMode) {
-        document.documentElement.setAttribute('data-compact', 'true');
-      }
-      if (s.accentColor) uiStore.setAccentColor(s.accentColor);
-      if (s.amoledMode !== undefined) uiStore.setAmoledMode(s.amoledMode);
     } catch { /* backend yok (tarayıcı önizleme) */ }
 
     void loadAllPlugins().catch(() => { /* Python plugin yüklenemedi */ });
@@ -115,7 +126,9 @@
       let registered = false;
       try {
         const { onOpenUrl } = await import('@tauri-apps/plugin-deep-link');
-        await onOpenUrl((urls) => {
+        // Register without awaiting resolution — the listener attaches synchronously
+        // and a stalled plugin promise must not block the splash.
+        void onOpenUrl((urls) => {
           for (const u of urls) {
             if ($authStore.isAuthenticated) {
               void handleDeepLink(u);
@@ -123,7 +136,7 @@
               localStorage.setItem('veilanon-pending-deeplink', u);
             }
           }
-        });
+        }).catch(() => { /* ignore */ });
         registered = true;
       } catch { /* fallback to event listener if plugin hook fails */ }
 
@@ -294,7 +307,12 @@
     };
     window.addEventListener('beforeunload', onBeforeUnload);
 
-    await authStore.initialize();
+    // Auth unlock (Argon2 / keychain) must never hold the splash hostage.
+    // Race it: on timeout the shell mounts and the store flips reactively
+    // once initialize() eventually settles in the background.
+    try {
+      await withTimeout(authStore.initialize(), 6000);
+    } catch { /* initialize keeps running; auth state updates reactively */ }
     if (splashTimeout) clearTimeout(splashTimeout);
     mounted = true;
 
