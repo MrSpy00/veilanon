@@ -57,6 +57,19 @@
   let userExplicitlyDisabled = $state(false);
   let wasAutoEnabled = $state(false);
 
+  let bgVideoEl: HTMLVideoElement | undefined = $state();
+
+  /** Background media must NEVER emit audio. Enforced at bind, metadata load and src swaps. */
+  function enforceBgVideoSilent(el: HTMLVideoElement | null | undefined) {
+    if (!el) return;
+    el.muted = true;
+    el.volume = 0;
+  }
+
+  $effect(() => {
+    enforceBgVideoSilent(bgVideoEl);
+  });
+
   $effect(() => {
     if (media.isScreenSharing && $streamerMode.autoEnableOnScreenShare && !$streamerMode.enabled && !manualStreamerDisable && !userExplicitlyDisabled) {
       wasAutoEnabled = true;
@@ -177,6 +190,8 @@
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture
         disableremoteplayback
+        bind:this={bgVideoEl}
+        onloadedmetadata={() => enforceBgVideoSilent(bgVideoEl)}
         style="opacity: {ui.customBgOpacity};"
         onerror={() => uiStore.clearMediaOnError()}
       ></video>
