@@ -260,17 +260,21 @@ fn extract_json_media_urls(html: &str) -> Vec<(String, String)> {
 // Helper functions using regex (no HTML parser dependency needed)
 
 fn extract_meta_content(html: &str, property: &str) -> Option<String> {
-    let pattern = format!(r#"<meta[^>]*property=["']{}["'][^>]*content=["']([^"']+)["']"#, regex::escape(property));
-    let pattern2 = format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*property=["']{}["']"#, regex::escape(property));
+    let p_escaped = regex::escape(property);
+    let patterns = [
+        format!(r#"<meta[^>]*property=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*property=["']{}["']"#, p_escaped),
+        format!(r#"<meta[^>]*name=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*name=["']{}["']"#, p_escaped),
+        format!(r#"<meta[^>]*itemprop=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*itemprop=["']{}["']"#, p_escaped),
+    ];
 
-    if let Ok(re) = regex::Regex::new(&pattern) {
-        if let Some(caps) = re.captures(html) {
-            return caps.get(1).map(|m| m.as_str().to_string());
-        }
-    }
-    if let Ok(re) = regex::Regex::new(&pattern2) {
-        if let Some(caps) = re.captures(html) {
-            return caps.get(1).map(|m| m.as_str().to_string());
+    for pat in &patterns {
+        if let Ok(re) = regex::Regex::new(pat) {
+            if let Some(caps) = re.captures(html) {
+                return caps.get(1).map(|m| m.as_str().to_string());
+            }
         }
     }
     None
@@ -278,22 +282,24 @@ fn extract_meta_content(html: &str, property: &str) -> Option<String> {
 
 fn extract_meta_contents(html: &str, property: &str) -> Vec<String> {
     let mut results = Vec::new();
-    let pattern = format!(r#"<meta[^>]*property=["']{}["'][^>]*content=["']([^"']+)["']"#, regex::escape(property));
-    let pattern2 = format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*property=["']{}["']"#, regex::escape(property));
+    let p_escaped = regex::escape(property);
+    let patterns = [
+        format!(r#"<meta[^>]*property=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*property=["']{}["']"#, p_escaped),
+        format!(r#"<meta[^>]*name=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*name=["']{}["']"#, p_escaped),
+        format!(r#"<meta[^>]*itemprop=["']{}["'][^>]*content=["']([^"']+)["']"#, p_escaped),
+        format!(r#"<meta[^>]*content=["']([^"']+)["'][^>]*itemprop=["']{}["']"#, p_escaped),
+    ];
 
-    if let Ok(re) = regex::Regex::new(&pattern) {
-        for caps in re.captures_iter(html) {
-            if let Some(m) = caps.get(1) {
-                results.push(m.as_str().to_string());
-            }
-        }
-    }
-    if let Ok(re) = regex::Regex::new(&pattern2) {
-        for caps in re.captures_iter(html) {
-            if let Some(m) = caps.get(1) {
-                let val = m.as_str().to_string();
-                if !results.contains(&val) {
-                    results.push(val);
+    for pat in &patterns {
+        if let Ok(re) = regex::Regex::new(pat) {
+            for caps in re.captures_iter(html) {
+                if let Some(m) = caps.get(1) {
+                    let val = m.as_str().to_string();
+                    if !results.contains(&val) {
+                        results.push(val);
+                    }
                 }
             }
         }

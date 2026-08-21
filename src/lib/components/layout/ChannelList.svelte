@@ -329,7 +329,7 @@
   function openVoiceParticipantMenu(e: MouseEvent, p: { id: string; name: string; avatarHash?: string | null }) {
     e.preventDefault();
     e.stopPropagation();
-    let currentVol = 100;
+    let currentVol = Math.round(mediaStore.getParticipantVolume(p.id) * 100);
     menuItems = [
       {
         label: 'Kullanıcı Sesi',

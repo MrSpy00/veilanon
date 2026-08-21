@@ -97,7 +97,7 @@ fn sanitize_username_input(input: &str) -> String {
 async fn fetch_profile_remotely(
     state: &AppState,
     username_or_id: &str,
-) -> Option<(Uuid, String, String, Option<String>, Option<String>, Option<String>)> {
+) -> Option<(Uuid, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> {
     if !config::configured("VEILANON_SUPABASE_URL") {
         return None;
     }
@@ -176,6 +176,17 @@ async fn fetch_profile_remotely(
         .filter(|s| !s.is_empty())
         .map(str::to_string);
 
+    let banner = item.get("banner_hash")
+        .or_else(|| item.get("bannerHash"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
+    let bio = item.get("bio")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
     let mut dh = item.get("dh_public_key").and_then(|v| v.as_str()).map(str::to_string);
     let mut signing = item.get("signing_public_key").and_then(|v| v.as_str()).map(str::to_string);
 
@@ -189,7 +200,7 @@ async fn fetch_profile_remotely(
         }
     }
 
-    Some((uid, uname, display, avatar, dh, signing))
+    Some((uid, uname, display, avatar, dh, signing, banner, bio))
 }
 
 // ── Friends ─────────────────────────────────────────────────────────────────
@@ -214,7 +225,7 @@ pub async fn friends_add(
     let profile = match db.get_profile_by_username(&clean_username)? {
         Some(profile) => Some(profile),
         None => fetch_profile_remotely(&state, &clean_username).await.map(
-            |(id, uname, display, avatar, dh, signing)| {
+            |(id, uname, display, avatar, dh, signing, banner, bio)| {
                 let _ = db.upsert_profile(
                     &id,
                     &uname,
@@ -222,8 +233,8 @@ pub async fn friends_add(
                     avatar.as_deref(),
                     dh.as_deref(),
                     signing.as_deref(),
-                    None,
-                    None,
+                    banner.as_deref(),
+                    bio.as_deref(),
                     None,
                 );
                 (id, uname, display, avatar)
@@ -1444,7 +1455,7 @@ pub async fn resolve_username(username: String, state: State<'_, AppState>) -> R
                 });
             }
             fetch_profile_remotely(&state, &clean_username).await.map(
-                |(id, uname, display, avatar, dh, signing)| {
+                |(id, uname, display, avatar, dh, signing, banner, bio)| {
                     let _ = db.upsert_profile(
                         &id,
                         &uname,
@@ -1452,8 +1463,8 @@ pub async fn resolve_username(username: String, state: State<'_, AppState>) -> R
                         avatar.as_deref(),
                         dh.as_deref(),
                         signing.as_deref(),
-                        None,
-                        None,
+                        banner.as_deref(),
+                        bio.as_deref(),
                         None,
                     );
                     (id, uname, display, avatar)

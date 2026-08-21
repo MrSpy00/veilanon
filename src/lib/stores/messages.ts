@@ -206,10 +206,30 @@ function createMessageStore() {
         for (const m of fresh) {
           const prev = known.get(m.id);
           if (!prev) {
-            merged.push(m);
-            hasChanges = true;
-            if (m.senderId !== 'self' && (!currentUserId || m.senderId !== currentUserId)) {
-              incomingForNotify.push(m);
+            // Check if there is an optimistic sending message with the same content and sender from the last 15 seconds
+            const optIdx = merged.findIndex(
+              (x) =>
+                x.status === 'sending' &&
+                x.senderId === (currentUserId || 'self') &&
+                x.content === m.content &&
+                Math.abs((x.createdAt || 0) - (m.createdAt || 0)) < 15
+            );
+            if (optIdx !== -1) {
+              // Reconcile optimistic item with confirmed remote message
+              merged[optIdx] = {
+                ...m,
+                attachments: (m.attachments && m.attachments.length > 0) ? m.attachments : merged[optIdx].attachments,
+                isOwn: true,
+              };
+              known.set(m.id, merged[optIdx]);
+              hasChanges = true;
+            } else {
+              merged.push(m);
+              known.set(m.id, m);
+              hasChanges = true;
+              if (m.senderId !== 'self' && (!currentUserId || m.senderId !== currentUserId)) {
+                incomingForNotify.push(m);
+              }
             }
           } else {
             const hasContentUpdate = m.content !== null && m.content !== undefined && m.content !== prev.content;
@@ -358,13 +378,28 @@ function createMessageStore() {
 
         // Replace temp with confirmed
         update(s => {
-          const nextList = (s.byChannel[channelId] ?? []).map((m: Message) =>
-            m.id === tempId ? {
-              ...sent,
-              attachments: (sent.attachments && sent.attachments.length > 0) ? sent.attachments : attachments,
-              isOwn: true
-            } : m
-          );
+          const list = s.byChannel[channelId] ?? [];
+          const alreadyHasSent = list.some((m: Message) => m.id === sent.id);
+          let nextList: Message[];
+          if (alreadyHasSent) {
+            // Already reconciled by syncChannel — just remove temp message and ensure attachments
+            nextList = list
+              .filter((m: Message) => m.id !== tempId)
+              .map((m: Message) => m.id === sent.id ? {
+                ...m,
+                ...sent,
+                attachments: (sent.attachments && sent.attachments.length > 0) ? sent.attachments : attachments,
+                isOwn: true,
+              } : m);
+          } else {
+            nextList = list.map((m: Message) =>
+              m.id === tempId ? {
+                ...sent,
+                attachments: (sent.attachments && sent.attachments.length > 0) ? sent.attachments : attachments,
+                isOwn: true
+              } : m
+            );
+          }
           saveChannelCache(channelId, nextList);
           return {
             ...s,

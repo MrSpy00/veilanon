@@ -320,22 +320,8 @@
   }
 </script>
 
-<section aria-labelledby="gizlilik-title" class="privacy-settings-container">
-  <div class="header-banner">
-    <div class="header-banner-left">
-      <div class="header-icon-wrap">
-        <Icon name="shield-check" size={22} />
-      </div>
-      <div class="header-text">
-        <h2 class="veil-settings-title" id="gizlilik-title">Gizlilik, Ağ & Güvenlik</h2>
-        <p class="header-subtitle">Uçtan uca şifreleme, Tor tünelleme, DNS sızıntı kalkanı ve sıfır-iz koruma merkezi.</p>
-      </div>
-    </div>
-    <div class="header-status-pill">
-      <span class="header-status-dot"></span>
-      <span>Sıfır İz Koruması Aktif</span>
-    </div>
-  </div>
+<section aria-labelledby="gizlilik-title">
+  <h2 class="veil-settings-title" id="gizlilik-title">Gizlilik, Ağ & Güvenlik</h2>
 
   {#if loading}
     <div class="veil-spinner" style="margin:3rem auto;"></div>
@@ -1229,132 +1215,6 @@
 </section>
 
 <style>
-  .privacy-settings-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .header-banner {
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4, 1rem);
-    padding: 16px 20px;
-    background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 70%, transparent);
-    border: 1px solid var(--veil-border-subtle, rgba(255, 255, 255, 0.08));
-    border-radius: var(--radius-lg, 14px);
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
-    margin-bottom: var(--space-2, 0.5rem);
-    backdrop-filter: blur(16px);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .header-banner-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-    position: relative;
-    z-index: 1;
-  }
-
-  .header-icon-wrap {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-md, 10px);
-    background: color-mix(in srgb, var(--veil-accent, #7c3aed) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--veil-accent, #7c3aed) 30%, transparent);
-    color: var(--veil-accent-light, #a78bfa);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 0.2s ease;
-  }
-
-  .header-banner:hover .header-icon-wrap {
-    transform: scale(1.05);
-    box-shadow: 0 0 24px rgba(139, 92, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    color: #ddd6fe;
-  }
-
-  .header-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .header-banner .veil-settings-title {
-    margin: 0;
-    padding: 0;
-    font-size: 1.125rem;
-    font-weight: 700;
-    letter-spacing: -0.015em;
-    color: var(--veil-text-primary, #f8fafc);
-    line-height: 1.25;
-  }
-
-  .header-subtitle {
-    font-size: 0.8125rem;
-    color: var(--veil-text-secondary, #94a3b8);
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .header-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 12px;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.28);
-    color: #34d399;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 1;
-    white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
-  }
-
-  .header-status-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #10b981;
-    box-shadow: 0 0 8px #10b981;
-    animation: live-pulse 2s infinite ease-in-out;
-  }
-
-  @keyframes live-pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.35;
-      transform: scale(0.85);
-    }
-  }
-
-  @media (max-width: 640px) {
-    .header-banner {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    .header-status-pill {
-      align-self: flex-start;
-    }
-  }
-
   .shield-header {
     display: flex;
     align-items: center;
