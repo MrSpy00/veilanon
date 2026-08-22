@@ -7,6 +7,7 @@
 -- ── 1. spaces: only authenticated users can read; insert/update/delete = owner ─
 ALTER TABLE public.spaces ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "spaces_select_all" ON public.spaces;
+DROP POLICY IF EXISTS "spaces_select_authenticated" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_insert_owner" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_update_owner" ON public.spaces;
 DROP POLICY IF EXISTS "spaces_delete_owner" ON public.spaces;
@@ -28,6 +29,7 @@ CREATE POLICY "spaces_delete_owner" ON public.spaces
 -- ── 2. memberships: select authenticated; insert/delete own or owner ────────
 ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "memberships_select_all" ON public.memberships;
+DROP POLICY IF EXISTS "memberships_select_authenticated" ON public.memberships;
 DROP POLICY IF EXISTS "memberships_insert_own" ON public.memberships;
 DROP POLICY IF EXISTS "memberships_delete_own" ON public.memberships;
 
@@ -47,9 +49,13 @@ CREATE POLICY "memberships_delete_own" ON public.memberships
 -- ── 3. channels: select authenticated; insert/update/delete authenticated ───
 ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "channels_select_all" ON public.channels;
+DROP POLICY IF EXISTS "channels_select_authenticated" ON public.channels;
 DROP POLICY IF EXISTS "channels_insert_all" ON public.channels;
+DROP POLICY IF EXISTS "channels_insert_authenticated" ON public.channels;
 DROP POLICY IF EXISTS "channels_update_all" ON public.channels;
+DROP POLICY IF EXISTS "channels_update_authenticated" ON public.channels;
 DROP POLICY IF EXISTS "channels_delete_all" ON public.channels;
+DROP POLICY IF EXISTS "channels_delete_authenticated" ON public.channels;
 
 CREATE POLICY "channels_select_authenticated" ON public.channels
     FOR SELECT TO authenticated
@@ -68,9 +74,13 @@ CREATE POLICY "channels_delete_authenticated" ON public.channels
 -- ── 4. channel_members ───────────────────────────────────────────────────────
 ALTER TABLE public.channel_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "channel_members_select_all" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_select_authenticated" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_insert_all" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_insert_authenticated" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_update_all" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_update_authenticated" ON public.channel_members;
 DROP POLICY IF EXISTS "channel_members_delete_all" ON public.channel_members;
+DROP POLICY IF EXISTS "channel_members_delete_authenticated" ON public.channel_members;
 
 CREATE POLICY "channel_members_select_authenticated" ON public.channel_members
     FOR SELECT TO authenticated
@@ -89,9 +99,13 @@ CREATE POLICY "channel_members_delete_authenticated" ON public.channel_members
 -- ── 5. messages: ciphertext only; authenticated read/write ──────────────────
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "messages_select_all" ON public.messages;
+DROP POLICY IF EXISTS "messages_select_authenticated" ON public.messages;
 DROP POLICY IF EXISTS "messages_insert_all" ON public.messages;
+DROP POLICY IF EXISTS "messages_insert_authenticated" ON public.messages;
 DROP POLICY IF EXISTS "messages_update_all" ON public.messages;
+DROP POLICY IF EXISTS "messages_update_authenticated" ON public.messages;
 DROP POLICY IF EXISTS "messages_delete_all" ON public.messages;
+DROP POLICY IF EXISTS "messages_delete_authenticated" ON public.messages;
 
 CREATE POLICY "messages_select_authenticated" ON public.messages
     FOR SELECT TO authenticated
@@ -110,9 +124,13 @@ CREATE POLICY "messages_delete_authenticated" ON public.messages
 -- ── 6. devices ───────────────────────────────────────────────────────────────
 ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "devices_select_all" ON public.devices;
+DROP POLICY IF EXISTS "devices_select_authenticated" ON public.devices;
 DROP POLICY IF EXISTS "devices_insert_all" ON public.devices;
+DROP POLICY IF EXISTS "devices_insert_own" ON public.devices;
 DROP POLICY IF EXISTS "devices_update_all" ON public.devices;
+DROP POLICY IF EXISTS "devices_update_own" ON public.devices;
 DROP POLICY IF EXISTS "devices_delete_all" ON public.devices;
+DROP POLICY IF EXISTS "devices_delete_own" ON public.devices;
 
 CREATE POLICY "devices_select_authenticated" ON public.devices
     FOR SELECT TO authenticated
@@ -131,8 +149,11 @@ CREATE POLICY "devices_delete_own" ON public.devices
 -- ── 7. presence ───────────────────────────────────────────────────────────────
 ALTER TABLE public.presence ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "presence_select_all" ON public.presence;
+DROP POLICY IF EXISTS "presence_select_authenticated" ON public.presence;
 DROP POLICY IF EXISTS "presence_insert_all" ON public.presence;
+DROP POLICY IF EXISTS "presence_insert_own" ON public.presence;
 DROP POLICY IF EXISTS "presence_update_all" ON public.presence;
+DROP POLICY IF EXISTS "presence_update_own" ON public.presence;
 
 CREATE POLICY "presence_select_authenticated" ON public.presence
     FOR SELECT TO authenticated
@@ -148,9 +169,13 @@ CREATE POLICY "presence_update_own" ON public.presence
 -- ── 8. roles & role_members ──────────────────────────────────────────────────
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "roles_select_all" ON public.roles;
+DROP POLICY IF EXISTS "roles_select_authenticated" ON public.roles;
 DROP POLICY IF EXISTS "roles_insert_all" ON public.roles;
+DROP POLICY IF EXISTS "roles_insert_authenticated" ON public.roles;
 DROP POLICY IF EXISTS "roles_update_all" ON public.roles;
+DROP POLICY IF EXISTS "roles_update_authenticated" ON public.roles;
 DROP POLICY IF EXISTS "roles_delete_all" ON public.roles;
+DROP POLICY IF EXISTS "roles_delete_authenticated" ON public.roles;
 
 CREATE POLICY "roles_select_authenticated" ON public.roles
     FOR SELECT TO authenticated
@@ -168,8 +193,11 @@ CREATE POLICY "roles_delete_authenticated" ON public.roles
 
 ALTER TABLE public.role_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "role_members_select_all" ON public.role_members;
+DROP POLICY IF EXISTS "role_members_select_authenticated" ON public.role_members;
 DROP POLICY IF EXISTS "role_members_insert_all" ON public.role_members;
+DROP POLICY IF EXISTS "role_members_insert_authenticated" ON public.role_members;
 DROP POLICY IF EXISTS "role_members_delete_all" ON public.role_members;
+DROP POLICY IF EXISTS "role_members_delete_authenticated" ON public.role_members;
 
 CREATE POLICY "role_members_select_authenticated" ON public.role_members
     FOR SELECT TO authenticated
@@ -184,9 +212,13 @@ CREATE POLICY "role_members_delete_authenticated" ON public.role_members
 -- ── 9. friendships ───────────────────────────────────────────────────────────
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "friendships_select_all" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_select_authenticated" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_insert_all" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_insert_own" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_update_all" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_update_own" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_delete_all" ON public.friendships;
+DROP POLICY IF EXISTS "friendships_delete_own" ON public.friendships;
 
 CREATE POLICY "friendships_select_authenticated" ON public.friendships
     FOR SELECT TO authenticated
@@ -205,8 +237,11 @@ CREATE POLICY "friendships_delete_own" ON public.friendships
 -- ── 10. invites & bans ───────────────────────────────────────────────────────
 ALTER TABLE public.invites ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "invites_select_all" ON public.invites;
+DROP POLICY IF EXISTS "invites_select_authenticated" ON public.invites;
 DROP POLICY IF EXISTS "invites_insert_all" ON public.invites;
+DROP POLICY IF EXISTS "invites_insert_authenticated" ON public.invites;
 DROP POLICY IF EXISTS "invites_delete_all" ON public.invites;
+DROP POLICY IF EXISTS "invites_delete_authenticated" ON public.invites;
 
 CREATE POLICY "invites_select_authenticated" ON public.invites
     FOR SELECT TO authenticated
@@ -220,6 +255,10 @@ CREATE POLICY "invites_delete_authenticated" ON public.invites
 
 ALTER TABLE public.bans ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "bans_all" ON public.bans;
+DROP POLICY IF EXISTS "bans_select_authenticated" ON public.bans;
+DROP POLICY IF EXISTS "bans_insert_authenticated" ON public.bans;
+DROP POLICY IF EXISTS "bans_delete_authenticated" ON public.bans;
+
 CREATE POLICY "bans_select_authenticated" ON public.bans
     FOR SELECT TO authenticated
     USING (auth.uid() IS NOT NULL);
@@ -233,8 +272,11 @@ CREATE POLICY "bans_delete_authenticated" ON public.bans
 -- ── 11. files (storage metadata) ─────────────────────────────────────────────
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "files_select_all" ON public.files;
+DROP POLICY IF EXISTS "files_select_authenticated" ON public.files;
 DROP POLICY IF EXISTS "files_insert_all" ON public.files;
+DROP POLICY IF EXISTS "files_insert_authenticated" ON public.files;
 DROP POLICY IF EXISTS "files_delete_all" ON public.files;
+DROP POLICY IF EXISTS "files_delete_authenticated" ON public.files;
 
 CREATE POLICY "files_select_authenticated" ON public.files
     FOR SELECT TO authenticated
@@ -249,14 +291,16 @@ CREATE POLICY "files_delete_authenticated" ON public.files
 -- ── 12. users: authenticated read, own write ─────────────────────────────────
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "users_select_all" ON public.users;
+DROP POLICY IF EXISTS "users_select_authenticated" ON public.users;
+DROP POLICY IF EXISTS "users_insert_own" ON public.users;
+DROP POLICY IF EXISTS "users_update_own" ON public.users;
+
 CREATE POLICY "users_select_authenticated" ON public.users
     FOR SELECT TO authenticated
     USING (auth.uid() IS NOT NULL);
-DROP POLICY IF EXISTS "users_insert_own" ON public.users;
 CREATE POLICY "users_insert_own" ON public.users
     FOR INSERT TO authenticated
     WITH CHECK (id = auth.uid());
-DROP POLICY IF EXISTS "users_update_own" ON public.users;
 CREATE POLICY "users_update_own" ON public.users
     FOR UPDATE TO authenticated
     USING (id = auth.uid())
