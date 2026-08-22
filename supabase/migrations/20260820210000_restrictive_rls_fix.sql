@@ -98,7 +98,7 @@ CREATE POLICY "messages_select_authenticated" ON public.messages
     USING (auth.uid() IS NOT NULL);
 CREATE POLICY "messages_insert_authenticated" ON public.messages
     FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IS NOT NULL AND sender_id = auth.uid()::text);
+    WITH CHECK (auth.uid() IS NOT NULL AND sender_id = auth.uid());
 CREATE POLICY "messages_update_authenticated" ON public.messages
     FOR UPDATE TO authenticated
     USING (auth.uid() IS NOT NULL)
