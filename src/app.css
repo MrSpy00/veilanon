@@ -1211,20 +1211,21 @@ textarea,
 .veil-message {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 2px var(--space-4);
-  margin-top: 1px;
+  gap: 8px;
+  padding: 0.5px var(--space-4);
+  margin-top: 0;
   position: relative;
   border-radius: var(--radius-sm);
   transition: background var(--t-fast);
 }
 .veil-message:first-child {
-  margin-top: 1px;
+  margin-top: 0;
 }
 .veil-message.group-start {
-  margin-top: 8px;
+  margin-top: 6px;
+  padding-top: 2px;
 }
-.veil-message-body { gap: 1px; }
+.veil-message-body { gap: 0; }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
 .veil-message.grouped {
@@ -1302,8 +1303,8 @@ textarea,
 
 .veil-message-content {
   font-size: 0.9375rem;
-  line-height: 1.35rem;
-  letter-spacing: -0.005em;
+  line-height: 1.28rem;
+  letter-spacing: -0.006em;
   color: var(--veil-text-primary);
   word-break: break-word;
   white-space: pre-wrap;
@@ -1314,7 +1315,7 @@ textarea,
 .veil-markdown p {
   margin: 0 !important;
   padding: 0 !important;
-  line-height: 1.35rem !important;
+  line-height: 1.28rem !important;
 }
 .veil-message-content.deleted {
   color: var(--veil-text-muted);

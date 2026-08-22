@@ -145,7 +145,11 @@
       if (audioEl.ended || (duration > 0 && currentTime >= duration - 0.1)) {
         audioEl.currentTime = 0;
       }
-      audioEl.play().catch(() => {});
+      audioEl.load();
+      audioEl.play().catch(() => {
+        audioEl?.load();
+        setTimeout(() => audioEl?.play().catch(() => {}), 80);
+      });
     }
   }
 

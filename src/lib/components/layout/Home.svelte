@@ -489,13 +489,16 @@
   }
   .veil-home-body { display: flex; flex-direction: column; }
   .veil-home-panel {
-    background: var(--veil-bg-surface);
-    border: 1px solid var(--veil-border);
+    background: color-mix(in srgb, var(--veil-bg-elevated) 72%, transparent);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: var(--radius-xl);
     padding: var(--space-5);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
   }
   .veil-home-panel-title-row {
     display: flex;
@@ -566,8 +569,9 @@
   }
 
   .veil-community-card {
-    background: var(--veil-bg-elevated);
-    border: 1px solid var(--veil-border-subtle);
+    background: color-mix(in srgb, var(--veil-bg-elevated) 78%, transparent);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.07);
     border-radius: var(--radius-xl);
     overflow: hidden;
     display: flex;

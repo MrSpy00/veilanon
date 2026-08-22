@@ -384,15 +384,12 @@ pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheck
         detection_method
     };
 
-    // Persist the seen commit only after a clean check so the next check can diff against it
-    if !update_available {
-        if let Some(sha) = remote_commit.as_deref() {
-            let data_dir = state.app.path().app_data_dir()
-                .map_err(|_| VeilError::FileError(std::io::Error::new(std::io::ErrorKind::NotFound, "app data dir")))?;
-            let mut settings = state.settings.write().await;
-            settings.last_seen_commit = Some(sha.to_string());
-            settings.save(&data_dir)?;
-        }
+    if let Some(sha) = remote_commit.as_deref() {
+        let data_dir = state.app.path().app_data_dir()
+            .map_err(|_| VeilError::FileError(std::io::Error::new(std::io::ErrorKind::NotFound, "app data dir")))?;
+        let mut settings = state.settings.write().await;
+        settings.last_seen_commit = Some(sha.to_string());
+        settings.save(&data_dir)?;
     }
 
     let all_assets: Vec<PlatformAsset> = release.assets.iter().map(|a| {

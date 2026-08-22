@@ -142,23 +142,26 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    min-width: 220px;
+    min-width: 200px;
     width: 100%;
     max-width: 360px;
-    padding: var(--space-2) var(--space-3);
-    background: var(--veil-bg-surface);
+    padding: 9px 12px;
+    background: color-mix(in srgb, var(--veil-bg-elevated) 88%, transparent);
+    backdrop-filter: blur(10px);
     color: var(--veil-text-primary);
-    border: 1px solid var(--veil-border);
-    border-radius: var(--radius-lg);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-xl);
     font-family: var(--font-sans);
-    font-size: var(--text-base);
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast), transform var(--t-fast);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
   }
-  .veil-select-trigger:hover:not(:disabled) { border-color: var(--veil-border-focus); }
-  .veil-select-trigger:focus-visible { outline: none; border-color: var(--veil-brand); box-shadow: 0 0 0 3px hsl(262 72% 60% / 0.2); }
-  .veil-select-trigger.open { border-color: var(--veil-brand); box-shadow: 0 0 0 3px hsl(262 72% 60% / 0.15); }
-  .veil-select-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+  .veil-select-trigger:hover:not(:disabled) { border-color: var(--veil-border); background: color-mix(in srgb, var(--veil-bg-elevated) 94%, transparent); }
+  .veil-select-trigger:focus-visible { outline: none; border-color: var(--veil-brand); box-shadow: 0 0 0 3px hsl(262 72% 60% / 0.18); }
+  .veil-select-trigger.open { border-color: var(--veil-brand); box-shadow: 0 4px 16px hsl(262 72% 60% / 0.18), 0 0 0 3px hsl(262 72% 60% / 0.15); transform: translateY(-1px); }
+  .veil-select-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
   .veil-select-value {
     flex: 1;
     min-width: 0;
@@ -181,19 +184,23 @@
   }
   .veil-select-menu {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     left: 0;
     min-width: 100%;
     width: 100%;
     z-index: 1200;
-    background: var(--veil-bg-surface);
-    border: 1px solid var(--veil-border-focus);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--veil-bg-raised) 92%, transparent);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
     padding: 6px;
     max-height: 280px;
     overflow-y: auto;
+    animation: veilDropdownIn 0.16s cubic-bezier(0.16,1,0.3,1);
   }
+  @keyframes veilDropdownIn { from { opacity:0; transform: translateY(-6px) scale(0.98); } to { opacity:1; transform: translateY(0) scale(1); } }
   .veil-select-menu.upward {
     top: auto;
     bottom: calc(100% + 6px);
@@ -203,19 +210,22 @@
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: var(--space-2) var(--space-3);
+    padding: 9px 10px;
     border: none;
     background: transparent;
-    border-radius: var(--radius-md);
+    border-radius: 10px;
     color: var(--veil-text-secondary);
     font-family: var(--font-sans);
-    font-size: var(--text-base);
+    font-size: 13px;
+    font-weight: 500;
     text-align: left;
     cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast);
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
   }
-  .veil-select-menu button:hover { background: var(--veil-bg-overlay); color: var(--veil-text-primary); }
-  .veil-select-menu button.active { background: var(--veil-brand-subtle); color: var(--veil-brand); font-weight: 600; }
+  .veil-select-menu button:hover { background: rgba(255,255,255,0.07); color: var(--veil-text-primary); }
+  .veil-select-menu button:active { transform: scale(0.98); }
+  .veil-select-menu button.active { background: var(--veil-brand); color: #fff; font-weight: 600; box-shadow: 0 2px 10px hsl(262 72% 60% / 0.35); }
+  .veil-select-menu button:focus-visible { outline: none; background: rgba(255,255,255,0.07); }
   .veil-select-option-label { flex: 1; min-width: 0; white-space: nowrap; }
   .veil-select-check { flex-shrink: 0; }
 </style>
