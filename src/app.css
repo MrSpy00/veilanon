@@ -1213,16 +1213,16 @@ textarea,
   align-items: flex-start;
   gap: 12px;
   padding: 2px var(--space-4);
-  margin-top: 10px;
+  margin-top: 6px;
   position: relative;
   border-radius: var(--radius-sm);
   transition: background var(--t-fast);
 }
 .veil-message:first-child {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .veil-message.group-start {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
@@ -2762,10 +2762,10 @@ select:-webkit-autofill {
 .veil-app.veil-has-custom-bg .veil-sidebar,
 .veil-app[data-has-custom-bg="true"] .veil-sidebar,
 [data-has-custom-bg="true"] .veil-sidebar {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
-  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 28%, transparent) !important;
+  backdrop-filter: blur(10px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-channels,
@@ -2774,10 +2774,10 @@ select:-webkit-autofill {
 .veil-app[data-has-custom-bg="true"] .veil-channel-list,
 [data-has-custom-bg="true"] .veil-channels,
 [data-has-custom-bg="true"] .veil-channel-list {
-  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 42%, transparent) !important;
-  backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 16px)) saturate(140%) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 28%, transparent) !important;
+  backdrop-filter: blur(10px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-channel-header,
@@ -2835,9 +2835,14 @@ select:-webkit-autofill {
 }
 
 [data-has-custom-bg="true"] .veil-message-item {
-  backdrop-filter: blur(var(--veil-msg-blur, 8px));
-  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 8px));
-  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--veil-bg-elevated, #16181d) 55%, transparent) !important;
+  backdrop-filter: blur(var(--veil-msg-blur, 8px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--veil-msg-blur, 8px)) saturate(140%) !important;
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  padding: 8px 12px !important;
+  margin: 6px 8px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
 }
 
 .veil-app.veil-has-custom-bg .veil-home,

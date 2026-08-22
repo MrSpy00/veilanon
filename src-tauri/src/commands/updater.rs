@@ -406,13 +406,23 @@ pub async fn check_for_updates(state: State<'_, AppState>) -> Result<UpdateCheck
         }
     }).collect();
 
-    // Sürüm notları veya dinamik changelog
+    // Sürüm notları + dinamik commit geçmişi (her zaman görünür, gelişmiş)
     let mut release_notes = release.body.unwrap_or_default().trim().to_string();
+    let commit_changelog = fetch_recent_changelog(&client).await;
     if release_notes.is_empty() || release_notes.contains("See the assets to download this version and install") {
-        if let Some(changelog) = fetch_recent_changelog(&client).await {
-            release_notes = format!("✨ Son Değişiklikler ve Commit Güncellemeleri:\n{}", changelog);
+        if let Some(changelog) = commit_changelog.clone() {
+            release_notes = if release_notes.is_empty() {
+                format!("✨ Son Değişiklikler ve Commit Güncellemeleri:\n{}", changelog)
+            } else {
+                format!("{}\n\n---\n\n✨ Son 6 Commit:\n{}", release_notes, changelog)
+            };
         } else if release_notes.is_empty() {
             release_notes = "Performans iyileştirmeleri, arayüz güncellemeleri ve hata düzeltmeleri içerir.".to_string();
+        }
+    } else if let Some(changelog) = commit_changelog {
+        // Release body dolu olsa bile son commitleri ekle — kullanıcı isteği: her zaman commit açıklamaları görünsün
+        if !release_notes.contains(changelog.lines().next().unwrap_or("__EMPTY__")) {
+            release_notes = format!("{}\n\n---\n\n📝 Son Commitler:\n{}", release_notes, changelog);
         }
     }
 

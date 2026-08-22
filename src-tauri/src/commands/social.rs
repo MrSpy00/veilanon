@@ -153,48 +153,45 @@ async fn fetch_profile_remotely(
     // URL-encoded clean query for PostgREST
     let clean_enc = clean.replace('%', "%25").replace('&', "%26").replace('=', "%3D").replace('+', "%2B").replace(' ', "%20");
 
-    // 2. Exact username match (case-insensitive)
+    // 2. Exact username match (case-insensitive) — try users then user_profiles
     if found_item.is_none() {
-        match network.api.select::<serde_json::Value>("users", &format!("username=ilike.{}", clean_enc), None, Some(1)).await {
-            Ok(rows) => {
-                if let Some(item) = rows.into_iter().next() {
-                    found_item = Some(item);
+        for table in ["users", "user_profiles", "profiles"] {
+            match network.api.select::<serde_json::Value>(table, &format!("username=ilike.{}", clean_enc), None, Some(1)).await {
+                Ok(rows) => {
+                    if let Some(item) = rows.into_iter().next() { found_item = Some(item); break; }
+                }
+                Err(e) => {
+                    if table == "users" { warn!("Remote profile lookup failed (username@{}): {}", table, e); }
+                    continue;
                 }
             }
-            Err(e) => {
-                warn!("Remote profile lookup failed (username): {}", e);
-                return Err(map_fetch_error(e.to_string()));
-            }
+        }
+        if found_item.is_none() {
+            // do not error out on table-not-found, just continue to next strategy
         }
     }
 
     // 3. Exact display_name match (case-insensitive)
     if found_item.is_none() {
-        match network.api.select::<serde_json::Value>("users", &format!("display_name=ilike.{}", clean_enc), None, Some(1)).await {
-            Ok(rows) => {
-                if let Some(item) = rows.into_iter().next() {
-                    found_item = Some(item);
+        for table in ["users", "user_profiles", "profiles"] {
+            match network.api.select::<serde_json::Value>(table, &format!("display_name=ilike.{}", clean_enc), None, Some(1)).await {
+                Ok(rows) => {
+                    if let Some(item) = rows.into_iter().next() { found_item = Some(item); break; }
                 }
-            }
-            Err(e) => {
-                warn!("Remote profile lookup failed (display_name): {}", e);
-                return Err(map_fetch_error(e.to_string()));
+                Err(_) => continue,
             }
         }
     }
 
     // 4. Substring / wildcard search in username or display_name
     if found_item.is_none() {
-        let filter = format!("or=(username.ilike.%25{}%25,display_name.ilike.%25{}%25)", clean_enc, clean_enc);
-        match network.api.select::<serde_json::Value>("users", &filter, None, Some(1)).await {
-            Ok(rows) => {
-                if let Some(item) = rows.into_iter().next() {
-                    found_item = Some(item);
+        for table in ["users", "user_profiles", "profiles"] {
+            let filter = format!("or=(username.ilike.%25{}%25,display_name.ilike.%25{}%25)", clean_enc, clean_enc);
+            match network.api.select::<serde_json::Value>(table, &filter, None, Some(1)).await {
+                Ok(rows) => {
+                    if let Some(item) = rows.into_iter().next() { found_item = Some(item); break; }
                 }
-            }
-            Err(e) => {
-                warn!("Remote profile lookup failed (substring): {}", e);
-                return Err(map_fetch_error(e.to_string()));
+                Err(_) => continue,
             }
         }
     }

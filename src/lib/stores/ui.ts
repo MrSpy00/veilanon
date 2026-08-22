@@ -76,6 +76,17 @@ interface UiState {
 }
 
 let activeUserId: string | null = null;
+let timedLoop: ReturnType<typeof setInterval> | null = null;
+function restartTimedLoop(state: UiState) {
+  if (timedLoop) { clearInterval(timedLoop); timedLoop = null; }
+  if (state.playbackMode !== 'timed') return;
+  const playlist = state.playlists.find(p => p.id === state.activePlaylistId) ?? state.playlists[0];
+  if (!playlist || playlist.items.length <= 1) return;
+  const intervalMs = Math.max(10000, (state.playbackIntervalSec || 30) * 1000);
+  timedLoop = setInterval(() => {
+    try { uiStore.advancePlayback(); } catch {}
+  }, intervalMs);
+}
 
 function userBgKey(key: string, uid?: string | null): string {
   const id = uid || activeUserId;
@@ -246,6 +257,7 @@ function createUiStore() {
           playbackIntervalSec: Number.isFinite(storedInterval) && storedInterval > 0 ? storedInterval : 30,
         };
         refreshDomTheme(next);
+        restartTimedLoop(next);
         return next;
       });
     },
@@ -441,7 +453,9 @@ function createUiStore() {
     setPlaybackMode(mode: PlaybackMode) {
       update(s => {
         localStorage.setItem(userBgKey('veilanon-playback-mode'), mode);
-        return { ...s, playbackMode: mode };
+        const next = { ...s, playbackMode: mode };
+        restartTimedLoop(next);
+        return next;
       });
     },
 
@@ -449,7 +463,9 @@ function createUiStore() {
       const clamped = Math.max(5, Math.min(3600, Math.round(sec)));
       update(s => {
         localStorage.setItem(userBgKey('veilanon-playback-interval'), String(clamped));
-        return { ...s, playbackIntervalSec: clamped };
+        const next = { ...s, playbackIntervalSec: clamped };
+        restartTimedLoop(next);
+        return next;
       });
     },
 
@@ -552,6 +568,7 @@ function createUiStore() {
           settingsTab: restoredSettingsTab || s.settingsTab,
         };
         refreshDomTheme(next);
+        restartTimedLoop(next);
         return next;
       });
     },

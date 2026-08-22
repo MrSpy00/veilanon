@@ -173,14 +173,15 @@ fn extract_media_candidates(base: &url::Url, html: &str) -> (Vec<MediaCandidate>
         c.push(&src, "image", source, None);
     }
 
-    attach_posters(&mut c.out, base, &video_els);
+    let fallback_thumb = c.out.iter().find(|m| m.media_type == "image").map(|m| m.url.clone());
+    attach_posters(&mut c.out, base, &video_els, fallback_thumb);
 
     (c.out, title)
 }
 
 /// Attach <video poster="..."> to video candidates: exact element pairing
-/// first, then a single-distinct-poster fallback for meta-only pages.
-fn attach_posters(out: &mut [MediaCandidate], base: &url::Url, els: &[VideoElement]) {
+/// first, single-distinct-poster, then og:image thumbnail fallback.
+fn attach_posters(out: &mut [MediaCandidate], base: &url::Url, els: &[VideoElement], fallback_thumb: Option<String>) {
     let mut poster_map: HashMap<String, String> = HashMap::new();
     for el in els {
         let Some(poster) = &el.poster else { continue };
@@ -197,7 +198,7 @@ fn attach_posters(out: &mut [MediaCandidate], base: &url::Url, els: &[VideoEleme
     };
     for m in out.iter_mut() {
         if m.media_type == "video" && m.poster.is_none() {
-            m.poster = poster_map.get(&m.url).cloned().or_else(|| fallback.clone());
+            m.poster = poster_map.get(&m.url).cloned().or_else(|| fallback.clone()).or_else(|| fallback_thumb.clone());
         }
     }
 }

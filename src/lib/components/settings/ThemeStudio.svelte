@@ -1,6 +1,11 @@
 <script module lang="ts">
-  // Session-lifetime retention: survives ThemeStudio remounts (settings reopen), no persistence.
-  let lastStudioTab: 'editor' | 'ai' | 'media' | 'import-export' | null = null;
+  let lastStudioTab: 'editor' | 'ai' | 'media' | 'import-export' | null = (() => {
+    try {
+      const v = localStorage.getItem('veilanon-studio-tab') as 'editor' | 'ai' | 'media' | 'import-export' | null;
+      if (v && ['editor','ai','media','import-export'].includes(v)) return v;
+    } catch {}
+    return null;
+  })();
 </script>
 
 <script lang="ts">
@@ -36,6 +41,7 @@
   function switchStudioTab(tab: StudioTab) {
     activeStudioTab = tab;
     lastStudioTab = tab;
+    try { localStorage.setItem('veilanon-studio-tab', tab); } catch {}
   }
 
   // Editor State
@@ -145,17 +151,29 @@
     toastStore.info('Liste silindi.');
   }
 
-  function handleExportPlaylist() {
+  async function handleExportPlaylist() {
     if (!activePlaylist || activePlaylist.items.length === 0) {
       toastStore.info('Aktif liste henüz boş.');
       return;
     }
     const jsonStr = JSON.stringify(activePlaylist.items, null, 2);
+    const fileName = `veilanon-playlist-${activePlaylist.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+    if ('__TAURI_INTERNALS__' in window) {
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const path = await save({ title: 'Playlist dosyasını kaydet', defaultPath: fileName, filters: [{ name: 'JSON', extensions: ['json'] }] });
+        if (!path) { toastStore.info('Kaydetme iptal edildi.'); return; }
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('write_text_file_user', { path, contents: jsonStr });
+        toastStore.success(`Playlist kaydedildi: ${path}`);
+        return;
+      } catch {}
+    }
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `veilanon-playlist-${activePlaylist.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
     toastStore.success('Playlist dosyası indirildi.');
@@ -996,6 +1014,7 @@
             max="1.0"
             step="0.01"
             class="veil-range-slider"
+            style={`--range-pct: ${Math.round(bgOpacityInput * 100)}%`}
             bind:value={bgOpacityInput}
             oninput={() => {
               const img = detectedMediaType === 'image' ? mediaUrlInput : '';
@@ -1017,6 +1036,7 @@
             max="30"
             step="1"
             class="veil-range-slider"
+            style={`--range-pct: ${Math.round((messageBlurInput / 30) * 100)}%`}
             bind:value={messageBlurInput}
             oninput={() => {
               uiStore.setMessageBlur(messageBlurInput);
@@ -1690,6 +1710,37 @@
     font-weight: 700;
     color: var(--veil-brand);
   }
+
+  .veil-range-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--veil-brand) 0%, var(--veil-brand) var(--range-pct, 26%), var(--veil-bg-overlay) var(--range-pct, 26%), var(--veil-bg-overlay) 100%);
+    outline: none;
+    cursor: pointer;
+    transition: filter 150ms ease;
+  }
+  .veil-range-slider:hover { filter: brightness(1.08); }
+  .veil-range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--veil-brand);
+    border: 3px solid var(--veil-bg-elevated);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 1px color-mix(in srgb, var(--veil-brand) 40%, transparent);
+    cursor: pointer;
+    transition: transform 150ms cubic-bezier(0.16,1,0.3,1), box-shadow 150ms ease;
+  }
+  .veil-range-slider::-webkit-slider-thumb:hover { transform: scale(1.12); box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 2px var(--veil-brand); }
+  .veil-range-slider:active::-webkit-slider-thumb { transform: scale(0.98); }
+  .veil-range-slider::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--veil-brand); border: 3px solid var(--veil-bg-elevated);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35); cursor: pointer;
+  }
+  .veil-range-slider::-moz-range-track { height: 6px; border-radius: 999px; background: var(--veil-bg-overlay); }
 
   .veil-media-actions {
     display: flex;
