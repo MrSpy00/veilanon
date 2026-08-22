@@ -145,15 +145,22 @@ function addToast(type: ToastType, message: string, duration = 4000, action?: To
   const key = normalizeToastKey(cleanMsg);
   const now = Date.now();
   const lastTime = recentToastMessages.get(key);
-  if (lastTime && now - lastTime < 3000) {
+  if (lastTime && now - lastTime < 6000) {
     return '';
   }
   recentToastMessages.set(key, now);
-  setTimeout(() => recentToastMessages.delete(key), 3500);
+  setTimeout(() => recentToastMessages.delete(key), 6500);
 
   const currentToasts = get(TOASTS_STORE);
   if (currentToasts.some((t) => normalizeToastKey(t.message) === key)) {
     return '';
+  }
+  if (currentToasts.length > 0) {
+    const lastToast = currentToasts[currentToasts.length - 1];
+    if (lastToast && Date.now() - (recentToastMessages.get(normalizeToastKey(lastToast.message)) ?? 0) < 400) {
+      // allow different messages but throttle burst to max 3 concurrent
+      if (currentToasts.length >= 2) return '';
+    }
   }
 
   const id = crypto.randomUUID();

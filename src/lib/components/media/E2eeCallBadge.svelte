@@ -94,17 +94,20 @@
   .veil-e2ee-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 6px;
+    gap: 3px;
+    padding: 1px 7px;
     border-radius: var(--radius-full, 9999px);
     border: 1px solid var(--veil-border-subtle, rgba(255, 255, 255, 0.08));
-    background: var(--veil-bg-surface, #1e1f22);
-    color: var(--veil-text-secondary, #b5bac1);
-    font-size: 10px;
+    background: color-mix(in srgb, var(--veil-bg-elevated, #1a1e2d) 92%, transparent);
+    backdrop-filter: blur(6px);
+    color: var(--veil-text-muted, #9aa0a6);
+    font-size: 9px;
     font-weight: 600;
+    letter-spacing: 0.02em;
     cursor: pointer;
     transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
+    line-height: 1;
   }
 
   .veil-e2ee-badge:hover {
@@ -125,16 +128,16 @@
   }
 
   .veil-e2ee-status-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: #5865f2;
-    box-shadow: 0 0 5px rgba(88, 101, 242, 0.6);
+    box-shadow: 0 0 4px rgba(88, 101, 242, 0.5);
   }
 
   .veil-e2ee-status-dot.is-e2ee {
-    background: #57f287;
-    box-shadow: 0 0 6px rgba(87, 242, 135, 0.7);
+    background: #23c55e;
+    box-shadow: 0 0 5px rgba(35, 197, 94, 0.6);
   }
 
   .veil-e2ee-text {
@@ -146,15 +149,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--veil-text-muted, #80848e);
-    font-size: 9px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--veil-text-muted, #8b8d94);
+    font-size: 8px;
     font-weight: 700;
-    margin-left: 1px;
-    cursor: pointer;
+    margin-left: 2px;
+    cursor: help;
     transition: background 0.15s, color 0.15s;
   }
 
