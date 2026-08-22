@@ -972,11 +972,11 @@ pub async fn spaces_set_banner(
         let network = state.network.read().await;
         let _ = network
             .api
-            .upload_blob(&format!("banners/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/banners/{}", hash), bytes.clone())
             .await;
         let _ = network
             .api
-            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
             .await;
     }
 
@@ -1032,7 +1032,7 @@ pub async fn spaces_set_icon(
         let network = state.network.read().await;
         let _ = network
             .api
-            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
             .await;
     }
 

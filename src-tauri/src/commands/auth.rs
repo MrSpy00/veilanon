@@ -1720,12 +1720,11 @@ pub async fn set_avatar(path: String, state: State<'_, AppState>) -> Result<Stri
         }
     }
 
-    // Kontrol düzlemine yansıt.
     if config::configured("VEILANON_SUPABASE_URL") {
         let network = state.network.read().await;
         let _ = network
             .api
-            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
             .await;
         let _ = network
             .api
@@ -1784,16 +1783,15 @@ pub async fn set_banner(path: String, state: State<'_, AppState>) -> Result<Stri
         }
     };
 
-    // Mirror to Supabase control plane so other users see the new banner
     if config::configured("VEILANON_SUPABASE_URL") {
         let network = state.network.read().await;
         let _ = network
             .api
-            .upload_blob(&format!("banners/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/banners/{}", hash), bytes.clone())
             .await;
         let _ = network
             .api
-            .upload_blob(&format!("avatars/{}", hash), bytes.clone())
+            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
             .await;
         let _ = network
             .api
@@ -1846,22 +1844,22 @@ pub async fn get_avatar(hash: String, state: State<'_, AppState>) -> Result<Stri
     let bytes = match std::fs::read(&path) {
         Ok(b) => b,
         Err(_) => {
-            // Not found locally — try to fetch from Supabase storage (banners / avatars / files)
             let mut fetched = None;
             if config::configured("VEILANON_SUPABASE_URL") {
                 let network = state.network.read().await;
-                if let Ok(remote_bytes) = network.api.download_blob(&format!("banners/{}", safe_hash)).await {
-                    let _ = std::fs::create_dir_all(&avatars_dir);
-                    let _ = std::fs::write(&path, &remote_bytes);
-                    fetched = Some(remote_bytes);
-                } else if let Ok(remote_bytes) = network.api.download_blob(&format!("avatars/{}", safe_hash)).await {
-                    let _ = std::fs::create_dir_all(&avatars_dir);
-                    let _ = std::fs::write(&path, &remote_bytes);
-                    fetched = Some(remote_bytes);
-                } else if let Ok(remote_bytes) = network.api.download_blob(&format!("files/avatars/{}", safe_hash)).await {
-                    let _ = std::fs::create_dir_all(&avatars_dir);
-                    let _ = std::fs::write(&path, &remote_bytes);
-                    fetched = Some(remote_bytes);
+                for candidate in [
+                    format!("files/banners/{}", safe_hash),
+                    format!("files/avatars/{}", safe_hash),
+                    format!("banners/{}", safe_hash),
+                    format!("avatars/{}", safe_hash),
+                    format!("files/files/avatars/{}", safe_hash),
+                ] {
+                    if let Ok(remote_bytes) = network.api.download_blob(&candidate).await {
+                        let _ = std::fs::create_dir_all(&avatars_dir);
+                        let _ = std::fs::write(&path, &remote_bytes);
+                        fetched = Some(remote_bytes);
+                        break;
+                    }
                 }
             }
             fetched.ok_or_else(|| VeilError::InvalidInput("Avatar not found".into()))?
