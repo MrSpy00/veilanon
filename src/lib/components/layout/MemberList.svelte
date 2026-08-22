@@ -59,6 +59,7 @@
         if (spaceId && (!e.payload?.spaceId || e.payload.spaceId === spaceId)) {
           roleApi.list(spaceId).then((r) => (roles = r)).catch(() => {});
           memberApi.list(spaceId).then((m) => (members = m)).catch(() => {});
+          reloadMembersImmediate();
         }
       })
     );
