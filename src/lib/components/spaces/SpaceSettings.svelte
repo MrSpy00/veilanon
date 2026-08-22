@@ -4,7 +4,7 @@
   import Icon from '../ui/Icon.svelte';
   import type { IconName } from '$lib/types/icon';
   import Avatar from '../ui/Avatar.svelte';
-  import BannerImage from '../ui/BannerImage.svelte';
+  import BannerImage, { cacheBanner } from '../ui/BannerImage.svelte';
   import BannerCropModal from '../ui/BannerCropModal.svelte';
   import ImageCropModal from '../ui/ImageCropModal.svelte';
   import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
@@ -329,7 +329,10 @@
     if (!spaceId) return;
     mediaBusy = true;
     try {
-      await spaceApi.setBanner(spaceId, croppedDataUrl);
+      const hash = await spaceApi.setBanner(spaceId, croppedDataUrl);
+      if (hash) {
+        cacheBanner(hash, croppedDataUrl);
+      }
       await refreshSpaceAfterMedia();
       toastStore.success('Topluluk bannerı güncellendi.');
     } catch {

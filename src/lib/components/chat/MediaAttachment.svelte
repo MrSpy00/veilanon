@@ -60,7 +60,12 @@
     return 'file';
   });
 
+  let calculatedWaveform = $state<number[] | null>(null);
+
   const waveformBars = $derived.by(() => {
+    if (calculatedWaveform && calculatedWaveform.length > 0) {
+      return calculatedWaveform;
+    }
     const bars: number[] = [];
     const seed = attachment.fileId || 'veilanon';
     for (let i = 0; i < 32; i++) {
@@ -82,6 +87,34 @@
     return `dosya-${attachment.fileId.slice(0, 8)}.${ext}`;
   });
 
+  async function decodeAudioDurationAndPeaks(url: string) {
+    try {
+      const resp = await fetch(url);
+      const arrayBuf = await resp.arrayBuffer();
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+      if (audioBuffer && audioBuffer.duration > 0) {
+        duration = audioBuffer.duration;
+        // Compute 32 waveform peak bars from channel data
+        const channel = audioBuffer.getChannelData(0);
+        const step = Math.floor(channel.length / 32);
+        const bars: number[] = [];
+        for (let i = 0; i < 32; i++) {
+          let max = 0;
+          for (let j = 0; j < step; j++) {
+            const val = Math.abs(channel[i * step + j] || 0);
+            if (val > max) max = val;
+          }
+          bars.push(Math.max(15, Math.min(100, Math.round(max * 100))));
+        }
+        calculatedWaveform = bars;
+      }
+      await audioCtx.close();
+    } catch {
+      // Fallback if audio context decode fails
+    }
+  }
+
   onMount(() => {
     let cancelled = false;
     fileApi.getDataUrl(attachment.fileId)
@@ -89,6 +122,9 @@
         if (!cancelled) {
           dataUrl = url;
           loading = false;
+          if (url && (url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/'))) {
+            void decodeAudioDurationAndPeaks(url);
+          }
         }
       })
       .catch(() => {
@@ -106,6 +142,9 @@
     if (isPlaying) {
       audioEl.pause();
     } else {
+      if (audioEl.ended || (duration > 0 && currentTime >= duration - 0.1)) {
+        audioEl.currentTime = 0;
+      }
       audioEl.play().catch(() => {});
     }
   }

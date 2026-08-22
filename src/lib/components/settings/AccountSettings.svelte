@@ -8,7 +8,7 @@
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import Avatar from '$lib/components/ui/Avatar.svelte';
-  import BannerImage from '$lib/components/ui/BannerImage.svelte';
+  import BannerImage, { cacheBanner } from '$lib/components/ui/BannerImage.svelte';
   import BannerCropModal from '$lib/components/ui/BannerCropModal.svelte';
   import ImageCropModal from '$lib/components/ui/ImageCropModal.svelte';
   import Toggle from '$lib/components/ui/Toggle.svelte';
@@ -306,6 +306,7 @@
     avatarBusy = true;
     try {
       const hash = await identityApi.setBanner(croppedDataUrl);
+      cacheBanner(hash, croppedDataUrl);
       authStore.updateIdentity({ bannerHash: hash });
       toastStore.success('Profil bannerı güncellendi.');
     } catch {

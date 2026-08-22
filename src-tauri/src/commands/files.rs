@@ -406,15 +406,25 @@ pub async fn get_file_data_url(
         "video/mp4"
     } else if plaintext.starts_with(b"\x1A\x45\xDF\xA3") {
         if let Some(ref hint) = mime_hint {
-            if hint.starts_with("audio/") || hint.contains("opus") || hint.contains("audio") || hint.contains("ses") {
+            if hint.starts_with("video/") {
+                "video/webm"
+            } else if hint.starts_with("audio/") || hint.contains("opus") || hint.contains("audio") || hint.contains("ses") {
                 "audio/webm"
-            } else if hint.starts_with("video/") {
+            } else {
+                // Inspect header tracks for video vs audio codec
+                if plaintext.windows(5).any(|w| w == b"V_VP8" || w == b"V_VP9" || w == b"V_AV1") {
+                    "video/webm"
+                } else {
+                    "audio/webm"
+                }
+            }
+        } else {
+            // Inspect header tracks for video vs audio codec
+            if plaintext.windows(5).any(|w| w == b"V_VP8" || w == b"V_VP9" || w == b"V_AV1") {
                 "video/webm"
             } else {
                 "audio/webm"
             }
-        } else {
-            "audio/webm"
         }
     } else if plaintext.starts_with(b"fLaC") {
         "audio/flac"

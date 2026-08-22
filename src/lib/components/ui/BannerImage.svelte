@@ -1,5 +1,11 @@
 <script lang="ts" module>
   const bannerMemoryCache = new Map<string, string>();
+
+  export function cacheBanner(hash: string, dataUrl: string) {
+    if (hash && dataUrl) {
+      bannerMemoryCache.set(hash.trim(), dataUrl);
+    }
+  }
 </script>
 
 <script lang="ts">

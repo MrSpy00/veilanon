@@ -24,9 +24,9 @@
         "additionalBrowserArgs": "--auto-select-desktop-capture-source=Entire screen --auto-accept-this-tab-capture"
       }
     ],
-      "security": {
-        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' wss: https:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
-      }
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' wss: https: blob: data: https://cdn.jsdelivr.net https://unpkg.com https://storage.googleapis.com; worker-src 'self' blob: https://cdn.jsdelivr.net https://unpkg.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
   },
   "bundle": {
     "active": true,
