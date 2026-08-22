@@ -91,6 +91,7 @@
   .veil-banner-wrapper {
     width: 100%;
     height: 100%;
+    min-height: 100px;
     position: relative;
     overflow: hidden;
     display: block;

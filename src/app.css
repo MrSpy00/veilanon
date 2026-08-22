@@ -1212,8 +1212,8 @@ textarea,
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 2px var(--space-4);
-  margin-top: 6px;
+  padding: 1px var(--space-4);
+  margin-top: 4px;
   position: relative;
   border-radius: var(--radius-sm);
   transition: background var(--t-fast);
@@ -1222,8 +1222,9 @@ textarea,
   margin-top: 2px;
 }
 .veil-message.group-start {
-  margin-top: 6px;
+  margin-top: 4px;
 }
+.veil-message-body { gap: 2px; }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
 .veil-message.grouped {

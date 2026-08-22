@@ -485,15 +485,13 @@
             },
           ];
           syncDraft();
+          toastStore.success('Ses kaydı eklendi — oynatıp sonra Gönder ile iletebilirsin.');
         } catch {
-          // Chip stays out of pendingFiles only on upload failure; user is notified
           toastStore.error('Ses kaydı yüklenemedi.');
           return;
         } finally {
           uploading = false;
         }
-        // Discord-style: send the recording immediately once uploaded
-        await send();
       };
       mediaRecorder = recorder;
       recorder.start(250);
