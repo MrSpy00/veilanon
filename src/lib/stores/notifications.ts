@@ -184,10 +184,12 @@ function removeToast(id: string) {
 
 let notificationPermissionChecked = false;
 let notificationPermissionGranted = false;
+let permissionCheckedAt = 0;
 
 async function checkDesktopPermission(): Promise<boolean> {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return false;
-  if (notificationPermissionChecked) return notificationPermissionGranted;
+  const now = Date.now();
+  if (notificationPermissionChecked && now - permissionCheckedAt < 60000) return notificationPermissionGranted;
   try {
     let granted = await isPermissionGranted();
     if (!granted) {
@@ -196,6 +198,7 @@ async function checkDesktopPermission(): Promise<boolean> {
     }
     notificationPermissionChecked = true;
     notificationPermissionGranted = granted;
+    permissionCheckedAt = now;
     return granted;
   } catch {
     return false;
@@ -236,6 +239,7 @@ export const notificationStore = {
         n.channelId === item.channelId &&
         n.type === item.type &&
         n.title === item.title &&
+        n.body === item.body &&
         Math.abs(n.timestamp - now) < 5
     );
     if (isDuplicate) return null;

@@ -296,7 +296,6 @@ function createMessageStore() {
           void spaceStore.refreshDms();
         }
 
-        // Process incoming notifications
         for (const msg of incomingForNotify) {
           const text = msg.content ?? '';
           const isMention = currentUsername
@@ -307,16 +306,14 @@ function createMessageStore() {
             spaceStore.incrementUnread(channelId, isMention);
           }
 
-          if (!isCurrentActiveChannel || !isDocumentFocused) {
-            void toastStore.notifyMessage({
-              senderName: msg.senderName || 'Kullanıcı',
-              content: text,
-              channelName,
-              isMention,
-              isDm,
-              channelId,
-            });
-          }
+          void toastStore.notifyMessage({
+            senderName: msg.senderName || 'Kullanıcı',
+            content: text,
+            channelName,
+            isMention,
+            isDm,
+            channelId,
+          });
         }
       } catch {
         // sync failed, next interval will retry
