@@ -711,6 +711,7 @@
   }
   .veil-profile-hero-banner {
     width: 100%;
+    height: 160px;
     aspect-ratio: 3 / 1;
     max-height: 160px;
     position: relative;
@@ -718,13 +719,23 @@
       radial-gradient(120% 160% at 15% 0%, var(--veil-brand-subtle), transparent 55%),
       linear-gradient(160deg, var(--veil-bg-surface), var(--veil-bg-void));
     overflow: hidden;
+    display: block;
   }
   :global(.veil-profile-hero-banner-img) {
     width: 100%;
     height: 100%;
+    min-height: 160px;
     object-fit: cover;
     object-position: center;
     display: block;
+  }
+  :global(.veil-profile-hero-banner-img .veil-banner-wrapper) {
+    height: 100%;
+    min-height: 160px;
+  }
+  :global(.veil-profile-hero-banner-img img) {
+    object-fit: cover;
+    object-position: center;
   }
   .veil-banner-actions-overlay {
     position: absolute;

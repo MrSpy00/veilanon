@@ -61,12 +61,48 @@ fn embedded(key: &str) -> Option<String> {
 
 /// Runtime env first, encrypted store second, embedded value third.
 /// Empty runtime values are treated as unset so an accidentally empty
-/// variable cannot shadow real config.
+/// variable cannot shadow real config. Falls back to direct .env file read
+/// when neither runtime env nor embedded value is present (covers dev
+/// preview and cases where the binary was built without embedded env).
 pub fn var(key: &str) -> Option<String> {
     match std::env::var(key) {
         Ok(v) if !v.is_empty() => Some(v),
-        _ => secrets::get(key).or_else(|| embedded(key)),
+        _ => secrets::get(key)
+            .or_else(|| embedded(key))
+            .or_else(|| read_dotenv_runtime(key)),
     }
+}
+
+fn read_dotenv_runtime(key: &str) -> Option<String> {
+    for cand in [
+        std::path::Path::new(".env"),
+        std::path::Path::new("../.env"),
+    ] {
+        if let Ok(contents) = std::fs::read_to_string(cand) {
+            for line in contents.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((k, v)) = line.split_once('=') {
+                    if k.trim() == key {
+                        let mut v = v.trim().to_string();
+                        if v.len() >= 2 {
+                            let first = v.chars().next().unwrap();
+                            let last = v.chars().last().unwrap();
+                            if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+                                v = v[1..v.len() - 1].to_string();
+                            }
+                        }
+                        if !v.is_empty() {
+                            return Some(v);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// True when `key` resolves to a non-empty value.

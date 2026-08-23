@@ -54,8 +54,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 16px;
-    background: linear-gradient(90deg, rgba(88, 101, 242, 0.95), rgba(155, 89, 182, 0.95));
-    color: #ffffff;
+    background: linear-gradient(90deg, var(--veil-brand, #7c3aed), color-mix(in srgb, var(--veil-brand, #7c3aed) 78%, #9b59b6 22%));
+    color: var(--veil-brand-foreground, #ffffff);
     font-size: 12px;
     font-weight: 500;
     z-index: 900;
