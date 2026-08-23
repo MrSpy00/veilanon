@@ -1308,19 +1308,23 @@
         </button>
       </div>
 
-      <div class="veil-modal-body">
+      <div class="veil-modal-body" style="display:flex; flex-direction:column; gap:12px;">
         {#if jsonImportError}
           <div class="veil-form-error" role="alert">
             <Icon name="warning" size={14} />
             <span>{jsonImportError}</span>
           </div>
         {/if}
+        <p class="veil-settings-row-desc" style="margin:0;">
+          Dışa aktarılan <code>.json</code> dosyasının içeriğini buraya yapıştırın veya <em>Dosya Seç</em> ile yükleyin.
+        </p>
         <textarea
           class="veil-input veil-import-textarea"
           bind:value={jsonImportText}
           placeholder={`{\n  "version": 1,\n  "name": "Kişisel Tema",\n  "customCss": ":root { ... }"\n}`}
-          rows={10}
+          rows={12}
           spellcheck="false"
+          style="min-height:220px; display:block; width:100%; resize:vertical; font-family:var(--font-mono,monospace); font-size:12px; line-height:1.5;"
         ></textarea>
       </div>
 
@@ -1793,6 +1797,16 @@
     font-family: var(--font-mono, monospace);
     font-size: 12px;
     tab-size: 2;
+    min-height: 220px !important;
+    display: block;
+    width: 100%;
+    background: var(--veil-bg-void) !important;
+    border: 1px solid var(--veil-border) !important;
+    color: var(--veil-text-primary);
+  }
+  .veil-import-textarea:focus {
+    border-color: var(--veil-brand) !important;
+    box-shadow: 0 0 0 3px hsl(262 72% 60% / 0.18);
   }
 
   .visually-hidden {
