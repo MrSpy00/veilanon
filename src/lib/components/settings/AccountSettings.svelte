@@ -373,14 +373,14 @@
             {#if avatarBusy}
               <div class="veil-spinner veil-spinner-sm"></div>
             {:else}
-              <Icon name="camera" size={16} />
+              <Icon name="user" size={16} />
             {/if}
           </button>
         </div>
 
         <div class="veil-avatar-actions">
           <button class="btn btn-secondary btn-sm" type="button" onclick={changeAvatar} disabled={avatarBusy}>
-            <Icon name="camera" size={13} />
+            <Icon name="user" size={13} />
             Fotoğraf Değiştir
           </button>
           {#if identity?.avatarHash}

@@ -836,13 +836,6 @@ pub async fn edit_message(
     let msg_uuid = Uuid::parse_str(&message_id)
         .map_err(|_| VeilError::InvalidInput("Invalid message ID".into()))?;
 
-    if new_content.is_empty() {
-        return Err(VeilError::InvalidInput("Message content cannot be empty".into()));
-    }
-    if new_content.len() > 4000 {
-        return Err(VeilError::InvalidInput("Message too long (max 4000 chars)".into()));
-    }
-
     let _db_key = state.get_db_key().await.ok_or(VeilError::Unauthenticated)?;
 
     let msg = {
@@ -850,6 +843,15 @@ pub async fn edit_message(
         db.get_message(&msg_uuid)?
     };
     let msg = msg.ok_or(VeilError::InvalidInput("Message not found".into()))?;
+
+    // Boş içerik yalnızca mesajda ek (dosya/görsel/video/ses) varsa kabul edilir —
+    // böylece yalnızca ek içeren mesajların başlık/altyazı kısmı düzenlenebilir.
+    if new_content.is_empty() && msg.attachments.is_empty() {
+        return Err(VeilError::InvalidInput("Message content cannot be empty".into()));
+    }
+    if new_content.len() > 4000 {
+        return Err(VeilError::InvalidInput("Message too long (max 4000 chars)".into()));
+    }
 
     // DM channels re-encrypt through the ratchet (chain advances); E2EE group
     // channels re-encrypt through MLS; others use channel message key.

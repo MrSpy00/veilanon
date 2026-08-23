@@ -1394,9 +1394,9 @@ pub async fn get_user_profile(user_id: String, state: State<'_, AppState>) -> Re
             if let Some(u) = u_rows.first() {
                 let uname = u.get("username").and_then(|v| v.as_str()).unwrap_or("");
                 let disp = u.get("display_name").and_then(|v| v.as_str()).unwrap_or("");
-                let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                let ban = u.get("banner_hash").and_then(|v| v.as_str());
-                let cs = u.get("custom_status").and_then(|v| v.as_str());
+                let av = u.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+                let ban = u.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+                let cs = u.get("custom_status").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
                 let db = state.db.read().await;
                 let _ = db.upsert_profile(&target, uname, disp, av, None, None, None, None, None);
                 if let Some(b) = ban {
@@ -1498,6 +1498,116 @@ pub async fn get_user_profile(user_id: String, state: State<'_, AppState>) -> Re
         custom_status,
         online_status: real_online_status,
         friend_status,
+        created_at,
+    })
+}
+
+/// Kendi profilini Supabase'ten yetkili olarak yeniden çeker ve yerel durumu
+/// (local_identity + user_profiles + bellek içi identity) günceller; açılışta
+/// ve realtime `user:updated`'da çağrılır — banner/avatar her zaman DB ile senkron kalır.
+#[tauri::command]
+pub async fn refresh_profile(state: State<'_, AppState>) -> Result<UserProfileResponse, VeilError> {
+    let identity = state.get_or_restore_identity().await;
+    let identity = identity.as_ref().ok_or(VeilError::Unauthenticated)?.clone();
+
+    if config::configured("VEILANON_SUPABASE_URL") {
+        let filter = format!("id=eq.{}&select=id,username,display_name,avatar_hash,banner_hash,bio,custom_status", identity.id);
+        let rows = state
+            .network
+            .read()
+            .await
+            .api
+            .select::<serde_json::Value>("users", &filter, None, Some(1))
+            .await
+            .unwrap_or_default();
+        if let Some(u) = rows.first() {
+            let ru = u.get("username").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+            let rd = u.get("display_name").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+            let ra = u.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+            let rb = u.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+            let rc = u.get("custom_status").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+            if ru.is_some() || rd.is_some() || ra.is_some() || rb.is_some() || rc.is_some() {
+                {
+                    let db = state.db.read().await;
+                    let _ = db.execute(
+                        "UPDATE local_identity SET username=COALESCE(?1, username), display_name=COALESCE(?2, display_name), avatar_hash=COALESCE(?3, avatar_hash), banner_hash=COALESCE(?4, banner_hash), custom_status=COALESCE(?5, custom_status) WHERE id=?6",
+                        rusqlite::params![ru.as_deref(), rd.as_deref(), ra.as_deref(), rb.as_deref(), rc.as_deref(), identity.id.to_string()],
+                    );
+                    let _ = db.upsert_profile(
+                        &identity.id,
+                        ru.as_deref().unwrap_or(&identity.username),
+                        rd.as_deref().unwrap_or(&identity.display_name),
+                        ra.as_deref().or(identity.avatar_hash.as_deref()),
+                        None,
+                        None,
+                        rb.as_deref().or(identity.banner_hash.as_deref()),
+                        None,
+                        rc.as_deref(),
+                    );
+                }
+                let mut guard = state.identity.write().await;
+                if let Some(id) = guard.as_mut() {
+                    if let Some(n) = ru { id.username = n; }
+                    if let Some(n) = rd { id.display_name = n; }
+                    if let Some(n) = ra { id.avatar_hash = Some(n); }
+                    if let Some(n) = rb { id.banner_hash = Some(n); }
+                }
+            }
+        }
+    }
+
+    let _ = state.app.emit("user:updated", serde_json::json!({ "id": identity.id.to_string() }));
+
+    let db_key = state.get_db_key().await;
+    let (username, display_name, avatar_hash, banner_hash, bio_ciphertext, online_status, custom_status) = {
+        let db = state.db.read().await;
+        let profile = db.get_profile_full_by_id(&identity.id)?;
+        drop(db);
+        profile.unwrap_or_else(|| (
+            identity.username.clone(),
+            identity.display_name.clone(),
+            identity.avatar_hash.clone(),
+            identity.banner_hash.clone(),
+            None,
+            "online".to_string(),
+            None,
+        ))
+    };
+
+    let bio = match (bio_ciphertext, db_key) {
+        (Some(encoded), Some(key)) => {
+            let payload = B64.decode(&encoded).ok();
+            payload
+                .and_then(|p| {
+                    if p.len() < 12 {
+                        return None;
+                    }
+                    let split = p.len() - 12;
+                    crate::crypto::decrypt_aes_gcm(&key, &p[..split], &p[split..]).ok()
+                })
+                .and_then(|plain| String::from_utf8(plain).ok())
+                .or_else(|| Some(encoded.clone()))
+        }
+        (Some(plain), None) => Some(plain),
+        _ => None,
+    };
+
+    let real_online_status = fetch_real_presence(&state, &identity.id, &online_status).await;
+    let created_at = {
+        let db = state.db.read().await;
+        db.get_profile_created_at(&identity.id).ok().flatten()
+    };
+
+    Ok(UserProfileResponse {
+        user_id: identity.id.to_string(),
+        username,
+        display_name,
+        avatar_hash,
+        banner_hash,
+        bio,
+        custom_status,
+        online_status: real_online_status,
+        friend_status: "friends".into(),
         created_at,
     })
 }

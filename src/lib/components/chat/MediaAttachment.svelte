@@ -558,19 +558,24 @@
             >
               <Icon name={videoMuted || videoVolume === 0 ? 'volume-x' : 'volume'} size={15} />
             </button>
-            <div class="veil-vc-volume-slider-wrap" aria-hidden="true">
+            <div class="veil-vc-vol-pop" role="group" aria-label="Ses seviyesi">
+              <span class="veil-vc-vol-icon" aria-hidden="true"><Icon name="volume-slider" size={12} /></span>
               <input
                 type="range"
-                class="veil-vc-volume-slider"
+                class="veil-vc-vol-slider"
                 min="0"
                 max="1"
                 step="0.01"
-                bind:value={videoVolume}
+                value={videoVolume}
                 aria-label="Ses seviyesi"
-                aria-orientation="vertical"
-                oninput={() => setVideoVolume(videoVolume)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(videoVolume * 100)}
+                style="--fill: {Math.round(videoVolume * 100)}%"
+                oninput={(e) => setVideoVolume(parseFloat((e.currentTarget as HTMLInputElement).value))}
                 onclick={(e) => e.stopPropagation()}
               />
+              <span class="veil-vc-vol-pct">{Math.round(videoVolume * 100)}</span>
             </div>
           </div>
           <button type="button" class="veil-vc-btn" onclick={handleDownload} title="İndir" disabled={downloading}>
@@ -967,53 +972,96 @@
   }
   .veil-vc-spacer { flex: 1; }
   .veil-vc-volume { position: relative; display: flex; align-items: center; }
-  .veil-vc-volume-slider-wrap {
+  .veil-vc-vol-pop {
     position: absolute;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 10px);
     left: 50%;
-    transform: translateX(-50%) translateY(6px);
-    height: 96px;
-    width: 28px;
-    background: rgba(0, 0, 0, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: var(--radius-md);
+    transform: translateX(-50%) translateY(8px) scale(0.94);
+    transform-origin: bottom center;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 4px 0;
+    gap: 8px;
+    padding: 9px 12px;
+    min-width: 138px;
+    background: rgba(7, 9, 13, 0.92);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.16s ease, transform 0.16s ease;
-    z-index: 5;
+    transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 8;
   }
-  .veil-vc-volume:hover .veil-vc-volume-slider-wrap {
+  /* Köprü: pop ile buton arasındaki boşlukta hover kesilmesin */
+  .veil-vc-vol-pop::before {
+    content: '';
+    position: absolute;
+    bottom: -12px;
+    left: 0;
+    right: 0;
+    height: 14px;
+  }
+  .veil-vc-volume:hover .veil-vc-vol-pop,
+  .veil-vc-vol-pop:hover {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
     pointer-events: auto;
   }
-  .veil-vc-volume-slider {
-    -webkit-appearance: slider-vertical;
-    appearance: slider-vertical;
-    writing-mode: vertical-lr;
-    direction: rtl;
-    width: 20px;
-    height: 84px;
-    background: transparent;
-    accent-color: var(--veil-brand, #7c3aed);
-    cursor: pointer;
+  .veil-vc-vol-icon {
+    display: inline-flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.55);
+    flex-shrink: 0;
   }
-  .veil-vc-volume-slider::-webkit-slider-runnable-track {
-    background: rgba(255, 255, 255, 0.22);
-    border-radius: 2px;
-    width: 4px;
-  }
-  .veil-vc-volume-slider::-webkit-slider-thumb {
+  .veil-vc-vol-slider {
     -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
+    appearance: none;
+    flex: 1;
+    min-width: 0;
+    height: 5px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--veil-brand, #7c3aed) 0%, var(--veil-brand, #7c3aed) var(--fill, 100%), rgba(255, 255, 255, 0.16) var(--fill, 100%));
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    outline: none;
+  }
+  .veil-vc-vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    border: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--veil-brand, #7c3aed) 35%, transparent), 0 2px 8px rgba(0, 0, 0, 0.55);
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
+  }
+  .veil-vc-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.18); }
+  .veil-vc-vol-slider::-webkit-slider-thumb:active { transform: scale(1.05); }
+  .veil-vc-vol-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--veil-brand, #7c3aed) 35%, transparent), 0 2px 8px rgba(0, 0, 0, 0.55);
+  }
+  .veil-vc-vol-slider::-moz-range-track {
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .veil-vc-vol-pct {
+    min-width: 30px;
+    text-align: right;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    color: rgba(255, 255, 255, 0.78);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
   }
 
   /* ── Voice Note / Audio Waveform Player ──────────────────────────────── */

@@ -406,7 +406,7 @@
               disabled={profileEditBusy}
               title="Fotoğrafı Değiştir / Konumlandır"
             >
-              <Icon name="camera" size={16} />
+              <Icon name="user" size={16} />
             </button>
           {/if}
         </div>

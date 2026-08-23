@@ -533,6 +533,7 @@ pub fn run() {
             social::presence_update,
             social::typing_set,
             social::get_user_profile,
+            social::refresh_profile,
             social::resolve_username,
             social::get_mutual_spaces,
             social::get_mutual_friends,

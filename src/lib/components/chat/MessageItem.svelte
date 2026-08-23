@@ -129,8 +129,7 @@
   }
 
   async function beginEdit() {
-    if (!message.content) return;
-    editDraft = message.content;
+    editDraft = message.content ?? '';
     editing = true;
     await tick();
     editTextarea?.focus();
@@ -139,7 +138,13 @@
 
   async function saveEdit() {
     const next = editDraft.trim();
-    if (!next || next === message.content) {
+    const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
+    if (next === (message.content ?? '')) {
+      cancelEdit();
+      return;
+    }
+    // Ek yoksa boş içerik kaydedilemez; ek varsa başlık/altyazı boşaltılabilir.
+    if (!next && !hasAttachments) {
       cancelEdit();
       return;
     }
@@ -233,7 +238,7 @@
 
     if (isOwn || canDelete) {
       items.push({ label: '', separator: true });
-      if (isOwn && message.content) {
+      if (isOwn) {
         items.push({ label: 'Düzenle', icon: 'edit', onClick: beginEdit });
       }
       if (canDelete) {

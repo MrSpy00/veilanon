@@ -149,13 +149,8 @@
     listen<{ id?: string; avatar_hash?: string | null; banner_hash?: string | null; display_name?: string; username?: string }>('user:updated', (e) => {
       const payload = e.payload ?? {};
       const self = $authStore.identity;
-      if (self && payload.id === self.id) {
-        const patch: Partial<import('$lib/api/tauri').IdentityInfo> = {};
-        if (typeof payload.display_name === 'string' && payload.display_name) patch.displayName = payload.display_name;
-        if (typeof payload.username === 'string' && payload.username) patch.username = payload.username;
-        if (typeof payload.avatar_hash === 'string' && payload.avatar_hash) patch.avatarHash = payload.avatar_hash;
-        if (typeof payload.banner_hash === 'string' && payload.banner_hash) patch.bannerHash = payload.banner_hash;
-        if (Object.keys(patch).length > 0) authStore.updateIdentity(patch);
+      if (self && (!payload.id || payload.id === self.id)) {
+        void authStore.refreshRemoteProfile();
       }
       void spaceStore.loadSpaces();
       void spaceStore.loadDms();

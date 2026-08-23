@@ -790,6 +790,9 @@ export const socialApi = {
   getUserProfile(userId: string) {
     return invoke<UserProfileInfo>('get_user_profile', { userId });
   },
+  refreshProfile() {
+    return invoke<UserProfileInfo>('refresh_profile');
+  },
   resolveUsername(username: string) {
     return invoke<UserProfileInfo>('resolve_username', { username });
   },

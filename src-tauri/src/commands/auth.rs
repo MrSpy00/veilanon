@@ -424,8 +424,8 @@ pub async fn login_with_credentials(
             if let Some(row) = rows.first() {
                 let un = row.get("username").and_then(|v| v.as_str()).unwrap_or(&clean_username).to_string();
                 let disp = row.get("display_name").and_then(|v| v.as_str()).unwrap_or(&clean_username).to_string();
-                let av = row.get("avatar_hash").and_then(|v| v.as_str()).map(str::to_string);
-                let ban = row.get("banner_hash").and_then(|v| v.as_str()).map(str::to_string);
+                let av = row.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+                let ban = row.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
                 remote_profile = Some((un, disp, av, ban));
             }
         }
@@ -975,10 +975,10 @@ pub async fn load_identity(
                     .await
                     .unwrap_or_default();
                 if let Some(row) = remote.first() {
-                    let ru = row.get("username").and_then(|v| v.as_str()).map(str::to_string);
-                    let rd = row.get("display_name").and_then(|v| v.as_str()).map(str::to_string);
-                    let ra = row.get("avatar_hash").and_then(|v| v.as_str()).map(str::to_string);
-                    let rb = row.get("banner_hash").and_then(|v| v.as_str()).map(str::to_string);
+                    let ru = row.get("username").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+                    let rd = row.get("display_name").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+                    let ra = row.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+                    let rb = row.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
                     if ru.is_some() || rd.is_some() || ra.is_some() || rb.is_some() {
                         let ru = ru.unwrap_or_else(|| username.clone());
                         let rd = rd.unwrap_or_else(|| display_name.clone());
@@ -1357,8 +1357,8 @@ pub async fn bind_control_plane_handles(
             ).await {
                 if let Some(row) = rows.first() {
                     let remote_disp = row.get("display_name").and_then(|v| v.as_str());
-                    let remote_avatar = row.get("avatar_hash").and_then(|v| v.as_str());
-                    let remote_banner = row.get("banner_hash").and_then(|v| v.as_str());
+                    let remote_avatar = row.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+                    let remote_banner = row.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
                     if let Some(disp) = remote_disp {
                         if !disp.is_empty() && (identity.display_name.is_empty() || identity.display_name.starts_with("kullanici-")) {
                             let db = db_arc.read().await;

@@ -78,6 +78,7 @@ function createAuthStore() {
             loading: false,
             error: null,
           }));
+          void this.refreshRemoteProfile();
           return;
         }
       } catch { /* proceed to manual login */ }
@@ -88,6 +89,23 @@ function createAuthStore() {
 
     async getIdentityHint() {
       return loadIdentityHint();
+    },
+
+    /** Kendi profilini Supabase'ten yeniden çeker ve kimlik durumuna uygular. */
+    async refreshRemoteProfile() {
+      try {
+        const { socialApi } = await import('$lib/api/tauri');
+        const p = await socialApi.refreshProfile();
+        update(s => {
+          if (!s.identity) return s;
+          const next = { ...s.identity };
+          if (p.displayName) next.displayName = p.displayName;
+          if (p.username) next.username = p.username;
+          if (p.avatarHash) next.avatarHash = p.avatarHash;
+          if (p.bannerHash) next.bannerHash = p.bannerHash;
+          return { ...s, identity: next };
+        });
+      } catch { /* best-effort: yerel durum korunur */ }
     },
 
     async createIdentity(username: string, displayName: string, passphrase: string, rememberMe = false) {
@@ -107,6 +125,7 @@ function createAuthStore() {
           loading: false,
           error: null,
         }));
+        void this.refreshRemoteProfile();
         return response;
       } catch (err) {
         const error = String(err);
@@ -132,6 +151,7 @@ function createAuthStore() {
           loading: false,
           error: null,
         }));
+        void this.refreshRemoteProfile();
         return response;
       } catch (err) {
         const error = String(err);
@@ -179,6 +199,7 @@ function createAuthStore() {
           loading: false,
           error: null,
         }));
+        void this.refreshRemoteProfile();
         return response;
       } catch (err) {
         const error = String(err);
