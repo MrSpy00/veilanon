@@ -57,6 +57,9 @@
 
     let cancelled = false;
     const prevSrc = resolvedSrc;
+    const prevLoaded = isLoaded;
+    isLoaded = false;
+    hasError = false;
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
       if (!cancelled && dataUrl) {
         bannerMemoryCache.set(cleanHash, dataUrl);
@@ -65,11 +68,12 @@
         hasError = false;
       } else if (!cancelled && !dataUrl) {
         hasError = true;
+        isLoaded = false;
       }
     }).catch(() => {
       if (!cancelled) {
         hasError = true;
-        isLoaded = false;
+        isLoaded = prevLoaded;
         resolvedSrc = prevSrc;
       }
     });
@@ -121,6 +125,6 @@
     display: block;
     opacity: 1;
     z-index: 2;
-    will-change: opacity;
+    transition: opacity 0.2s ease;
   }
 </style>

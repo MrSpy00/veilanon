@@ -1202,17 +1202,17 @@ textarea,
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 0 8px;
+  padding: 6px 0 8px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 1px;
 }
 
 .veil-message {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 0.5px var(--space-4);
+  padding: 2px var(--space-4);
   margin-top: 0;
   position: relative;
   border-radius: var(--radius-sm);
@@ -1222,10 +1222,10 @@ textarea,
   margin-top: 0;
 }
 .veil-message.group-start {
-  margin-top: 6px;
+  margin-top: 10px;
   padding-top: 2px;
 }
-.veil-message-body { gap: 0; }
+.veil-message-body { gap: 2px; }
 .veil-message:hover { background: var(--veil-msg-hover); }
 .veil-message.own { background: var(--veil-msg-own); }
 .veil-message.grouped {

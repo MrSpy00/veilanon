@@ -1075,20 +1075,21 @@ pub async fn dm_list(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, Vei
                     if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
                         if let Ok(uid) = Uuid::parse_str(uid_str) {
                             let raw_status = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
-                            let status_str = if raw_status != "offline" && raw_status != "invisible" {
+                            let mut status_str = raw_status;
+                            if raw_status != "offline" && raw_status != "invisible" {
                                 let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
-                                if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                    if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() <= 90 {
-                                        raw_status
-                                    } else {
-                                        "offline"
+                                if hb_str.is_empty() {
+                                    status_str = "offline";
+                                } else if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
+                                    if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 90 {
+                                        status_str = "offline";
                                     }
                                 } else {
-                                    "offline"
+                                    status_str = "offline";
                                 }
-                            } else {
-                                "offline"
-                            };
+                            } else if raw_status == "invisible" {
+                                status_str = "offline";
+                            }
                             let _ = db.update_presence(&uid, status_str);
                         }
                     }

@@ -1911,7 +1911,7 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
             user_ids.dedup();
 
             if !user_ids.is_empty() {
-                let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash", user_ids.join(","));
+                let users_filter = format!("id=in.({})&select=id,username,display_name,avatar_hash,banner_hash,bio,custom_status", user_ids.join(","));
                 if let Ok(users) = network.api.select::<serde_json::Value>("users", &users_filter, None, Some(200)).await {
                     let db = state.db.read().await;
                     for u in users {
@@ -1922,7 +1922,10 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
                         ) {
                             if let Ok(uid) = Uuid::parse_str(uid_str) {
                                 let av = u.get("avatar_hash").and_then(|v| v.as_str());
-                                let _ = db.upsert_profile(&uid, uname, disp, av, None, None, None, None, None);
+                                let banner = u.get("banner_hash").and_then(|v| v.as_str());
+                                let bio = u.get("bio").and_then(|v| v.as_str());
+                                let status = u.get("custom_status").and_then(|v| v.as_str());
+                                let _ = db.upsert_profile(&uid, uname, disp, av, None, None, banner, bio, status);
                                 let _ = db.add_space_member(&space_id, &uid);
                             }
                         }
@@ -1985,7 +1988,6 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
                     }
                 }
 
-                // Sync member presence from remote with 90s TTL check
                 let presence_filter = format!("user_id=in.({})&select=user_id,status,heartbeat_at,last_seen", user_ids.join(","));
                 if let Ok(presences) = network.api.select::<serde_json::Value>("presence", &presence_filter, None, Some(200)).await {
                     let db = state.db.read().await;
@@ -1994,15 +1996,22 @@ pub async fn members_list(space_id: String, state: State<'_, AppState>) -> Resul
                         if let Some(uid_str) = p.get("user_id").and_then(|v| v.as_str()) {
                             if let Ok(uid) = Uuid::parse_str(uid_str) {
                                 let mut status_str = p.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
-                                if status_str != "offline" {
+                                if status_str != "offline" && status_str != "invisible" {
                                     let hb_str = p.get("heartbeat_at").or_else(|| p.get("last_seen")).and_then(|v| v.as_str()).unwrap_or("");
                                     if !hb_str.is_empty() {
                                         if let Ok(hb_time) = chrono::DateTime::parse_from_rfc3339(hb_str) {
-                                            if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 300 {
+                                            if (now - hb_time.with_timezone(&chrono::Utc)).num_seconds() > 90 {
                                                 status_str = "offline";
                                             }
+                                        } else {
+                                            status_str = "offline";
                                         }
+                                    } else {
+                                        status_str = "offline";
                                     }
+                                }
+                                if status_str == "invisible" {
+                                    status_str = "offline";
                                 }
                                 let _ = db.update_presence(&uid, status_str);
                             }
@@ -2086,7 +2095,6 @@ pub async fn members_update(
                     &serde_json::json!({
                         "role_id": r_id.to_string(),
                         "user_id": user_id.to_string(),
-                        "space_id": space_id.to_string(),
                     }),
                     "role_id,user_id",
                 )

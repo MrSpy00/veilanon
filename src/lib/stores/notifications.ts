@@ -134,9 +134,10 @@ async function getOrFetchSettings(): Promise<AppSettings | null> {
 }
 
 const recentToastMessages = new Map<string, number>();
+let lastAnyToastAt = 0;
 
 function normalizeToastKey(msg: string): string {
-  return msg.trim().toLowerCase().replace(/[\s.,!?;:()]+/g, ' ');
+  return msg.trim().toLowerCase().replace(/[\s.,!?;:()]+/g, ' ').replace(/\d+/g, '#');
 }
 
 function addToast(type: ToastType, message: string, duration = 4000, action?: ToastAction) {
@@ -144,28 +145,28 @@ function addToast(type: ToastType, message: string, duration = 4000, action?: To
   const cleanMsg = message.trim();
   const key = normalizeToastKey(cleanMsg);
   const now = Date.now();
+  if (now - lastAnyToastAt < 650) {
+    const lastTime = recentToastMessages.get(key);
+    if (lastTime && now - lastTime < 7000) return '';
+    if (now - lastAnyToastAt < 650) return '';
+  }
   const lastTime = recentToastMessages.get(key);
-  if (lastTime && now - lastTime < 6000) {
+  if (lastTime && now - lastTime < 7000) {
     return '';
   }
   recentToastMessages.set(key, now);
-  setTimeout(() => recentToastMessages.delete(key), 6500);
+  lastAnyToastAt = now;
+  setTimeout(() => recentToastMessages.delete(key), 7500);
 
   const currentToasts = get(TOASTS_STORE);
   if (currentToasts.some((t) => normalizeToastKey(t.message) === key)) {
     return '';
   }
-  if (currentToasts.length > 0) {
-    const lastToast = currentToasts[currentToasts.length - 1];
-    if (lastToast && Date.now() - (recentToastMessages.get(normalizeToastKey(lastToast.message)) ?? 0) < 400) {
-      // allow different messages but throttle burst to max 3 concurrent
-      if (currentToasts.length >= 2) return '';
-    }
-  }
-
+  // Hard cap: max 2 concurrent toasts — drop oldest
+  if (currentToasts.length >= 2) return '';
   const id = crypto.randomUUID();
   TOASTS_STORE.update((toasts) => {
-    const trimmed = toasts.slice(-2);
+    const trimmed = toasts.slice(-1);
     return [...trimmed, { id, type, message: cleanMsg, duration, action }];
   });
   if (duration > 0) {

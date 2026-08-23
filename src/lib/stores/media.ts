@@ -109,6 +109,7 @@ function createMediaStore() {
   let localAnalyser: AnalyserNode | null = null;
   let localVadTimer: ReturnType<typeof setInterval> | null = null;
   let isJoining = false;
+  let previewStream: MediaStream | null = null;
 
   const participantVolumeMap: Record<string, number> = {};
 
@@ -339,7 +340,10 @@ function createMediaStore() {
       const previousDeafened = current.isDeafened;
       const previousCameraOn = current.isCameraOn;
 
-      // Cleanly disconnect previous room if any
+      if (previewStream) {
+        previewStream.getTracks().forEach(t => t.stop());
+        previewStream = null;
+      }
       if (room) {
         const oldRoom = room;
         room = null;
@@ -814,9 +818,24 @@ function createMediaStore() {
       const nextCamera = !current.isCameraOn;
 
       if (!room) {
-        update(s => ({ ...s, isCameraOn: nextCamera }));
         if (nextCamera) {
-          toastStore.info('Kamera önizleme modunda. Sese katıldığında otomatik etkinleşecek.');
+          try {
+            const s = await settingsApi.get().catch(() => null);
+            let constraints: MediaStreamConstraints = { video: { width: 1280, height: 720, frameRate: 30 } as any, audio: false };
+            if (s?.videoDeviceId) constraints.video = { deviceId: { exact: s.videoDeviceId } } as any;
+            previewStream = await navigator.mediaDevices.getUserMedia(constraints);
+            update(st => ({ ...st, isCameraOn: true }));
+          } catch (e) {
+            update(st => ({ ...st, isCameraOn: false }));
+            toastStore.error(`Kamera açılamadı: ${String(e).replace(/^Error:\s*/, '')}`);
+            return;
+          }
+        } else {
+          if (previewStream) {
+            previewStream.getTracks().forEach(t => t.stop());
+            previewStream = null;
+          }
+          update(s => ({ ...s, isCameraOn: false }));
         }
         return;
       }

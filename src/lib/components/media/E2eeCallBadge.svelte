@@ -41,7 +41,7 @@
     <span class="veil-e2ee-status-dot" class:is-e2ee={isE2ee} aria-hidden="true"></span>
     <Icon name={isE2ee ? 'lock' : 'shield'} size={12} />
     <span class="veil-e2ee-text">{isE2ee ? 'E2EE Korumalı' : 'TLS Güvenli'}</span>
-    <span class="veil-e2ee-help-icon" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); showDetails = !showDetails; }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showDetails = !showDetails; } }} title="Yardım">?</span>
+    <span class="veil-e2ee-help-icon" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); showDetails = !showDetails; }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showDetails = !showDetails; } }} title="Güvenlik detaylarını görmek için tıklayın — E2EE / TLS açıklaması">?</span>
   </button>
 
   {#if showDetails}
@@ -94,20 +94,21 @@
   .veil-e2ee-badge {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 1px 7px;
+    gap: 4px;
+    padding: 3px 8px;
     border-radius: var(--radius-full, 9999px);
     border: 1px solid var(--veil-border-subtle, rgba(255, 255, 255, 0.08));
     background: color-mix(in srgb, var(--veil-bg-elevated, #1a1e2d) 92%, transparent);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px) saturate(1.2);
     color: var(--veil-text-muted, #9aa0a6);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.015em;
     cursor: pointer;
     transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
     line-height: 1;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.18);
   }
 
   .veil-e2ee-badge:hover {
@@ -149,16 +150,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.10);
     color: var(--veil-text-muted, #8b8d94);
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
     margin-left: 2px;
     cursor: help;
     transition: background 0.15s, color 0.15s;
+    border: 1px solid rgba(255,255,255,0.08);
   }
 
   .veil-e2ee-help-icon:hover,
