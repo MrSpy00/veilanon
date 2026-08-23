@@ -59,34 +59,133 @@ fn embedded(key: &str) -> Option<String> {
     obf_hex.and_then(deobfuscate)
 }
 
+fn key_aliases(key: &str) -> Vec<String> {
+    let mut list = vec![key.to_string()];
+    let upper = key.to_ascii_uppercase();
+    if upper != key {
+        list.push(upper.clone());
+    }
+
+    if let Some(stripped) = upper.strip_prefix("VEILANON_") {
+        list.push(stripped.to_string());
+        list.push(format!("NEXT_PUBLIC_{stripped}"));
+        list.push(format!("PUBLIC_{stripped}"));
+        list.push(format!("VITE_{stripped}"));
+        list.push(format!("TAURI_{stripped}"));
+    } else {
+        list.push(format!("VEILANON_{upper}"));
+    }
+
+    if upper == "VEILANON_LIVEKIT_API_SECRET" || upper == "LIVEKIT_API_SECRET" {
+        list.push("LIVEKIT_SECRET".to_string());
+        list.push("VEILANON_LIVEKIT_SECRET".to_string());
+        list.push("LIVEKIT_SECRET_KEY".to_string());
+    } else if upper == "VEILANON_LIVEKIT_API_KEY" || upper == "LIVEKIT_API_KEY" {
+        list.push("LIVEKIT_KEY".to_string());
+        list.push("VEILANON_LIVEKIT_KEY".to_string());
+    } else if upper == "VEILANON_SUPABASE_ANON_KEY" || upper == "SUPABASE_ANON_KEY" {
+        list.push("SUPABASE_KEY".to_string());
+        list.push("VEILANON_SUPABASE_KEY".to_string());
+    } else if upper == "VEILANON_R2_ACCOUNT_ID" || upper == "R2_ACCOUNT_ID" {
+        list.push("CLOUDFLARE_ACCOUNT_ID".to_string());
+        list.push("ACCOUNT_ID".to_string());
+    }
+    list
+}
+
 /// Runtime env first, encrypted store second, embedded value third.
 /// Empty runtime values are treated as unset so an accidentally empty
 /// variable cannot shadow real config. Falls back to direct .env file read
-/// when neither runtime env nor embedded value is present (covers dev
-/// preview and cases where the binary was built without embedded env).
+/// across multiple candidate paths with aliases.
 pub fn var(key: &str) -> Option<String> {
-    match std::env::var(key) {
-        Ok(v) if !v.is_empty() => Some(v),
-        _ => secrets::get(key)
-            .or_else(|| embedded(key))
-            .or_else(|| read_dotenv_runtime(key)),
+    let aliases = key_aliases(key);
+    for k in &aliases {
+        if let Ok(v) = std::env::var(k) {
+            let trimmed = v.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
     }
+
+    for k in &aliases {
+        if let Some(v) = secrets::get(k) {
+            let trimmed = v.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
+        if let Some(v) = embedded(k) {
+            let trimmed = v.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
+        }
+    }
+
+    read_dotenv_runtime(&aliases)
 }
 
-fn read_dotenv_runtime(key: &str) -> Option<String> {
-    for cand in [
-        std::path::Path::new(".env"),
-        std::path::Path::new("../.env"),
-    ] {
-        if let Ok(contents) = std::fs::read_to_string(cand) {
+fn read_dotenv_runtime(aliases: &[String]) -> Option<String> {
+    let mut candidates = vec![
+        std::path::PathBuf::from(".env"),
+        std::path::PathBuf::from("../.env"),
+        std::path::PathBuf::from("../../.env"),
+        std::path::PathBuf::from("src-tauri/.env"),
+    ];
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join(".env"));
+        candidates.push(cwd.join("src-tauri").join(".env"));
+        if let Some(p) = cwd.parent() {
+            candidates.push(p.join(".env"));
+        }
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join(".env"));
+            if let Some(grandparent) = parent.parent() {
+                candidates.push(grandparent.join(".env"));
+            }
+        }
+    }
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        candidates.push(std::path::Path::new(&appdata).join("veilanon").join(".env"));
+    }
+    if let Ok(userprofile) = std::env::var("USERPROFILE") {
+        candidates.push(std::path::Path::new(&userprofile).join(".veilanon").join(".env"));
+        candidates.push(std::path::Path::new(&userprofile).join(".env"));
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        candidates.push(std::path::Path::new(&home).join(".veilanon").join(".env"));
+        candidates.push(std::path::Path::new(&home).join(".config").join("veilanon").join(".env"));
+        candidates.push(std::path::Path::new(&home).join(".env"));
+    }
+
+    for cand in candidates {
+        if !cand.exists() {
+            continue;
+        }
+        if let Ok(contents) = std::fs::read_to_string(&cand) {
+            // Remove UTF-8 BOM if present
+            let contents = contents.strip_prefix('\u{feff}').unwrap_or(&contents);
             for line in contents.lines() {
                 let line = line.trim();
                 if line.is_empty() || line.starts_with('#') {
                     continue;
                 }
                 if let Some((k, v)) = line.split_once('=') {
-                    if k.trim() == key {
+                    let k_clean = k.trim();
+                    if aliases.iter().any(|a| a.eq_ignore_ascii_case(k_clean)) {
                         let mut v = v.trim().to_string();
+                        // Strip trailing inline comments if not in quotes
+                        if !v.starts_with('"') && !v.starts_with('\'') {
+                            if let Some((val_part, _)) = v.split_once(" #") {
+                                v = val_part.trim().to_string();
+                            }
+                        }
                         if v.len() >= 2 {
                             let first = v.chars().next().unwrap();
                             let last = v.chars().last().unwrap();

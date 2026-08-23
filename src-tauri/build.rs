@@ -121,6 +121,25 @@ fn emit_obfuscated_env(key: &str, value: &str) {
     println!("cargo:rustc-env={key}_OBF={masked_hex}");
 }
 
+fn canonical_embed_key(raw_key: &str) -> Option<&'static str> {
+    let upper = raw_key.trim().to_ascii_uppercase();
+    match upper.as_str() {
+        "VEILANON_SUPABASE_URL" | "SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_URL" | "PUBLIC_SUPABASE_URL" | "VITE_SUPABASE_URL" => Some("VEILANON_SUPABASE_URL"),
+        "VEILANON_SUPABASE_ANON_KEY" | "SUPABASE_ANON_KEY" | "SUPABASE_KEY" | "NEXT_PUBLIC_SUPABASE_ANON_KEY" | "PUBLIC_SUPABASE_ANON_KEY" | "VITE_SUPABASE_ANON_KEY" => Some("VEILANON_SUPABASE_ANON_KEY"),
+        "VEILANON_LIVEKIT_URL" | "LIVEKIT_URL" | "PUBLIC_LIVEKIT_URL" | "NEXT_PUBLIC_LIVEKIT_URL" | "TAURI_LIVEKIT_URL" | "VITE_LIVEKIT_URL" => Some("VEILANON_LIVEKIT_URL"),
+        "VEILANON_LIVEKIT_API_KEY" | "LIVEKIT_API_KEY" | "LIVEKIT_KEY" | "PUBLIC_LIVEKIT_API_KEY" | "VITE_LIVEKIT_API_KEY" => Some("VEILANON_LIVEKIT_API_KEY"),
+        "VEILANON_LIVEKIT_API_SECRET" | "LIVEKIT_API_SECRET" | "LIVEKIT_SECRET" | "LIVEKIT_SECRET_KEY" | "VEILANON_LIVEKIT_SECRET" => Some("VEILANON_LIVEKIT_API_SECRET"),
+        "VEILANON_R2_ACCOUNT_ID" | "R2_ACCOUNT_ID" | "CLOUDFLARE_ACCOUNT_ID" | "ACCOUNT_ID" => Some("VEILANON_R2_ACCOUNT_ID"),
+        "VEILANON_R2_BUCKET" | "R2_BUCKET" | "R2_BUCKET_NAME" | "BUCKET_NAME" => Some("VEILANON_R2_BUCKET"),
+        "VEILANON_UPSTASH_REDIS_REST_URL" | "UPSTASH_REDIS_REST_URL" | "REDIS_URL" => Some("VEILANON_UPSTASH_REDIS_REST_URL"),
+        "VEILANON_QDRANT_URL" | "QDRANT_URL" => Some("VEILANON_QDRANT_URL"),
+        "VEILANON_OLLAMA_URL" | "OLLAMA_URL" => Some("VEILANON_OLLAMA_URL"),
+        "VEILANON_TENOR_API_KEY" | "TENOR_API_KEY" => Some("VEILANON_TENOR_API_KEY"),
+        "VEILANON_GIPHY_API_KEY" | "GIPHY_API_KEY" => Some("VEILANON_GIPHY_API_KEY"),
+        _ => None,
+    }
+}
+
 /// Emits obfuscated cargo env ONLY for whitelisted NON-SECRET keys.
 fn embed_env_file(contents: &str) -> usize {
     let mut count = 0usize;
@@ -133,11 +152,16 @@ fn embed_env_file(contents: &str) -> usize {
             Some(kv) => kv,
             None => continue,
         };
-        let key = key.trim();
-        if !EMBEDDABLE_KEYS.contains(&key) {
-            continue;
-        }
+        let canonical_key = match canonical_embed_key(key) {
+            Some(k) => k,
+            None => continue,
+        };
         let mut value = value.trim().to_string();
+        if !value.starts_with('"') && !value.starts_with('\'') {
+            if let Some((val_part, _)) = value.split_once(" #") {
+                value = val_part.trim().to_string();
+            }
+        }
         if value.len() >= 2 {
             let first = value.chars().next().unwrap();
             let last = value.chars().last().unwrap();
@@ -145,10 +169,10 @@ fn embed_env_file(contents: &str) -> usize {
                 value = value[1..value.len() - 1].to_string();
             }
         }
-        if value.contains('\n') || value.contains('\r') {
+        if value.contains('\n') || value.contains('\r') || value.is_empty() {
             continue;
         }
-        emit_obfuscated_env(key, &value);
+        emit_obfuscated_env(canonical_key, &value);
         count += 1;
     }
     count

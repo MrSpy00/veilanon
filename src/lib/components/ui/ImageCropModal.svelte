@@ -140,6 +140,17 @@
     else if (e.key === 'Escape') { onClose(); }
   }
 
+  const isAnimated = $derived(
+    resolvedSrc.startsWith('data:image/gif') ||
+    resolvedSrc.startsWith('data:image/webp') ||
+    (typeof src === 'string' && (src.toLowerCase().endsWith('.gif') || src.toLowerCase().endsWith('.webp')))
+  );
+
+  function saveOriginalAnimated() {
+    if (!resolvedSrc || loadError) return;
+    onSave(resolvedSrc);
+  }
+
   async function applyCrop() {
     if (!resolvedSrc) return;
     isProcessing = true;
@@ -285,6 +296,13 @@
         <div class="veil-crop-grid-overlay" class:circle-mask={shape === 'circle'}></div>
       </div>
 
+      {#if isAnimated}
+        <div class="veil-animated-avatar-notice">
+          <Icon name="sparkles" size={15} />
+          <span>Bu görsel hareketli bir animasyon içeriyor (GIF / WebP).</span>
+        </div>
+      {/if}
+
       {#if loadError}
         <p class="veil-crop-error" role="alert">Görsel yüklenemedi.</p>
       {/if}
@@ -294,7 +312,7 @@
         <div class="veil-crop-zoom-group">
           <button
             class="veil-crop-btn-sm"
-            onclick={() => (scale = Math.max(1, +(scale - 0.1).toFixed(2)))}
+            onclick={() => (scale = Math.max(0.5, +(scale - 0.1).toFixed(2)))}
             title="Uzaklaştır"
             aria-label="Uzaklaştır"
           >
@@ -303,7 +321,7 @@
 
           <input
             type="range"
-            min="1"
+            min="0.5"
             max="3"
             step="0.01"
             bind:value={scale}
@@ -337,13 +355,24 @@
       <button class="btn btn-ghost btn-sm" onclick={onClose} disabled={isProcessing}>
         İptal
       </button>
+      {#if isAnimated}
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick={saveOriginalAnimated}
+          disabled={isProcessing || !resolvedSrc || loadError}
+          title="Animasyonu koruyarak orijinal haliyle yükle"
+        >
+          <Icon name="sparkles" size={14} />
+          Animasyonu Koru
+        </button>
+      {/if}
       <button class="btn btn-primary btn-sm" onclick={applyCrop} disabled={isProcessing || !resolvedSrc || loadError}>
         {#if isProcessing}
           <div class="veil-spinner veil-spinner-sm"></div>
           İşleniyor…
         {:else}
           <Icon name="check" size={14} />
-          Uygula & Kaydet
+          {isAnimated ? 'Kırpılmış Kare Kaydet' : 'Uygula & Kaydet'}
         {/if}
       </button>
     </div>
@@ -422,6 +451,19 @@
     font-size: var(--text-xs);
     color: var(--veil-text-muted);
     line-height: var(--leading-normal);
+  }
+
+  .veil-animated-avatar-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--veil-brand) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--veil-brand) 25%, transparent);
+    color: var(--veil-brand);
+    font-size: 11px;
+    font-weight: 500;
   }
 
   .veil-crop-error {

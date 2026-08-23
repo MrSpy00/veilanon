@@ -1,5 +1,11 @@
 <script lang="ts" module>
   const avatarMemoryCache = new Map<string, string>();
+
+  export function cacheAvatar(hash: string, dataUrl: string) {
+    if (hash && dataUrl) {
+      avatarMemoryCache.set(hash.trim(), dataUrl);
+    }
+  }
 </script>
 
 <script lang="ts">

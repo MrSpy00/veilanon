@@ -146,6 +146,18 @@
     else if (e.key === 'Escape') { onClose(); }
   }
 
+  let fitMode = $state<'cover' | 'contain'>('cover');
+  const isAnimated = $derived(
+    resolvedSrc.startsWith('data:image/gif') ||
+    resolvedSrc.startsWith('data:image/webp') ||
+    (typeof src === 'string' && (src.toLowerCase().endsWith('.gif') || src.toLowerCase().endsWith('.webp')))
+  );
+
+  function saveOriginalAnimated() {
+    if (!resolvedSrc || loadError) return;
+    onSave(resolvedSrc);
+  }
+
   async function applyCrop() {
     if (!resolvedSrc || loadError) return;
     isProcessing = true;
@@ -186,27 +198,36 @@
       ctx.fillStyle = '#0f1117';
       ctx.fillRect(0, 0, cropWidth, cropHeight);
 
-      // Compute cover dimensions matching preview
-      const containerRatio = containerRect.width / containerRect.height;
-      const imageRatio = nw / nh;
-      let baseW = containerRect.width;
-      let baseH = containerRect.height;
-
-      if (imageRatio > containerRatio) {
-        baseH = containerRect.height;
-        baseW = containerRect.height * imageRatio;
+      if (fitMode === 'contain') {
+        const hRatio = cropWidth / nw;
+        const vRatio = cropHeight / nh;
+        const ratio = Math.min(hRatio, vRatio) * scale;
+        const centerShiftX = (cropWidth - nw * ratio) / 2 + posX * scaleFactor;
+        const centerShiftY = (cropHeight - nh * ratio) / 2 + posY * scaleFactor;
+        ctx.drawImage(sourceImage, 0, 0, nw, nh, centerShiftX, centerShiftY, nw * ratio, nh * ratio);
       } else {
-        baseW = containerRect.width;
-        baseH = containerRect.width / imageRatio;
+        // Compute cover dimensions matching preview
+        const containerRatio = containerRect.width / containerRect.height;
+        const imageRatio = nw / nh;
+        let baseW = containerRect.width;
+        let baseH = containerRect.height;
+
+        if (imageRatio > containerRatio) {
+          baseH = containerRect.height;
+          baseW = containerRect.height * imageRatio;
+        } else {
+          baseW = containerRect.width;
+          baseH = containerRect.width / imageRatio;
+        }
+
+        const renderW = baseW * scale * scaleFactor;
+        const renderH = baseH * scale * scaleFactor;
+
+        const drawX = posX * scaleFactor + (cropWidth - renderW) / 2;
+        const drawY = posY * scaleFactor + (cropHeight - renderH) / 2;
+
+        ctx.drawImage(sourceImage, drawX, drawY, renderW, renderH);
       }
-
-      const renderW = baseW * scale * scaleFactor;
-      const renderH = baseH * scale * scaleFactor;
-
-      const drawX = posX * scaleFactor + (cropWidth - renderW) / 2;
-      const drawY = posY * scaleFactor + (cropHeight - renderH) / 2;
-
-      ctx.drawImage(sourceImage, drawX, drawY, renderW, renderH);
 
       const dataUrl = canvas.toDataURL('image/png', 0.95);
       onSave(dataUrl);
@@ -222,19 +243,43 @@
 <div class="veil-crop-backdrop" role="dialog" aria-modal="true" aria-labelledby="crop-modal-title">
   <div class="veil-crop-modal">
     <div class="veil-crop-header">
-      <h3 id="crop-modal-title" class="veil-crop-title">{title}</h3>
+      <div class="veil-crop-title-wrap">
+        <Icon name="image" size={18} />
+        <h3 id="crop-modal-title" class="veil-crop-title">{title}</h3>
+      </div>
       <button class="btn-icon" onclick={onClose} aria-label="Kapat">
         <Icon name="x" size={16} />
       </button>
     </div>
 
     <div class="veil-crop-body">
-      <p class="veil-crop-hint">Görseli istediğin gibi konumlandırmak için sürükle veya yakınlaştır.</p>
+      <div class="veil-crop-hint-row">
+        <p class="veil-crop-hint">Görseli istediğin gibi konumlandırmak için sürükle veya yakınlaştır.</p>
+        <div class="veil-crop-mode-toggle">
+          <button
+            type="button"
+            class="veil-mode-btn"
+            class:active={fitMode === 'cover'}
+            onclick={() => { fitMode = 'cover'; resetPosition(); }}
+          >
+            Doldur
+          </button>
+          <button
+            type="button"
+            class="veil-mode-btn"
+            class:active={fitMode === 'contain'}
+            onclick={() => { fitMode = 'contain'; resetPosition(); }}
+          >
+            Sığdır
+          </button>
+        </div>
+      </div>
 
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div
         class="veil-crop-viewport"
+        class:is-contain={fitMode === 'contain'}
         bind:this={containerElement}
         onmousedown={onMouseDown}
         ontouchstart={onTouchStart}
@@ -255,7 +300,7 @@
             onload={handleImageLoad}
             onerror={() => (loadError = true)}
             draggable="false"
-            style="transform: translate({posX}px, {posY}px) scale({scale});"
+            style="transform: translate({posX}px, {posY}px) scale({scale}); object-fit: {fitMode === 'contain' ? 'contain' : 'cover'};"
           />
         {/if}
 
@@ -270,6 +315,13 @@
         <div class="veil-crop-grid-overlay" aria-hidden="true"></div>
       </div>
 
+      {#if isAnimated}
+        <div class="veil-animated-banner-notice">
+          <Icon name="sparkles" size={15} />
+          <span>Bu görsel hareketli bir animasyon içeriyor (GIF / WebP).</span>
+        </div>
+      {/if}
+
       {#if loadError}
         <p class="veil-crop-error" role="alert">Görsel yüklenemedi.</p>
       {:else if cropError}
@@ -281,7 +333,7 @@
           <Icon name="zoom-out" size={16} />
           <input
             type="range"
-            min="1"
+            min="0.5"
             max="3"
             step="0.05"
             bind:value={scale}
@@ -298,12 +350,25 @@
 
     <div class="veil-crop-footer">
       <button class="btn btn-ghost" onclick={onClose} disabled={isProcessing} type="button">İptal</button>
+      {#if isAnimated}
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick={saveOriginalAnimated}
+          disabled={isProcessing || !resolvedSrc || loadError}
+          type="button"
+          title="Animasyonu koruyarak orijinal haliyle yükle"
+        >
+          <Icon name="sparkles" size={14} />
+          Animasyonu Koru
+        </button>
+      {/if}
       <button class="btn btn-primary" onclick={applyCrop} disabled={isProcessing || !resolvedSrc || loadError} type="button">
         {#if isProcessing}
           <div class="veil-spinner veil-spinner-sm"></div>
           Kaydediliyor…
         {:else}
-          Uygula ve Kaydet
+          <Icon name="check" size={14} />
+          {isAnimated ? 'Kırpılmış Olarak Kaydet' : 'Uygula ve Kaydet'}
         {/if}
       </button>
     </div>
@@ -345,6 +410,14 @@
     padding: var(--space-4);
     border-bottom: 1px solid var(--veil-border-subtle);
   }
+  .veil-crop-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--veil-text-primary);
+  }
   .veil-crop-title {
     font-size: var(--text-base);
     font-weight: 700;
@@ -356,10 +429,54 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+  .veil-crop-hint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
   .veil-crop-hint {
     font-size: var(--text-xs);
     color: var(--veil-text-muted);
     margin: 0;
+  }
+  .veil-crop-mode-toggle {
+    display: inline-flex;
+    padding: 2px;
+    background: var(--veil-bg-surface, #1e1f22);
+    border: 1px solid var(--veil-border-subtle);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+  }
+  .veil-mode-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--veil-text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .veil-mode-btn:hover {
+    color: var(--veil-text-primary);
+  }
+  .veil-mode-btn.active {
+    background: var(--veil-brand);
+    color: #ffffff;
+  }
+  .veil-animated-banner-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--veil-brand) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--veil-brand) 25%, transparent);
+    color: var(--veil-brand);
+    font-size: 11px;
+    font-weight: 500;
   }
   .veil-crop-error {
     margin: 0;

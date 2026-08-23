@@ -813,7 +813,6 @@
       <div
         class="veil-char-counter {counterLevel}"
         class:near-limit={charCount >= 3400}
-        title="{charCount} / {MAX_CHAR_LIMIT} karakter ({remainingChars} kaldı)"
         role="status"
         aria-label="Karakter sayısı: {charCount} / {MAX_CHAR_LIMIT}"
       >
@@ -838,6 +837,18 @@
         {:else}
           <span class="veil-char-badge">{charCount}/{MAX_CHAR_LIMIT}</span>
         {/if}
+
+        <div class="veil-char-tooltip" role="tooltip" aria-hidden="true">
+          <div class="veil-char-tooltip-header">
+            <span class="veil-char-tooltip-count">{charCount}</span>
+            <span class="veil-char-tooltip-slash">/</span>
+            <span class="veil-char-tooltip-max">{MAX_CHAR_LIMIT}</span>
+          </div>
+          <div class="veil-char-tooltip-sub">
+            <span class="veil-char-tooltip-remain">{remainingChars} karakter kaldı</span>
+            <span class="veil-char-tooltip-percent">%{Math.round((charCount / MAX_CHAR_LIMIT) * 100)}</span>
+          </div>
+        </div>
       </div>
     {/if}
 
@@ -1012,6 +1023,7 @@
 
   /* ── Rich Character Counter ────────────────────────────────── */
   .veil-char-counter {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -1024,9 +1036,98 @@
     font-family: var(--font-mono);
     color: var(--veil-text-muted);
     user-select: none;
+    cursor: default;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     animation: char-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     margin-right: 2px;
+  }
+
+  .veil-char-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 50%;
+    transform: translateX(50%) translateY(4px) scale(0.96);
+    background: var(--veil-bg-elevated, #16181f);
+    border: 1px solid var(--veil-border, rgba(255, 255, 255, 0.12));
+    border-radius: var(--radius-lg, 10px);
+    padding: 6px 10px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.18s;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    white-space: nowrap;
+    min-width: 140px;
+  }
+
+  .veil-char-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 50%;
+    transform: translateX(50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--veil-border, rgba(255, 255, 255, 0.12)) transparent transparent transparent;
+  }
+
+  .veil-char-counter:hover .veil-char-tooltip,
+  .veil-char-counter:focus-visible .veil-char-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(50%) translateY(0) scale(1);
+  }
+
+  .veil-char-tooltip-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+
+  .veil-char-tooltip-count {
+    color: var(--veil-text-primary, #fff);
+  }
+
+  .veil-char-tooltip-slash {
+    color: var(--veil-text-muted);
+    font-size: 11px;
+    margin: 0 1px;
+  }
+
+  .veil-char-tooltip-max {
+    color: var(--veil-text-muted);
+    font-size: 11px;
+  }
+
+  .veil-char-tooltip-sub {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--veil-text-secondary);
+    border-top: 1px solid var(--veil-border-subtle, rgba(255, 255, 255, 0.08));
+    padding-top: 3px;
+  }
+
+  .veil-char-tooltip-remain {
+    color: var(--veil-text-muted);
+  }
+
+  .veil-char-tooltip-percent {
+    font-weight: 700;
+    color: var(--veil-brand);
+    font-family: var(--font-mono);
   }
 
   @keyframes char-pop-in {

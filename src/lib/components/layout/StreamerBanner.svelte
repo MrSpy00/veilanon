@@ -54,14 +54,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 16px;
-    background: linear-gradient(90deg, var(--veil-brand, #7c3aed), color-mix(in srgb, var(--veil-brand, #7c3aed) 78%, #9b59b6 22%));
+    background: linear-gradient(90deg, var(--veil-brand, #7c3aed), color-mix(in srgb, var(--veil-brand, #7c3aed) 80%, var(--veil-accent, #9b59b6) 20%));
     color: var(--veil-brand-foreground, #ffffff);
     font-size: 12px;
     font-weight: 500;
     z-index: 900;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--veil-brand, #7c3aed) 30%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--veil-brand, #7c3aed) 50%, rgba(255, 255, 255, 0.25));
+    backdrop-filter: blur(12px);
     animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -118,12 +118,13 @@
   }
 
   .banner-badge {
-    background: rgba(0, 0, 0, 0.25);
+    background: color-mix(in srgb, var(--veil-bg-void, #000) 40%, transparent);
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid color-mix(in srgb, #ffffff 25%, transparent);
+    color: #ffffff;
   }
 
   .banner-center {
@@ -134,7 +135,7 @@
     .banner-center {
       display: flex;
       align-items: center;
-      opacity: 0.9;
+      opacity: 0.95;
     }
   }
 
@@ -149,7 +150,7 @@
     align-items: center;
     gap: 4px;
     padding: 3px 10px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm, 4px);
     font-size: 11px;
     font-weight: 600;
     border: none;
@@ -158,12 +159,13 @@
   }
 
   .banner-btn.secondary {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, #ffffff 22%, transparent);
     color: #ffffff;
+    border: 1px solid color-mix(in srgb, #ffffff 30%, transparent);
   }
 
   .banner-btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: color-mix(in srgb, #ffffff 35%, transparent);
   }
 
   .banner-btn.danger {

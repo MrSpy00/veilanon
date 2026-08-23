@@ -90,18 +90,44 @@
     return `dosya-${attachment.fileId.slice(0, 8)}.${ext}`;
   });
 
+  function getEffectiveMimeType(dataUrlMime: string): string {
+    if (dataUrlMime && dataUrlMime !== 'application/octet-stream' && dataUrlMime !== 'binary/octet-stream') {
+      return dataUrlMime;
+    }
+    const fn = (attachment.fileName || '').toLowerCase();
+    const hint = (attachment.mimeTypeHint || '').toLowerCase();
+    if (hint && hint !== 'application/octet-stream' && hint !== 'binary/octet-stream') return hint;
+    if (fn.endsWith('.webm')) return mime === 'video' ? 'video/webm' : 'audio/webm;codecs=opus';
+    if (fn.endsWith('.mp3')) return 'audio/mpeg';
+    if (fn.endsWith('.wav')) return 'audio/wav';
+    if (fn.endsWith('.ogg') || fn.endsWith('.opus')) return 'audio/ogg';
+    if (fn.endsWith('.m4a') || fn.endsWith('.aac')) return 'audio/mp4';
+    if (fn.endsWith('.flac')) return 'audio/flac';
+    if (fn.endsWith('.mp4')) return 'video/mp4';
+    if (fn.endsWith('.mov')) return 'video/quicktime';
+    if (fn.endsWith('.png')) return 'image/png';
+    if (fn.endsWith('.jpg') || fn.endsWith('.jpeg')) return 'image/jpeg';
+    if (fn.endsWith('.gif')) return 'image/gif';
+    if (fn.endsWith('.webp')) return 'image/webp';
+    if (mime === 'audio') return 'audio/webm;codecs=opus';
+    if (mime === 'video') return 'video/mp4';
+    if (mime === 'image') return 'image/png';
+    return dataUrlMime || 'application/octet-stream';
+  }
+
   function createBlobFromDataUrl(url: string): Blob | null {
     try {
       const parts = url.split(',');
       if (parts.length < 2) return null;
       const match = parts[0].match(/:(.*?);/);
-      const mimeType = match ? match[1] : 'application/octet-stream';
+      const rawMime = match ? match[1] : 'application/octet-stream';
+      const effectiveMime = getEffectiveMimeType(rawMime);
       const binary = atob(parts[1]);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      return new Blob([bytes], { type: mimeType });
+      return new Blob([bytes], { type: effectiveMime });
     } catch {
       return null;
     }
@@ -150,14 +176,12 @@
         if (!cancelled && url) {
           dataUrl = url;
           loading = false;
-          // Create streamable Blob URL for audio and video tags in WebView2
-          if (url.startsWith('data:audio/') || url.startsWith('data:video/')) {
-            const blob = createBlobFromDataUrl(url);
-            if (blob) {
-              blobUrl = URL.createObjectURL(blob);
-            }
+          // Create streamable Blob URL for all media types in WebView2 to ensure codec support
+          const blob = createBlobFromDataUrl(url);
+          if (blob) {
+            blobUrl = URL.createObjectURL(blob);
           }
-          if (url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
+          if (mime === 'audio' || url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
             void decodeAudioDurationAndPeaks(url);
           }
         }

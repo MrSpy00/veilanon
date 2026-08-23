@@ -7,7 +7,7 @@
   import { uiStore } from '$lib/stores/ui';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
-  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Avatar, { cacheAvatar } from '$lib/components/ui/Avatar.svelte';
   import BannerImage, { cacheBanner } from '$lib/components/ui/BannerImage.svelte';
   import BannerCropModal from '$lib/components/ui/BannerCropModal.svelte';
   import ImageCropModal from '$lib/components/ui/ImageCropModal.svelte';
@@ -230,19 +230,6 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
-      avatarBusy = true;
-      try {
-        const hash = await identityApi.setAvatar(selected);
-        authStore.updateIdentity({ avatarHash: hash });
-        toastStore.success('Profil fotoğrafı güncellendi.');
-      } catch {
-        toastStore.error('Profil fotoğrafı yüklenemedi.');
-      } finally {
-        avatarBusy = false;
-      }
-      return;
-    }
     avatarCropSrc = await readLocalImageAsDataUrl(selected);
   }
 
@@ -251,6 +238,7 @@
     avatarBusy = true;
     try {
       const hash = await identityApi.setAvatar(croppedDataUrl);
+      cacheAvatar(hash, croppedDataUrl);
       authStore.updateIdentity({ avatarHash: hash });
       toastStore.success('Profil fotoğrafı güncellendi.');
     } catch {
@@ -285,21 +273,6 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
-      avatarBusy = true;
-      try {
-        const hash = await identityApi.setBanner(selected);
-        const dataUrl = await readLocalImageAsDataUrl(selected);
-        cacheBanner(hash, dataUrl);
-        authStore.updateIdentity({ bannerHash: hash });
-        toastStore.success('Profil bannerı güncellendi.');
-      } catch {
-        toastStore.error('Banner yüklenemedi.');
-      } finally {
-        avatarBusy = false;
-      }
-      return;
-    }
     cropSrc = await readLocalImageAsDataUrl(selected);
   }
 

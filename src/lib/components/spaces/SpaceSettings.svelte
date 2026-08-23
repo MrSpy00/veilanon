@@ -3,7 +3,7 @@
   import VeilSelect from '../ui/VeilSelect.svelte';
   import Icon from '../ui/Icon.svelte';
   import type { IconName } from '$lib/types/icon';
-  import Avatar from '../ui/Avatar.svelte';
+  import Avatar, { cacheAvatar } from '../ui/Avatar.svelte';
   import BannerImage, { cacheBanner } from '../ui/BannerImage.svelte';
   import BannerCropModal from '../ui/BannerCropModal.svelte';
   import ImageCropModal from '../ui/ImageCropModal.svelte';
@@ -269,19 +269,6 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
-      mediaBusy = true;
-      try {
-        await spaceApi.setIcon(spaceId, selected);
-        await refreshSpaceAfterMedia();
-        toastStore.success('Topluluk ikonu güncellendi.');
-      } catch {
-        toastStore.error('İkon yüklenemedi.');
-      } finally {
-        mediaBusy = false;
-      }
-      return;
-    }
     iconCropSrc = await readLocalImageAsDataUrl(selected);
   }
 
@@ -290,7 +277,10 @@
     if (!spaceId) return;
     mediaBusy = true;
     try {
-      await spaceApi.setIcon(spaceId, croppedDataUrl);
+      const hash = await spaceApi.setIcon(spaceId, croppedDataUrl);
+      if (hash) {
+        cacheAvatar(hash, croppedDataUrl);
+      }
       await refreshSpaceAfterMedia();
       toastStore.success('Topluluk ikonu güncellendi.');
     } catch {
@@ -308,23 +298,6 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
-      mediaBusy = true;
-      try {
-        const hash = await spaceApi.setBanner(spaceId, selected);
-        if (hash) {
-          const dataUrl = await readLocalImageAsDataUrl(selected);
-          cacheBanner(hash, dataUrl);
-        }
-        await refreshSpaceAfterMedia();
-        toastStore.success('Topluluk bannerı güncellendi.');
-      } catch {
-        toastStore.error('Banner yüklenemedi.');
-      } finally {
-        mediaBusy = false;
-      }
-      return;
-    }
     cropSrc = await readLocalImageAsDataUrl(selected);
   }
 

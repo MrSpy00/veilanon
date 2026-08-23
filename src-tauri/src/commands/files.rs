@@ -166,7 +166,26 @@ async fn resolve_file_metadata_and_ciphertext(
             &B64.decode(&ki).map_err(|_| VeilError::DecryptionError)?,
         )?;
         let nonce = B64.decode(&n).map_err(|_| VeilError::DecryptionError)?;
-        (sp, sb, key, nonce, None)
+
+        let db = state.db.read().await;
+        let mut mh = None;
+        if let Ok(conn) = db.conn() {
+            if let Ok(mut stmt) = conn.prepare("SELECT attachments FROM messages WHERE attachments LIKE ?1 LIMIT 1") {
+                if let Ok(mut rows) = stmt.query(rusqlite::params![format!("%{}%", file_id)]) {
+                    if let Ok(Some(row)) = rows.next() {
+                        if let Ok(json_str) = row.get::<_, String>(0) {
+                            if let Ok(atts) = serde_json::from_str::<Vec<crate::models::message::AttachmentRef>>(&json_str) {
+                                if let Some(att) = atts.into_iter().find(|a| a.file_id.to_string() == file_id) {
+                                    mh = att.mime_type_hint;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        drop(db);
+        (sp, sb, key, nonce, mh)
     } else {
         // 2. Search local messages table for attachment matching file_id
         let db = state.db.read().await;
