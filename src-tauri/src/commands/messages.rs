@@ -1343,7 +1343,7 @@ pub async fn sync_messages(
     type RemoteRow = serde_json::Value;
     let rows: Vec<RemoteRow> = {
         let network = state.network.read().await;
-        let filter = format!("channel_id=eq.{}&select=id,channel_id,sender_id,sender_device_id,ciphertext,iv,crypto_meta,message_type,attachments,reactions,schema_version,client_created_at,disappears_at,reply_to_id,pinned", channel_uuid);
+        let filter = format!("channel_id=eq.{}&deleted_at=is.null&select=id,channel_id,sender_id,sender_device_id,ciphertext,iv,crypto_meta,message_type,attachments,reactions,schema_version,client_created_at,disappears_at,reply_to_id,pinned,deleted_at", channel_uuid);
         network.api.select("messages", &filter, Some("client_created_at.asc"), Some(200)).await?
     };
 
