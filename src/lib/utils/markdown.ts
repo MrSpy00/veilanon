@@ -23,11 +23,13 @@ export function escapeHtml(text: string): string {
   return text.replace(ESCAPE_RE, c => ESCAPE_MAP[c]);
 }
 
-/** Restrict links to http/https; anything else renders as plain text. */
+/** Restrict links to http/https + bare domains; anything else renders as plain text. */
 function sanitizeUrl(url: string): string | null {
   const trimmed = url.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+  // Bare domain pattern: e.g. "veilanon.com", "example.co.uk"
+  if (/^[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,24}/i.test(trimmed)) return `https://${trimmed}`;
   return null;
 }
 
@@ -51,9 +53,9 @@ function tokenize(content: string): Token[] {
       tokens.push({ type: 'inline_code', text: part });
       return;
     }
-    // Inline processing with combined pattern for markdown + raw URLs
+    // Inline processing with combined pattern for markdown + raw URLs + bare domains
     const inlineRe =
-      /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)|(\|\|([^|]+)\|\|)|(@[A-Za-z0-9_]{2,32})|(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s<>"'()]+|www\.[^\s<>"'()]+)/g;
+      /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)|(\|\|([^|]+)\|\|)|(@[A-Za-z0-9_]{2,32})|(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s<>"'()]+|www\.[^\s<>"'()]+|[a-z0-9-]+\.[a-z]{2,}(?:\/[^\s<>"'()]+)?)/gi;
     let last = 0;
     let m: RegExpExecArray | null;
     while ((m = inlineRe.exec(part)) !== null) {

@@ -13,6 +13,7 @@
   import { draftStore } from '$lib/stores/drafts';
   import { extractImageFromClipboard } from '$lib/utils/clipboard';
   import type { Message } from '$lib/stores/messages';
+  import { detectDomains, containsUnsuppressedLink } from '$lib/utils/domainDetector';
 
   let { channelId, placeholder = 'Mesaj yaz...' } = $props<{
     channelId: string;
@@ -32,7 +33,6 @@
   let uploading = $state(false);
 
   // Link preview detection and sender toggle
-  const URL_REGEX = /https?:\/\/[^\s<>"]+|www\.[^\s<>"]+/;
   let linkPreview = $state<LinkPreviewResult | null>(null);
   let linkPreviewLoading = $state(false);
   let linkPreviewEnabled = $state(true);
@@ -40,13 +40,10 @@
   let linkPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
 
   const detectedUrl = $derived.by(() => {
-    const match = content.match(URL_REGEX);
-    if (!match) return null;
-    let raw = match[0];
-    if (raw.startsWith('www.')) {
-      return `https://${raw}`;
-    }
-    return raw;
+    // Use universal domain detector — catches all domains worldwide, not just http/https
+    const domains = detectDomains(content);
+    const first = domains.find(d => !d.suppressed);
+    return first?.url ?? null;
   });
 
   $effect(() => {
@@ -201,6 +198,15 @@
   async function send() {
     const trimmed = content.trim();
     if ((!trimmed && pendingFiles.length === 0) || sending || uploading) return;
+
+    // ── Link Gönderme Yetki Kontrolü ─────────────────────────────────────────
+    // embed_links izni yoksa (DM dışı kanallarda), hiçbir domain/URL gönderilemez.
+    // Bu, reklam, virüs, sponsor ve dolandırıcılık linklerini sistematik olarak engeller.
+    const canEmbedLinks = perms.isOwner || perms.has('embed_links');
+    if (!canEmbedLinks && containsUnsuppressedLink(trimmed)) {
+      toastStore.error('Bu kanalda bağlantı gönderme yetkiniz yok. Bağlantılar reklam, virüs veya dolandırıcılık içerebileceğinden yönetici tarafından kısıtlanmıştır.');
+      return;
+    }
 
     sending = true;
     const prev = content;

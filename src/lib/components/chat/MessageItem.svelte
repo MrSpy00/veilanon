@@ -20,6 +20,7 @@
   import { COMMON_EMOJI, isEmoji } from '$lib/utils/emoji';
   import { copyText } from '$lib/utils/clipboard';
   import type { Message } from '$lib/stores/messages';
+  import { detectDomains } from '$lib/utils/domainDetector';
 
   interface Attachment {
     fileId: string;
@@ -351,15 +352,12 @@
   }
 
   // ── Link Önizleme ────────────────────────────────────────────────────────
-  const URL_REGEX = /https?:\/\/[^\s<>"]+|www\.[^\s<>"]+/g;
   const detectedUrls = $derived.by<string[]>(() => {
     if (!message.content) return [];
-    // If the URL is wrapped in <...>, it is explicitly suppressed by the sender
-    const unsuppressed = message.content.replace(/<(?:https?:\/\/[^\s>]+|www\.[^\s>]+)>/g, '');
-    const matches = unsuppressed.match(URL_REGEX);
-    if (!matches) return [];
-    const normalized: string[] = matches.map((u: string) => u.startsWith('www.') ? `https://${u}` : u);
-    return ([...new Set(normalized)] as string[]).slice(0, 1); // Only first URL
+    // Universal domain detector — suppressed <url> patterns are filtered automatically
+    const domains = detectDomains(message.content);
+    const unsuppressed = domains.filter(d => !d.suppressed);
+    return unsuppressed.slice(0, 1).map(d => d.url);
   });
 
   let linkPreview = $state<LinkPreviewResult | null>(null);
@@ -382,12 +380,14 @@
 
   $effect(() => {
     const url: string | undefined = detectedUrls[0];
+    // Reset preview state when URL changes (or disappears)
+    linkPreview = null;
+    linkPreviewError = false;
     if (url && !message.disappearsAt) {
       linkPreviewLoading = true;
-      linkPreviewError = false;
-      linkPreview = null;
       privacyToolsApi.fetchLinkPreview(url).then((result) => {
-        if (result.isSafe !== false) {
+        // Only show if safe and has displayable content
+        if (result && result.isSafe !== false && (result.title || result.description || result.image)) {
           linkPreview = result;
         }
         linkPreviewLoading = false;
@@ -395,6 +395,8 @@
         linkPreviewLoading = false;
         linkPreviewError = true;
       });
+    } else {
+      linkPreviewLoading = false;
     }
   });
 
