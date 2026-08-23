@@ -8,7 +8,7 @@
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import Avatar, { cacheAvatar } from '$lib/components/ui/Avatar.svelte';
-  import BannerImage, { cacheBanner } from '$lib/components/ui/BannerImage.svelte';
+  import BannerImage, { cacheBanner, removeBannerCache } from '$lib/components/ui/BannerImage.svelte';
   import BannerCropModal from '$lib/components/ui/BannerCropModal.svelte';
   import ImageCropModal from '$lib/components/ui/ImageCropModal.svelte';
   import Toggle from '$lib/components/ui/Toggle.svelte';
@@ -301,6 +301,7 @@
     if (!ok) return;
     try {
       await identityApi.updateProfile({ displayName: identity.displayName, bannerHash: null });
+      removeBannerCache(identity.bannerHash);
       authStore.updateIdentity({ bannerHash: null });
       toastStore.success('Profil bannerı kaldırıldı.');
     } catch {

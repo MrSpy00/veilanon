@@ -6,6 +6,12 @@
       bannerMemoryCache.set(hash.trim(), dataUrl);
     }
   }
+
+  export function removeBannerCache(hash: string | null | undefined) {
+    if (hash) {
+      bannerMemoryCache.delete(hash.trim());
+    }
+  }
 </script>
 
 <script lang="ts">

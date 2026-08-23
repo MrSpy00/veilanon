@@ -315,14 +315,43 @@
     videoEl.muted = videoMuted;
   }
 
+  function toggleVideoVolume() {
+    if (!videoEl) return;
+    if (videoVolume > 0) {
+      videoVolume = 0;
+      videoEl.volume = 0;
+      videoMuted = true;
+      videoEl.muted = true;
+    } else {
+      videoVolume = 1;
+      videoEl.volume = 1;
+      videoMuted = false;
+      videoEl.muted = false;
+    }
+  }
+
+  let fullscreenWrapEl: HTMLElement | null = null;
+
   function toggleFullscreen() {
-    const wrap = document.querySelector('.veil-video-custom-wrap') as HTMLElement | null;
+    if (!fullscreenWrapEl) {
+      fullscreenWrapEl = document.querySelector('.veil-video-custom-wrap');
+    }
+    const wrap = fullscreenWrapEl;
     if (!wrap) return;
     if (!document.fullscreenElement) {
-      wrap.requestFullscreen().catch(() => {});
+      wrap.requestFullscreen().then(() => {
+        videoFullscreen = true;
+      }).catch(() => {});
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().then(() => {
+        videoFullscreen = false;
+      }).catch(() => {});
     }
+  }
+
+  function onDoubleClickFullscreen(e: MouseEvent) {
+    e.preventDefault();
+    toggleFullscreen();
   }
 
   function showVideoControls() {
@@ -405,16 +434,15 @@
     </div>
 
   {:else if mime === 'video'}
-    <!-- ── Custom Video Player ───────────────────────────────────────────── -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="veil-video-custom-wrap"
       class:controls-visible={videoShowControls || !videoPlaying}
+      class:fullscreen={videoFullscreen}
       onmousemove={showVideoControls}
       onmouseenter={showVideoControls}
+      ondblclick={onDoubleClickFullscreen}
       onfullscreenchange={() => { videoFullscreen = !!document.fullscreenElement; }}
     >
-      <!-- svelte-ignore a11y_media_has_caption -->
       <video
         bind:this={videoEl}
         src={mediaSourceUrl}
@@ -429,18 +457,13 @@
         onclick={toggleVideo}
       ></video>
 
-      <!-- Center play button overlay -->
       {#if !videoPlaying}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="veil-video-center-play" onclick={toggleVideo} role="button" tabindex="0">
           <Icon name="play" size={32} />
         </div>
       {/if}
 
-      <!-- Bottom controls bar -->
       <div class="veil-video-controls">
-        <!-- Progress bar -->
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
           class="veil-video-progress"
           onclick={seekVideo}
@@ -476,21 +499,20 @@
             {formatDuration(videoCurrentTime)} / {formatDuration(videoDuration)}
           </span>
           <div class="veil-vc-spacer"></div>
-          <button type="button" class="veil-vc-btn" onclick={toggleVideoMute} title={videoMuted ? 'Sesi aç' : 'Sessizleştir'}>
-            <Icon name={videoMuted ? 'mic' : 'mic'} size={15} />
+          <button type="button" class="veil-vc-btn" onclick={toggleVideoVolume} title={videoMuted ? 'Sesi aç' : 'Sessizleştir'}>
+            <Icon name={videoMuted ? 'volume-x' : 'volume'} size={15} />
           </button>
           <button type="button" class="veil-vc-btn" onclick={handleDownload} title="İndir" disabled={downloading}>
             <Icon name="download" size={15} />
           </button>
-          <button type="button" class="veil-vc-btn" onclick={toggleFullscreen} title="Tam ekran">
-            <Icon name="screen" size={15} />
+          <button type="button" class="veil-vc-btn" onclick={toggleFullscreen} title={videoFullscreen ? 'Küçült' : 'Tam ekran'}>
+            <Icon name={videoFullscreen ? 'minimize-2' : 'maximize-2'} size={15} />
           </button>
         </div>
       </div>
     </div>
 
   {:else if mime === 'audio'}
-    <!-- ── Modern Voice Message Waveform Player ──────────────────────────── -->
     <div class="veil-voice-note-card" class:playing={isPlaying}>
       <audio
         bind:this={audioEl}

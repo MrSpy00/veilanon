@@ -4,7 +4,7 @@
   import Icon from '../ui/Icon.svelte';
   import type { IconName } from '$lib/types/icon';
   import Avatar, { cacheAvatar } from '../ui/Avatar.svelte';
-  import BannerImage, { cacheBanner } from '../ui/BannerImage.svelte';
+  import BannerImage, { cacheBanner, removeBannerCache } from '../ui/BannerImage.svelte';
   import BannerCropModal from '../ui/BannerCropModal.svelte';
   import ImageCropModal from '../ui/ImageCropModal.svelte';
   import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
@@ -346,6 +346,7 @@
     if (!ok) return;
     try {
       const updated = await spaceApi.update({ id: spaceId, bannerHash: null });
+      removeBannerCache(space.bannerHash);
       spaceStore.applySpace(updated);
       toastStore.success('Banner kaldırıldı.');
     } catch {
