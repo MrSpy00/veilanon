@@ -55,26 +55,23 @@
       return;
     }
 
+    // Keep current banner visible while fetching new one — no flicker gap
     let cancelled = false;
-    const prevSrc = resolvedSrc;
-    const prevLoaded = isLoaded;
-    isLoaded = false;
     hasError = false;
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
-      if (!cancelled && dataUrl) {
+      if (cancelled) return;
+      if (dataUrl) {
         bannerMemoryCache.set(cleanHash, dataUrl);
         resolvedSrc = dataUrl;
         isLoaded = true;
         hasError = false;
-      } else if (!cancelled && !dataUrl) {
+      } else {
+        // Keep previous image on empty response; mark transient error
         hasError = true;
-        isLoaded = false;
       }
     }).catch(() => {
       if (!cancelled) {
         hasError = true;
-        isLoaded = prevLoaded;
-        resolvedSrc = prevSrc;
       }
     });
     return () => { cancelled = true; };

@@ -137,7 +137,15 @@ const recentToastMessages = new Map<string, number>();
 let lastAnyToastAt = 0;
 
 function normalizeToastKey(msg: string): string {
-  return msg.trim().toLowerCase().replace(/[\s.,!?;:()]+/g, ' ').replace(/\d+/g, '#');
+  return msg
+    .trim()
+    .toLowerCase()
+    .replace(/@\w+/g, '@user')
+    .replace(/https?:\/\/\S+/g, 'url')
+    .replace(/[\s.,!?;:()"'`]+/g, ' ')
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function addToast(type: ToastType, message: string, duration = 4000, action?: ToastAction) {
@@ -145,25 +153,20 @@ function addToast(type: ToastType, message: string, duration = 4000, action?: To
   const cleanMsg = message.trim();
   const key = normalizeToastKey(cleanMsg);
   const now = Date.now();
-  if (now - lastAnyToastAt < 650) {
-    const lastTime = recentToastMessages.get(key);
-    if (lastTime && now - lastTime < 7000) return '';
-    if (now - lastAnyToastAt < 650) return '';
-  }
+  // Global throttle: no toast within 900ms of any previous toast
+  if (now - lastAnyToastAt < 900) return '';
+  // Per-key dedup: same semantic toast within 10s is suppressed
   const lastTime = recentToastMessages.get(key);
-  if (lastTime && now - lastTime < 7000) {
-    return '';
-  }
+  if (lastTime !== undefined && now - lastTime < 10000) return '';
+  // Concurrent duplicate check
+  const currentToasts = get(TOASTS_STORE);
+  if (currentToasts.some((t) => normalizeToastKey(t.message) === key)) return '';
+  // Hard cap: max 2 concurrent toasts
+  if (currentToasts.length >= 2) return '';
   recentToastMessages.set(key, now);
   lastAnyToastAt = now;
-  setTimeout(() => recentToastMessages.delete(key), 7500);
+  setTimeout(() => recentToastMessages.delete(key), 10500);
 
-  const currentToasts = get(TOASTS_STORE);
-  if (currentToasts.some((t) => normalizeToastKey(t.message) === key)) {
-    return '';
-  }
-  // Hard cap: max 2 concurrent toasts — drop oldest
-  if (currentToasts.length >= 2) return '';
   const id = crypto.randomUUID();
   TOASTS_STORE.update((toasts) => {
     const trimmed = toasts.slice(-1);

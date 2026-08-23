@@ -55,6 +55,17 @@ function createFriendsStore() {
     }
   }
 
+  let presencePoll: ReturnType<typeof setInterval> | null = null;
+  function startPresencePoll() {
+    if (presencePoll) return;
+    if (typeof window === 'undefined') return;
+    presencePoll = setInterval(() => { void doLoad(); }, 25000);
+  }
+  function stopPresencePoll() {
+    if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }
+  }
+  if (typeof window !== 'undefined') startPresencePoll();
+
   return {
     subscribe,
 
@@ -64,6 +75,7 @@ function createFriendsStore() {
         loadTimer = null;
       }
       await doLoad();
+      startPresencePoll();
       return get({ subscribe }).friends;
     },
 
@@ -122,6 +134,7 @@ function createFriendsStore() {
         clearTimeout(loadTimer);
         loadTimer = null;
       }
+      stopPresencePoll();
       knownIncomingIds.clear();
       hasInitialized = false;
       set({ friends: [], loading: false, error: null });
