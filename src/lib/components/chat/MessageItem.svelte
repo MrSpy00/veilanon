@@ -518,7 +518,7 @@
     {/if}
 
     <!-- Attachments (Images, Videos, Audio, Files) -->
-    {#if (message.attachments as Attachment[] | undefined)?.length}
+    {#if !isDeleted && (message.attachments as Attachment[] | undefined)?.length}
       <div class="veil-message-attachments" role="group" aria-label="Ekler">
         {#each (message.attachments as Attachment[]) as att (att.fileId)}
           <MediaAttachment attachment={att} />

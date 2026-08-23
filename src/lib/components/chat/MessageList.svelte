@@ -17,7 +17,8 @@
 
   const auth = $derived($authStore);
   const store = $derived($messageStore);
-  const messages = $derived(store.byChannel[channelId] ?? []);
+  const rawMessages = $derived(store.byChannel[channelId] ?? []);
+  const messages = $derived(rawMessages.filter(m => !m.deletedAt));
   const hasMore = $derived(store.hasMore[channelId] ?? false);
 
   let scrollEl = $state<HTMLDivElement | null>(null);
