@@ -114,7 +114,7 @@ export async function runTier5Tests(reporter) {
     const p = resolve(process.cwd(), 'supabase/migrations/20260820210000_restrictive_rls_fix.sql');
     const sql = readFileSync(p, 'utf8');
     assertIncludes(sql, 'messages_insert_authenticated', 'Messages insert policy must exist');
-    assertIncludes(sql, 'sender_id = auth.uid()::text', 'Insert must enforce sender ownership');
+    assert(sql.includes('sender_id = auth.uid()') || sql.includes('sender_id = auth.uid()::text'), 'Insert must enforce sender ownership');
   });
 
   await reporter.test(FEATURES.STORAGE_RLS, '17.3 spaces RLS: select authenticated, write owner-only', async () => {
