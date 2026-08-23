@@ -23,13 +23,17 @@ export function escapeHtml(text: string): string {
   return text.replace(ESCAPE_RE, c => ESCAPE_MAP[c]);
 }
 
-/** Restrict links to http/https + bare domains; anything else renders as plain text. */
+/**
+ * Restrict links to http/https + bare domains; anything else renders as plain text.
+ * Universal domain detection — covers ALL TLDs worldwide (ccTLD, gTLD, new gTLD, multi-level).
+ */
 function sanitizeUrl(url: string): string | null {
   const trimmed = url.trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
-  // Bare domain pattern: e.g. "veilanon.com", "example.co.uk"
-  if (/^[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,24}/i.test(trimmed)) return `https://${trimmed}`;
+  // Bare domain pattern: e.g. "veilanon.com", "example.co.uk", "site.com.tr"
+  // Matches any valid hostname with at least one dot and a TLD (2-63 chars for new gTLDs)
+  if (/^[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?)*\.[a-z]{2,63}(?:\/[^\s<>"'()\\\]]*)?$/i.test(trimmed)) return `https://${trimmed}`;
   return null;
 }
 
@@ -53,9 +57,9 @@ function tokenize(content: string): Token[] {
       tokens.push({ type: 'inline_code', text: part });
       return;
     }
-    // Inline processing with combined pattern for markdown + raw URLs + bare domains
+    // Inline processing: markdown + raw URLs + bare domains (universal TLD detection)
     const inlineRe =
-      /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)|(\|\|([^|]+)\|\|)|(@[A-Za-z0-9_]{2,32})|(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s<>"'()]+|www\.[^\s<>"'()]+|[a-z0-9-]+\.[a-z]{2,}(?:\/[^\s<>"'()]+)?)/gi;
+      /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)|(\|\|([^|]+)\|\|)|(@[A-Za-z0-9_]{2,32})|(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s<>"'()]+|www\.[^\s<>"'()]+|[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?)*\.[a-z]{2,63}(?:\/[^\s<>"'()]+)?)/gi;
     let last = 0;
     let m: RegExpExecArray | null;
     while ((m = inlineRe.exec(part)) !== null) {
@@ -71,11 +75,8 @@ function tokenize(content: string): Token[] {
       else if (m[14] !== undefined) tokens.push({ type: 'link', text: m[14], href: m[15] });
       else if (m[16] !== undefined) {
         const raw = m[16];
-        tokens.push({
-          type: 'link',
-          text: raw,
-          href: raw.startsWith('www.') ? `https://${raw}` : raw,
-        });
+        const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+        tokens.push({ type: 'link', text: raw, href });
       }
       last = m.index + m[0].length;
     }

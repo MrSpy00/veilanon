@@ -354,7 +354,6 @@
   // ── Link Önizleme ────────────────────────────────────────────────────────
   const detectedUrls = $derived.by<string[]>(() => {
     if (!message.content) return [];
-    // Universal domain detector — suppressed <url> patterns are filtered automatically
     const domains = detectDomains(message.content);
     const unsuppressed = domains.filter(d => !d.suppressed);
     return unsuppressed.slice(0, 1).map(d => d.url);
@@ -380,13 +379,11 @@
 
   $effect(() => {
     const url: string | undefined = detectedUrls[0];
-    // Reset preview state when URL changes (or disappears)
     linkPreview = null;
     linkPreviewError = false;
     if (url && !message.disappearsAt) {
       linkPreviewLoading = true;
       privacyToolsApi.fetchLinkPreview(url).then((result) => {
-        // Only show if safe and has displayable content
         if (result && result.isSafe !== false && (result.title || result.description || result.image)) {
           linkPreview = result;
         }
@@ -511,7 +508,7 @@
         <div class="veil-link-preview-loading">
           <div class="veil-link-preview-skeleton"></div>
         </div>
-      {:else if linkPreview && (linkPreview.title || linkPreview.description)}
+      {:else if linkPreview}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <div
