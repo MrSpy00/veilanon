@@ -664,6 +664,23 @@ pub(crate) fn is_ssrf_safe_url(url_str: &str) -> bool {
     true
 }
 
+fn unescape_html_entities(input: &str) -> String {
+    input
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ")
+        .replace("&#8211;", "–")
+        .replace("&#8212;", "—")
+        .replace("&#8216;", "‘")
+        .replace("&#8217;", "’")
+        .replace("&#8220;", "“")
+        .replace("&#8221;", "”")
+}
+
 /// Extract meta property or tag content from HTML string
 pub(crate) fn extract_html_meta(html: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) {
     let mut title = None;
@@ -673,15 +690,24 @@ pub(crate) fn extract_html_meta(html: &str) -> (Option<String>, Option<String>, 
     let mut favicon = None;
 
     let extract_attr = |tag: &str, attr: &str| -> Option<String> {
-        let pattern = format!(r#"{}="([^"]+)""#, attr);
+        let pattern = format!(r#"(?i){}\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#, regex::escape(attr));
         let re = regex::Regex::new(&pattern).ok()?;
-        re.captures(tag).and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+        if let Some(c) = re.captures(tag) {
+            let val = c.get(1).or_else(|| c.get(2)).or_else(|| c.get(3)).map(|m| m.as_str().trim())?;
+            if !val.is_empty() {
+                return Some(unescape_html_entities(val));
+            }
+        }
+        None
     };
 
     let title_re = regex::Regex::new(r"(?i)<title[^>]*>([^<]+)</title>").ok();
     if let Some(re) = title_re {
         if let Some(cap) = re.captures(html) {
-            title = cap.get(1).map(|m| m.as_str().trim().to_string());
+            let raw_title = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
+            if !raw_title.is_empty() {
+                title = Some(unescape_html_entities(raw_title));
+            }
         }
     }
 
@@ -689,30 +715,36 @@ pub(crate) fn extract_html_meta(html: &str) -> (Option<String>, Option<String>, 
     if let Some(re) = meta_re {
         for cap in re.find_iter(html) {
             let tag = cap.as_str();
-            let prop = extract_attr(tag, "property").or_else(|| extract_attr(tag, "name"));
+            let prop = extract_attr(tag, "property").or_else(|| extract_attr(tag, "name")).or_else(|| extract_attr(tag, "itemprop"));
             let content = extract_attr(tag, "content");
             if let (Some(p), Some(c)) = (prop, content) {
                 let p_lower = p.to_lowercase();
-                if p_lower == "og:title" || p_lower == "twitter:title" {
+                if (p_lower == "og:title" || p_lower == "twitter:title") && (title.is_none() || p_lower == "og:title") {
                     title = Some(c);
                 } else if p_lower == "og:description" || p_lower == "description" || p_lower == "twitter:description" {
                     if description.is_none() || p_lower.starts_with("og:") {
                         description = Some(c);
                     }
-                } else if (p_lower == "og:image" || p_lower == "twitter:image") && image.is_none() {
+                } else if (p_lower == "og:image" || p_lower == "og:image:url" || p_lower == "og:image:secure_url" || p_lower == "twitter:image" || p_lower == "twitter:image:src") && image.is_none() {
                     image = Some(c);
-                } else if p_lower == "og:site_name" && site_name.is_none() {
+                } else if (p_lower == "og:site_name" || p_lower == "application-name") && site_name.is_none() {
                     site_name = Some(c);
                 }
             }
         }
     }
 
-    let link_re = regex::Regex::new(r#"(?i)<link\s+[^>]*rel="([^"]*icon[^"]*)"[^>]*>"#).ok();
+    let link_re = regex::Regex::new(r#"(?i)<link\s+[^>]*>"#).ok();
     if let Some(re) = link_re {
-        if let Some(cap) = re.captures(html) {
-            let tag = cap.get(0).map(|m| m.as_str()).unwrap_or("");
-            favicon = extract_attr(tag, "href");
+        for cap in re.find_iter(html) {
+            let tag = cap.as_str();
+            let rel = extract_attr(tag, "rel").unwrap_or_default().to_lowercase();
+            if rel.contains("icon") {
+                if let Some(href) = extract_attr(tag, "href") {
+                    favicon = Some(href);
+                    break;
+                }
+            }
         }
     }
 

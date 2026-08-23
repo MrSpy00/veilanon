@@ -1908,7 +1908,9 @@ textarea,
   border-radius: var(--radius-lg);
   margin-top: var(--space-2);
   object-fit: contain;
-  background: var(--veil-bg-elevated);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 .veil-mention {
   color: var(--veil-brand);

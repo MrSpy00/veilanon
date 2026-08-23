@@ -351,13 +351,15 @@
   }
 
   // ── Link Önizleme ────────────────────────────────────────────────────────
-  const URL_REGEX = /https?:\/\/[^\s<>"]+/g;
+  const URL_REGEX = /https?:\/\/[^\s<>"]+|www\.[^\s<>"]+/g;
   const detectedUrls = $derived.by<string[]>(() => {
     if (!message.content) return [];
     // If the URL is wrapped in <...>, it is explicitly suppressed by the sender
-    const unsuppressed = message.content.replace(/<https?:\/\/[^\s>]+>/g, '');
+    const unsuppressed = message.content.replace(/<(?:https?:\/\/[^\s>]+|www\.[^\s>]+)>/g, '');
     const matches = unsuppressed.match(URL_REGEX);
-    return matches ? ([...new Set(matches)] as string[]).slice(0, 1) : []; // Only first URL
+    if (!matches) return [];
+    const normalized: string[] = matches.map((u: string) => u.startsWith('www.') ? `https://${u}` : u);
+    return ([...new Set(normalized)] as string[]).slice(0, 1); // Only first URL
   });
 
   let linkPreview = $state<LinkPreviewResult | null>(null);

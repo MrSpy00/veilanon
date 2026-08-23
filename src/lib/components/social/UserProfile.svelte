@@ -8,10 +8,15 @@
   import { toastStore } from '$lib/stores/notifications';
   import { dmApi, socialApi, memberApi, roleApi, type UserProfileInfo, type MemberInfo, type RoleInfo } from '$lib/api/tauri';
   import { streamerMode, maskUserId } from '$lib/stores/streamerMode';
-  import Avatar from '../ui/Avatar.svelte';
-  import BannerImage from '../ui/BannerImage.svelte';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import { identityApi } from '$lib/api/tauri';
+  import Avatar, { cacheAvatar } from '../ui/Avatar.svelte';
+  import BannerImage, { cacheBanner } from '../ui/BannerImage.svelte';
   import Icon from '../ui/Icon.svelte';
   import { copyText } from '$lib/utils/clipboard';
+  import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
+  import ImageCropModal from '../ui/ImageCropModal.svelte';
+  import BannerCropModal from '../ui/BannerCropModal.svelte';
 
   const ui = $derived($uiStore);
 
@@ -303,6 +308,62 @@
     });
   }
 
+  let avatarCropSrc = $state<string | null>(null);
+  let bannerCropSrc = $state<string | null>(null);
+  let profileEditBusy = $state(false);
+
+  async function changeAvatarDirect() {
+    if (profileEditBusy || !isSelf) return;
+    const selected = await open({
+      title: 'Profil fotoğrafı seç',
+      multiple: false,
+      filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+    });
+    if (!selected || typeof selected !== 'string') return;
+    avatarCropSrc = await readLocalImageAsDataUrl(selected);
+  }
+
+  async function handleAvatarCropSave(croppedDataUrl: string) {
+    avatarCropSrc = null;
+    profileEditBusy = true;
+    try {
+      const hash = await identityApi.setAvatar(croppedDataUrl);
+      cacheAvatar(hash, croppedDataUrl);
+      authStore.updateIdentity({ avatarHash: hash });
+      toastStore.success('Profil fotoğrafı güncellendi.');
+    } catch {
+      toastStore.error('Profil fotoğrafı güncellenemedi.');
+    } finally {
+      profileEditBusy = false;
+    }
+  }
+
+  async function changeBannerDirect() {
+    if (profileEditBusy || !isSelf) return;
+    const selected = await open({
+      title: 'Profil bannerı seç',
+      multiple: false,
+      filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+    });
+    if (!selected || typeof selected !== 'string') return;
+    bannerCropSrc = await readLocalImageAsDataUrl(selected);
+  }
+
+  async function handleBannerCropSave(croppedDataUrl: string) {
+    bannerCropSrc = null;
+    profileEditBusy = true;
+    try {
+      const hash = await identityApi.setBanner(croppedDataUrl);
+      cacheBanner(hash, croppedDataUrl);
+      authStore.updateIdentity({ bannerHash: hash });
+      toastStore.success('Profil bannerı güncellendi.');
+    } catch {
+      toastStore.error('Profil bannerı güncellenemedi.');
+    } finally {
+      profileEditBusy = false;
+    }
+  }
+
   function openSpace(s: MutualSpace) {
     uiStore.closeModal();
     void uiStore.navigateSpace(s.id);
@@ -317,6 +378,18 @@
         <BannerImage hash={bannerHash} alt="" class="veil-up-banner-img" />
       {/if}
       <div class="veil-up-banner-overlay"></div>
+      {#if isSelf}
+        <button
+          type="button"
+          class="veil-up-banner-edit-btn"
+          onclick={changeBannerDirect}
+          disabled={profileEditBusy}
+          title="Bannerı Değiştir / Konumlandır"
+        >
+          <Icon name="image" size={13} />
+          <span>{bannerHash ? 'Bannerı Değiştir' : 'Banner Ekle'}</span>
+        </button>
+      {/if}
     </div>
 
     <!-- Body content cleanly below banner -->
@@ -325,6 +398,17 @@
       <div class="veil-up-avatar-section">
         <div class="veil-up-avatar-wrapper">
           <Avatar name={displayName} size="2xl" hash={avatarHash} presence={onlineStatus} />
+          {#if isSelf}
+            <button
+              type="button"
+              class="veil-up-avatar-edit-btn"
+              onclick={changeAvatarDirect}
+              disabled={profileEditBusy}
+              title="Fotoğrafı Değiştir / Konumlandır"
+            >
+              <Icon name="camera" size={16} />
+            </button>
+          {/if}
         </div>
         
         <div class="veil-up-primary-actions">
@@ -602,6 +686,30 @@
       <button class="btn btn-ghost veil-close-profile" onclick={() => uiStore.closeModal()}>Kapat</button>
     </div>
   </div>
+
+  {#if avatarCropSrc}
+    <ImageCropModal
+      src={avatarCropSrc}
+      shape="circle"
+      aspectRatio={1}
+      title="Profil Fotoğrafını Ayarla"
+      onSave={handleAvatarCropSave}
+      onClose={() => { avatarCropSrc = null; }}
+    />
+  {/if}
+
+  {#if bannerCropSrc}
+    <BannerCropModal
+      src={bannerCropSrc}
+      aspectRatio={3}
+      title="Profil Bannerını Ayarla"
+      hasAvatarPreview={true}
+      avatarName={displayName}
+      avatarHash={avatarHash}
+      onSave={handleBannerCropSave}
+      onClose={() => { bannerCropSrc = null; }}
+    />
+  {/if}
 {:else}
   <p class="veil-empty-inline">Profil bulunamadı.</p>
 {/if}
@@ -644,6 +752,32 @@
     pointer-events: none;
   }
 
+  .veil-up-banner-edit-btn {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(15, 17, 23, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-full);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+  }
+  .veil-up-banner-edit-btn:hover {
+    background: rgba(15, 17, 23, 0.92);
+    border-color: var(--veil-brand);
+    transform: translateY(-1px);
+  }
+
   .veil-up-body {
     display: flex;
     flex-direction: column;
@@ -679,6 +813,29 @@
     z-index: 30;
     bottom: 2px;
     right: 2px;
+  }
+
+  .veil-up-avatar-edit-btn {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--veil-brand);
+    color: var(--veil-brand-foreground, #fff);
+    border: 3px solid var(--veil-bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    z-index: 35;
+  }
+  .veil-up-avatar-edit-btn:hover {
+    transform: scale(1.1);
+    background: var(--veil-brand-hover, var(--veil-brand));
   }
 
   .veil-up-primary-actions {

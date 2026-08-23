@@ -32,7 +32,7 @@
   let uploading = $state(false);
 
   // Link preview detection and sender toggle
-  const URL_REGEX = /https?:\/\/[^\s<>"]+/;
+  const URL_REGEX = /https?:\/\/[^\s<>"]+|www\.[^\s<>"]+/;
   let linkPreview = $state<LinkPreviewResult | null>(null);
   let linkPreviewLoading = $state(false);
   let linkPreviewEnabled = $state(true);
@@ -41,7 +41,12 @@
 
   const detectedUrl = $derived.by(() => {
     const match = content.match(URL_REGEX);
-    return match ? match[0] : null;
+    if (!match) return null;
+    let raw = match[0];
+    if (raw.startsWith('www.')) {
+      return `https://${raw}`;
+    }
+    return raw;
   });
 
   $effect(() => {

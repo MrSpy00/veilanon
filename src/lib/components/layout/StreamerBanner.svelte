@@ -54,14 +54,15 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 16px;
-    background: linear-gradient(90deg, var(--veil-brand, #7c3aed), color-mix(in srgb, var(--veil-brand, #7c3aed) 80%, var(--veil-accent, #9b59b6) 20%));
+    background: linear-gradient(90deg, var(--veil-brand), color-mix(in srgb, var(--veil-brand) 85%, var(--veil-bg-elevated) 15%));
     color: var(--veil-brand-foreground, #ffffff);
     font-size: 12px;
     font-weight: 500;
     z-index: 900;
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--veil-brand, #7c3aed) 30%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--veil-brand, #7c3aed) 50%, rgba(255, 255, 255, 0.25));
+    box-shadow: 0 4px 14px var(--veil-theme-glow, rgba(0, 0, 0, 0.2));
+    border-bottom: 1px solid var(--veil-brand-border, rgba(255, 255, 255, 0.2));
     backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -86,8 +87,8 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: #ff4757;
-    box-shadow: 0 0 8px #ff4757;
+    background-color: var(--veil-danger, #ef4444);
+    box-shadow: 0 0 8px var(--veil-danger, #ef4444);
     animation: pulse 1.5s infinite;
   }
 
@@ -115,16 +116,17 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     font-size: 11.5px;
+    color: var(--veil-brand-foreground, #ffffff);
   }
 
   .banner-badge {
-    background: color-mix(in srgb, var(--veil-bg-void, #000) 40%, transparent);
+    background: color-mix(in srgb, var(--veil-brand-foreground, #ffffff) 15%, transparent);
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
-    border: 1px solid color-mix(in srgb, #ffffff 25%, transparent);
-    color: #ffffff;
+    border: 1px solid color-mix(in srgb, var(--veil-brand-foreground, #ffffff) 25%, transparent);
+    color: var(--veil-brand-foreground, #ffffff);
   }
 
   .banner-center {
@@ -136,6 +138,7 @@
       display: flex;
       align-items: center;
       opacity: 0.95;
+      color: var(--veil-brand-foreground, #ffffff);
     }
   }
 
@@ -159,22 +162,22 @@
   }
 
   .banner-btn.secondary {
-    background: color-mix(in srgb, #ffffff 22%, transparent);
-    color: #ffffff;
-    border: 1px solid color-mix(in srgb, #ffffff 30%, transparent);
+    background: color-mix(in srgb, var(--veil-brand-foreground, #ffffff) 18%, transparent);
+    color: var(--veil-brand-foreground, #ffffff);
+    border: 1px solid color-mix(in srgb, var(--veil-brand-foreground, #ffffff) 30%, transparent);
   }
 
   .banner-btn.secondary:hover {
-    background: color-mix(in srgb, #ffffff 35%, transparent);
+    background: color-mix(in srgb, var(--veil-brand-foreground, #ffffff) 28%, transparent);
   }
 
   .banner-btn.danger {
-    background: rgba(235, 77, 75, 0.9);
+    background: var(--veil-danger, #ef4444);
     color: #ffffff;
   }
 
   .banner-btn.danger:hover {
-    background: #eb4d4b;
+    filter: brightness(1.15);
     transform: translateY(-1px);
   }
 </style>

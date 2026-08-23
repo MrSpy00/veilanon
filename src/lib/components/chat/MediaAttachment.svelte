@@ -206,16 +206,23 @@
     if (!audioEl) return;
     if (isPlaying) {
       audioEl.pause();
+      isPlaying = false;
     } else {
-      if (audioEl.ended || (duration > 0 && currentTime >= duration - 0.1)) {
+      const effDur = isFinite(duration) && duration > 0 ? duration : (isFinite(audioEl.duration) ? audioEl.duration : 0);
+      if (audioEl.ended || (effDur > 0 && currentTime >= effDur - 0.15)) {
         audioEl.currentTime = 0;
+        currentTime = 0;
       }
-      audioEl.play().catch(async () => {
+      audioEl.play().then(() => {
+        isPlaying = true;
+      }).catch(async () => {
         try {
           await audioEl?.play();
+          isPlaying = true;
         } catch {
-          // Autoplay blocked - user gesture already given, retry without load()
-          setTimeout(() => audioEl?.play().catch(() => {}), 80);
+          setTimeout(() => {
+            audioEl?.play().then(() => { isPlaying = true; }).catch(() => {});
+          }, 80);
         }
       });
     }
@@ -230,11 +237,15 @@
   }
 
   function seekWaveform(e: MouseEvent) {
-    if (!audioEl || !duration) return;
+    if (!audioEl) return;
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     const pos = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
-    audioEl.currentTime = pos * duration;
+    const targetDur = isFinite(duration) && duration > 0 ? duration : (isFinite(audioEl.duration) && isFinite(audioEl.duration) && audioEl.duration > 0 ? audioEl.duration : 0);
+    if (targetDur > 0) {
+      audioEl.currentTime = pos * targetDur;
+      currentTime = pos * targetDur;
+    }
   }
 
   async function handleDownload() {
@@ -338,6 +349,11 @@
           }
         }}
         onloadedmetadata={() => {
+          if (audioEl && isFinite(audioEl.duration) && audioEl.duration > 0) {
+            duration = audioEl.duration;
+          }
+        }}
+        ondurationchange={() => {
           if (audioEl && isFinite(audioEl.duration) && audioEl.duration > 0) {
             duration = audioEl.duration;
           }
