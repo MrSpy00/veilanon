@@ -276,14 +276,17 @@
           type="button"
           class="btn btn-secondary btn-sm"
           onclick={() => {
+            const now = Date.now();
             void toastStore.notifyMessage({
               senderName: 'veilanon Bot',
-              content: 'Bildirimleriniz ve ses efektleriniz başarıyla yapılandırıldı! 🔔',
+              content: `Bildirimleriniz ve ses efektleriniz başarıyla yapılandırıldı! 🔔 (${new Date().toLocaleTimeString('tr-TR')})`,
               channelName: 'genel',
               isMention: false,
               isDm: false,
             });
-            toastStore.success('Test bildirimi gönderildi.');
+            toastStore.success('Test bildirimi gönderildi ✓');
+            // Ensure desktop permission prompt is triggered even if DND
+            void toastStore.notifySystem('Test Bildirimi', 'Bildirim sistemi aktif.');
           }}
         >
           <Icon name="sparkle" size={14} />

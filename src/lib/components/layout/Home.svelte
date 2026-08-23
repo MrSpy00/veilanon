@@ -487,7 +487,8 @@
     justify-content: center;
     border: 2px solid var(--veil-bg-surface);
   }
-  .veil-home-body { display: flex; flex-direction: column; }
+  .veil-home-body { display: flex; flex-direction: column; flex: 1; min-height: 0; justify-content: flex-start; }
+  .veil-home:empty, .veil-home-body:empty { justify-content: center; }
   .veil-home-panel {
     background: color-mix(in srgb, var(--veil-bg-elevated) 72%, transparent);
     backdrop-filter: blur(18px) saturate(1.2);

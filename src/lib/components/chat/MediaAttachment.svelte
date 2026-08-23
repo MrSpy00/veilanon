@@ -89,15 +89,23 @@
 
   async function decodeAudioDurationAndPeaks(url: string) {
     try {
-      const resp = await fetch(url);
-      const arrayBuf = await resp.arrayBuffer();
+      let arrayBuf: ArrayBuffer;
+      if (url.startsWith('data:')) {
+        const base64 = url.split(',')[1] ?? '';
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        arrayBuf = bytes.buffer;
+      } else {
+        const resp = await fetch(url);
+        arrayBuf = await resp.arrayBuffer();
+      }
       const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
-      if (audioBuffer && audioBuffer.duration > 0) {
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuf.slice(0) as ArrayBuffer);
+      if (audioBuffer && audioBuffer.duration > 0 && isFinite(audioBuffer.duration)) {
         duration = audioBuffer.duration;
-        // Compute 32 waveform peak bars from channel data
         const channel = audioBuffer.getChannelData(0);
-        const step = Math.floor(channel.length / 32);
+        const step = Math.max(1, Math.floor(channel.length / 32));
         const bars: number[] = [];
         for (let i = 0; i < 32; i++) {
           let max = 0;
@@ -109,9 +117,9 @@
         }
         calculatedWaveform = bars;
       }
-      await audioCtx.close();
+      await audioCtx.close().catch(() => {});
     } catch {
-      // Fallback if audio context decode fails
+      // Fallback: keep pseudo waveform, duration from <audio> metadata will fill
     }
   }
 
@@ -145,10 +153,13 @@
       if (audioEl.ended || (duration > 0 && currentTime >= duration - 0.1)) {
         audioEl.currentTime = 0;
       }
-      audioEl.load();
-      audioEl.play().catch(() => {
-        audioEl?.load();
-        setTimeout(() => audioEl?.play().catch(() => {}), 80);
+      audioEl.play().catch(async () => {
+        try {
+          await audioEl?.play();
+        } catch {
+          // Autoplay blocked - user gesture already given, retry without load()
+          setTimeout(() => audioEl?.play().catch(() => {}), 80);
+        }
       });
     }
   }
@@ -195,7 +206,7 @@
       <div class="veil-spinner veil-spinner-sm"></div>
       <span>Dosya şifresi çözülüyor…</span>
     </div>
-  {:else if error || !dataUrl}
+  {:else if error || !dataUrl || !attachment.fileId || attachment.sizeBytes === 0}
     <div class="veil-file-card">
       <div class="veil-file-icon">
         <Icon name="lock" size={20} />
