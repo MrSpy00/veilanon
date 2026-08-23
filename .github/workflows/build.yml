@@ -181,6 +181,7 @@ jobs:
             -name "*.app.tar.gz" -o \
             -name "*.tar.gz" -o \
             -name "*.msi" -o \
+            -name "*.zip" -o \
             -name "*_x64-setup.exe" -o \
             -name "*_x64_en-US.msi" \
           \) | while IFS= read -r f; do
@@ -240,7 +241,7 @@ jobs:
           gh release download "$TARGET_TAG" --dir . || true
           
           # Delete known redundant or intermediate files from release
-          for unwanted in *.sha256 Trust-Certificate.bat veilanon-ca.cer veilanon-setup.exe veilanon.app.tar.gz veilanon_aarch64.app.tar.gz veilanon_0.0.1_x64.exe veilanon_0.0.1_x64.tar.gz veilanon_0.0.1_x64.zip veilanon_0.0.2_x64.exe veilanon_0.0.2_x64.tar.gz veilanon_0.0.2_x64.zip; do
+          for unwanted in *.sha256 Trust-Certificate.bat veilanon-ca.cer veilanon-setup.exe veilanon_aarch64.app.tar.gz veilanon_0.0.1_x64.exe veilanon_0.0.2_x64.exe veilanon_0.0.2_x64.tar.gz veilanon_0.0.2_x64.zip; do
             if [ -f "$unwanted" ]; then
               echo "Removing unwanted asset from release: $unwanted"
               gh release delete-asset "$TARGET_TAG" "$unwanted" -y || true

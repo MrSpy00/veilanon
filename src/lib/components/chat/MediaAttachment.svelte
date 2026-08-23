@@ -330,28 +330,64 @@
     }
   }
 
-  let fullscreenWrapEl: HTMLElement | null = null;
+  let fullscreenWrapEl = $state<HTMLDivElement | null>(null);
 
-  function toggleFullscreen() {
-    if (!fullscreenWrapEl) {
-      fullscreenWrapEl = document.querySelector('.veil-video-custom-wrap');
-    }
+  // Native Fullscreen API yoksa veya reddedilirse `.fullscreen` sınıfı devreye girer.
+  async function toggleFullscreen() {
     const wrap = fullscreenWrapEl;
     if (!wrap) return;
-    if (!document.fullscreenElement) {
-      wrap.requestFullscreen().then(() => {
-        videoFullscreen = true;
-      }).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => {
-        videoFullscreen = false;
-      }).catch(() => {});
+    if (document.fullscreenElement) {
+      if (typeof document.exitFullscreen === 'function') {
+        try {
+          await document.exitFullscreen();
+          return;
+        } catch { /* fallthrough */ }
+      }
+      videoFullscreen = false;
+      document.body.classList.remove('veil-fs-lock');
+      return;
     }
+    if (videoFullscreen) {
+      videoFullscreen = false;
+      document.body.classList.remove('veil-fs-lock');
+      return;
+    }
+    if (typeof wrap.requestFullscreen === 'function') {
+      try {
+        await wrap.requestFullscreen();
+        return; // onfullscreenchange state'i eşitler
+      } catch { /* fallthrough */ }
+    }
+    videoFullscreen = true;
+    document.body.classList.add('veil-fs-lock');
   }
+
+  $effect(() => {
+    const onFsChange = () => {
+      if (document.fullscreenElement) {
+        videoFullscreen = true;
+      } else {
+        videoFullscreen = false;
+        document.body.classList.remove('veil-fs-lock');
+      }
+    };
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && videoFullscreen && !document.fullscreenElement) {
+        videoFullscreen = false;
+        document.body.classList.remove('veil-fs-lock');
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('keydown', onKeydown);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('keydown', onKeydown);
+    };
+  });
 
   function onDoubleClickFullscreen(e: MouseEvent) {
     e.preventDefault();
-    toggleFullscreen();
+    void toggleFullscreen();
   }
 
   function showVideoControls() {
@@ -434,10 +470,14 @@
     </div>
 
   {:else if mime === 'video'}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      bind:this={fullscreenWrapEl}
       class="veil-video-custom-wrap"
       class:controls-visible={videoShowControls || !videoPlaying}
       class:fullscreen={videoFullscreen}
+      role="group"
+      aria-label="Video oynatıcı"
       onmousemove={showVideoControls}
       onmouseenter={showVideoControls}
       ondblclick={onDoubleClickFullscreen}
@@ -458,7 +498,7 @@
       ></video>
 
       {#if !videoPlaying}
-        <div class="veil-video-center-play" onclick={toggleVideo} role="button" tabindex="0">
+        <div class="veil-video-center-play" onclick={toggleVideo} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleVideo(); } }}>
           <Icon name="play" size={32} />
         </div>
       {/if}
@@ -738,7 +778,6 @@
     background: hsl(220 20% 16% / 0.95);
   }
 
-  /* ── Custom Video Player ──────────────────────────────────────────────── */
   .veil-video-custom-wrap {
     position: relative;
     display: inline-flex;
@@ -752,6 +791,42 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     cursor: pointer;
     user-select: none;
+    transition: max-width 0.2s, min-width 0.2s, border-radius 0.2s;
+  }
+  .veil-video-custom-wrap:fullscreen,
+  .veil-video-custom-wrap.fullscreen {
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    background: #000 !important;
+    box-shadow: none !important;
+    cursor: default !important;
+  }
+  .veil-video-custom-wrap:fullscreen .veil-inline-video,
+  .veil-video-custom-wrap.fullscreen .veil-inline-video {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    object-fit: contain !important;
+    border-radius: 0 !important;
+  }
+  .veil-video-custom-wrap:fullscreen .veil-video-center-play,
+  .veil-video-custom-wrap.fullscreen .veil-video-center-play {
+    cursor: pointer;
+  }
+  :global(body.veil-fs-lock) {
+    overflow: hidden;
   }
   .veil-inline-video {
     width: 100%;

@@ -40,9 +40,8 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 | **Windows** | `.exe` Setup | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Full Setup Wizard (Authenticode Signed) |
 | **Windows** | `.msi` Installer | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX Enterprise MSI Installer |
 | **Windows** | `.zip` Portable | [`veilanon_0.0.1_x64.zip`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64.zip) | Portable Zero-Install Windows Archive |
-| **Windows** | `.tar.gz` Portable | [`veilanon_0.0.1_x64.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64.tar.gz) | Compressed Windows Portable Archive |
 | **macOS** | `.dmg` Package | [`veilanon_0.0.1_aarch64.dmg`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.dmg) | Apple Silicon (M1/M2/M3/M4) Disk Image |
-| **macOS** | `.app.tar.gz` | [`veilanon.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon.app.tar.gz) | macOS Universal Application Bundle Archive |
+| **macOS** | `.app.tar.gz` | [`veilanon_0.0.1_aarch64.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.app.tar.gz) | macOS Apple Silicon Application Bundle Archive |
 | **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Standalone Universal Linux Binary |
 | **Linux** | `.deb` Package | [`veilanon_0.0.1_amd64.deb`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.deb) | Ubuntu / Debian Native Package |
 | **Linux** | `.rpm` Package | [`veilanon-0.0.1-1.x86_64.rpm`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon-0.0.1-1.x86_64.rpm) | Fedora / RHEL / openSUSE Native Package |

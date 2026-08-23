@@ -346,7 +346,7 @@
     if (!ok) return;
     try {
       const updated = await spaceApi.update({ id: spaceId, bannerHash: null });
-      removeBannerCache(space.bannerHash);
+      if (space?.bannerHash) removeBannerCache(space.bannerHash);
       spaceStore.applySpace(updated);
       toastStore.success('Banner kaldırıldı.');
     } catch {
