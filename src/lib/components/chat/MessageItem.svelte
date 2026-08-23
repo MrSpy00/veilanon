@@ -11,7 +11,7 @@
   import { trustedDomainsStore } from '$lib/stores/trustedDomains';
   import ExternalLinkModal from '../ui/ExternalLinkModal.svelte';
   import { save } from '@tauri-apps/plugin-dialog';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Icon from '../ui/Icon.svelte';
   import Markdown from '../ui/Markdown.svelte';
   import Avatar from '../ui/Avatar.svelte';
@@ -79,6 +79,11 @@
   let menuItems = $state<ContextMenuItem[]>([]);
   let reactOpen = $state(false);
 
+  // ── Inline düzenleme durumu (Discord tarzı) ────────────────────────────
+  let editing = $state(false);
+  let editDraft = $state('');
+  let editTextarea = $state<HTMLTextAreaElement | null>(null);
+
   function formatTime(ts: number): string {
     return new Date(ts * 1000).toLocaleTimeString('tr-TR', {
       hour: '2-digit',
@@ -123,24 +128,37 @@
     });
   }
 
-  async function startEdit() {
+  async function beginEdit() {
     if (!message.content) return;
-    const next = await uiStore.promptInput('Mesajı düzenle:', {
-      title: 'Mesajı Düzenle',
-      confirmLabel: 'Kaydet',
-      defaultValue: message.content,
-    });
-    if (next === null || next.trim() === message.content) return;
+    editDraft = message.content;
+    editing = true;
+    await tick();
+    editTextarea?.focus();
+    editTextarea?.select();
+  }
+
+  async function saveEdit() {
+    const next = editDraft.trim();
+    if (!next || next === message.content) {
+      cancelEdit();
+      return;
+    }
     try {
-      const edited = await messageApi.edit(message.id, next.trim());
+      const edited = await messageApi.edit(message.id, next);
       toastStore.success('Mesaj düzenlendi.');
       messageStore.patchMessage(message.channelId, message.id, {
-        content: edited.content,
+        content: edited.content ?? next,
         editedAt: edited.editedAt,
       });
+      editing = false;
     } catch {
       toastStore.error('Mesaj düzenlenemedi.');
     }
+  }
+
+  function cancelEdit() {
+    editing = false;
+    editDraft = '';
   }
 
   async function togglePin() {
@@ -216,7 +234,7 @@
     if (isOwn || canDelete) {
       items.push({ label: '', separator: true });
       if (isOwn && message.content) {
-        items.push({ label: 'Düzenle', icon: 'edit', onClick: startEdit });
+        items.push({ label: 'Düzenle', icon: 'edit', onClick: beginEdit });
       }
       if (canDelete) {
         items.push({ label: 'Sil', icon: 'trash', danger: true, onClick: handleDelete });
@@ -495,7 +513,34 @@
 
     <!-- Message content -->
     <div class="veil-message-content" class:deleted={isDeleted}>
-      {#if isDeleted}
+      {#if editing}
+        <div class="veil-message-edit-box">
+          <textarea
+            bind:this={editTextarea}
+            bind:value={editDraft}
+            class="veil-message-edit-input"
+            maxlength="4000"
+            rows={Math.min(6, Math.max(2, Math.ceil((editDraft.length || 1) / 80)))}
+            aria-label="Mesaj düzenleme"
+            onkeydown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void saveEdit(); }
+            }}
+          ></textarea>
+          <div class="veil-message-edit-actions">
+            <span class="veil-message-edit-hint">Esc ile vazgeç · Ctrl+Enter ile kaydet</span>
+            <div class="veil-message-edit-btns">
+              <button type="button" class="btn btn-ghost btn-sm" onclick={cancelEdit}>Vazgeç</button>
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                onclick={saveEdit}
+                disabled={!editDraft.trim() || editDraft.trim() === message.content}
+              >Kaydet</button>
+            </div>
+          </div>
+        </div>
+      {:else if isDeleted}
         {displayContent}
       {:else if message.content}
         <Markdown content={displayContent} />
@@ -582,7 +627,7 @@
     <button class="btn-icon" onclick={() => (reactOpen = !reactOpen)} title="Tepki ekle" aria-label="Tepki ekle"><Icon name="sparkle" size={14} /></button>
     <button class="btn-icon" onclick={startReply} title="Yanıtla" aria-label="Mesaja yanıt ver"><span class="veil-reply-flip"><Icon name="arrow-left" size={14} /></span></button>
     {#if isOwn}
-      <button class="btn-icon" onclick={startEdit} title="Düzenle" aria-label="Mesajı düzenle"><Icon name="edit" size={14} /></button>
+      <button class="btn-icon" onclick={beginEdit} title="Düzenle" aria-label="Mesajı düzenle"><Icon name="edit" size={14} /></button>
       <button
         class="btn-icon"
         style="color: var(--veil-danger);"
@@ -827,4 +872,48 @@
     from { opacity: 0; transform: translateY(4px) scale(0.98); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
+
+  /* ── Inline mesaj düzenleme ─────────────────────────────────────────── */
+  .veil-message-edit-box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    animation: veil-pop-in 0.16s ease-out;
+  }
+  .veil-message-edit-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 48px;
+    background: var(--veil-bg-void);
+    border: 1px solid var(--veil-brand-border);
+    border-radius: var(--radius-md);
+    color: var(--veil-text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    padding: var(--space-2) var(--space-3);
+    outline: none;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  .veil-message-edit-input:focus {
+    border-color: var(--veil-brand);
+    box-shadow: 0 0 0 3px var(--veil-brand-subtle);
+  }
+  .veil-message-edit-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .veil-message-edit-hint {
+    font-size: var(--text-xs);
+    color: var(--veil-text-muted);
+  }
+  .veil-message-edit-btns {
+    display: flex;
+    gap: var(--space-2);
+  }
+
 </style>

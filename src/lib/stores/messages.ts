@@ -542,45 +542,53 @@ function createMessageStore() {
 
     /** Local patch after edit/pin — server state already updated via API. */
     patchMessage(channelId: string, messageId: string, patch: Partial<Message>) {
-      update(s => ({
-        ...s,
-        byChannel: {
-          ...s.byChannel,
-          [channelId]: (s.byChannel[channelId] ?? []).map((m: Message) =>
-            m.id === messageId ? { ...m, ...patch } : m
-          ),
-        },
-      }));
+      update(s => {
+        const nextList = (s.byChannel[channelId] ?? []).map((m: Message) =>
+          m.id === messageId ? { ...m, ...patch } : m
+        );
+        saveChannelCache(channelId, nextList);
+        return {
+          ...s,
+          byChannel: {
+            ...s.byChannel,
+            [channelId]: nextList,
+          },
+        };
+      });
     },
 
     /** Local reaction update (server round-trip already done). */
     patchReaction(channelId: string, messageId: string, emoji: string, add: boolean) {
-      update(s => ({
-        ...s,
-        byChannel: {
-          ...s.byChannel,
-          [channelId]: (s.byChannel[channelId] ?? []).map((m: Message) => {
-            if (m.id !== messageId) return m;
-            const reactions = [...m.reactions];
-            const idx = reactions.findIndex(r => r.emoji === emoji);
-            if (add) {
-              if (idx >= 0) {
-                const r = reactions[idx];
-                if (!r.userIds.includes('self')) r.userIds.push('self');
-                r.count = r.userIds.length;
-              } else {
-                reactions.push({ emoji, userIds: ['self'], count: 1 });
-              }
-            } else if (idx >= 0) {
+      update(s => {
+        const nextList = (s.byChannel[channelId] ?? []).map((m: Message) => {
+          if (m.id !== messageId) return m;
+          const reactions = [...m.reactions];
+          const idx = reactions.findIndex(r => r.emoji === emoji);
+          if (add) {
+            if (idx >= 0) {
               const r = reactions[idx];
-              r.userIds = r.userIds.filter((u: string) => u !== 'self');
+              if (!r.userIds.includes('self')) r.userIds.push('self');
               r.count = r.userIds.length;
-              if (r.userIds.length === 0) reactions.splice(idx, 1);
+            } else {
+              reactions.push({ emoji, userIds: ['self'], count: 1 });
             }
-            return { ...m, reactions };
-          }),
-        },
-      }));
+          } else if (idx >= 0) {
+            const r = reactions[idx];
+            r.userIds = r.userIds.filter((u: string) => u !== 'self');
+            r.count = r.userIds.length;
+            if (r.userIds.length === 0) reactions.splice(idx, 1);
+          }
+          return { ...m, reactions };
+        });
+        saveChannelCache(channelId, nextList);
+        return {
+          ...s,
+          byChannel: {
+            ...s.byChannel,
+            [channelId]: nextList,
+          },
+        };
+      });
     },
 
     getForChannel: (channelId: string) =>

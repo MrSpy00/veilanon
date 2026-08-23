@@ -31,6 +31,16 @@ Developed by [aegisSoft](https://www.aegissoft.com.tr/). Brand name is strictly 
 
 ---
 
+## 🚀 v0.0.1 Release Highlights
+
+- **Reliable message editing** — inline (Discord-style) editor on the edit icon, with instant local + server sync.
+- **Video playback polish** — hover volume slider, mute toggle, and rock-solid fullscreen on every platform.
+- **Banner & profile sync** — account/server banners and avatars no longer disappear on app restart, reinstall, or login; cross-device profile changes propagate in real time (Supabase `users` realtime + `user:updated` events).
+- **Theme-aware accent** — the accent color now follows the active theme and only a manual override changes it (until the next theme switch).
+- **End-to-end sync** — messages, reactions, presence, friendships, DMs, group DMs, roles and badges stay consistent across all connected devices with Supabase realtime + periodic reconciliation.
+
+---
+
 ## 📦 Multi-Platform Release Downloads (v0.0.1)
 
 All release packages are digitally signed and verified with SHA-256 checksum manifests. You can download pre-compiled binaries for your operating system directly from [GitHub Releases v0.0.1](https://github.com/MrSpy00/veilanon/releases/tag/v0.0.1) or from [veilanon.com](https://veilanon.com):
@@ -73,8 +83,11 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 
 ### 💬 Social & Community Experience
 - **Spaces, Channels & Permissions:** Text, voice, forum, and announcement channels with granular role-based access control.
+- **Message Editing:** Discord-style inline editing with a dedicated editor, Esc-to-cancel and Ctrl+Enter-to-save; edited marker synced across devices in real time.
+- **Video Player:** Custom player with progress scrubbing, hover volume slider, mute toggle and reliable fullscreen (native + CSS fallback).
 - **Deep Linking Protocol (`veilanon://`):** Instant universal links for invites (`/invite/{code}`), profiles (`/u/{user}`), spaces, and messages.
 - **Rich Media & Emojis:** GIF search via Tenor / Giphy, customizable emoji picker, 3:1 banner cropper, and animated status badges.
+- **Theme-Aware Accent:** Switching a theme resets the accent to that theme's brand color; a manual accent override is honored until the next theme change.
 - **Moderation Tools:** Complete kick, ban, unban, and temporary timeout enforcement.
 
 ---

@@ -524,7 +524,25 @@ pub async fn login_with_credentials(
     let (final_username, final_display, avatar_hash, banner_hash) = if let Some((u, d, a, b)) = remote_profile {
         (u, d, a, b)
     } else {
-        (clean_username.clone(), clean_username.clone(), None, None)
+        // Remote profil alınamadıysa yerel DB'de kayıtlı profil korunur;
+        // aksi halde avatar/banner yanlışlıkla temizlenir (sync bozulması).
+        let local = {
+            let db = state.db.read().await;
+            db.query_row(
+                "SELECT username, display_name, avatar_hash, banner_hash FROM local_identity LIMIT 1",
+                [],
+                |r| Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                )),
+            ).ok()
+        };
+        match local {
+            Some((lu, ld, la, lb)) if !lu.trim().is_empty() => (lu, ld, la, lb),
+            _ => (clean_username.clone(), clean_username.clone(), None, None),
+        }
     };
 
     let identity_id = auth_user_id.unwrap_or_else(|| stable_identity_id(&public.dh_public_key));
@@ -914,7 +932,7 @@ pub async fn load_identity(
     debug!("load_identity: reading identity row");
     // Load identity record from DB (rebuilds a stable row if it went missing).
     let db = state.db.read().await;
-    let (id, username, display_name, avatar_hash, banner_hash, device_id) =
+    let (id, mut username, mut display_name, mut avatar_hash, mut banner_hash, device_id) =
         load_or_rebuild_identity_row(&db, &public, &device_id)?;
     drop(db);
 
@@ -932,12 +950,52 @@ pub async fn load_identity(
 
         match auth_check {
             Ok(Ok(auth)) => {
-                let mut network = state.network.write().await;
-                network.api.set_access_token(auth.access_token.clone());
-                network.realtime.set_token(Some(auth.access_token));
-                *state.supabase_refresh_token.write().await = Some(auth.refresh_token.clone());
+                {
+                    let mut network = state.network.write().await;
+                    network.api.set_access_token(auth.access_token.clone());
+                    network.realtime.set_token(Some(auth.access_token));
+                    *state.supabase_refresh_token.write().await = Some(auth.refresh_token.clone());
+                }
                 let db = state.db.read().await;
                 let _ = db.save_supabase_refresh_token(&id, &auth.refresh_token);
+                drop(db);
+
+                // Başka cihazda güncellenen profil alanlarını (avatar/banner/ad) çek ve yerel DB'ye yansıt.
+                let remote = state
+                    .network
+                    .read()
+                    .await
+                    .api
+                    .select::<serde_json::Value>(
+                        "users",
+                        &format!("id=eq.{}", id),
+                        None,
+                        Some(1),
+                    )
+                    .await
+                    .unwrap_or_default();
+                if let Some(row) = remote.first() {
+                    let ru = row.get("username").and_then(|v| v.as_str()).map(str::to_string);
+                    let rd = row.get("display_name").and_then(|v| v.as_str()).map(str::to_string);
+                    let ra = row.get("avatar_hash").and_then(|v| v.as_str()).map(str::to_string);
+                    let rb = row.get("banner_hash").and_then(|v| v.as_str()).map(str::to_string);
+                    if ru.is_some() || rd.is_some() || ra.is_some() || rb.is_some() {
+                        let ru = ru.unwrap_or_else(|| username.clone());
+                        let rd = rd.unwrap_or_else(|| display_name.clone());
+                        let ra = ra.or_else(|| avatar_hash.clone());
+                        let rb = rb.or_else(|| banner_hash.clone());
+                        username = ru;
+                        display_name = rd;
+                        avatar_hash = ra;
+                        banner_hash = rb;
+                        let db = state.db.read().await;
+                        let _ = db.execute(
+                            "UPDATE local_identity SET username=?1, display_name=?2, avatar_hash=?3, banner_hash=?4 WHERE id=?5",
+                            rusqlite::params![username, display_name, avatar_hash, banner_hash, id.to_string()],
+                        );
+                        let _ = db.upsert_profile(&id, &username, &display_name, avatar_hash.as_deref(), None, None, banner_hash.as_deref(), None, None);
+                    }
+                }
             }
             Ok(Err(e)) => {
                 // Sunucu yanıt verdi fakat hesap bulunamadı / kimlik bilgisi geçersiz (veritabanı sıfırlanmış / kullanıcı silinmiş):

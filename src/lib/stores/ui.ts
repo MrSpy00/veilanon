@@ -241,6 +241,11 @@ function createUiStore() {
         storedModeRaw === 'shuffle' || storedModeRaw === 'timed' ? storedModeRaw : 'sequential';
       const storedInterval = parseInt(localStorage.getItem(userBgKey('veilanon-playback-interval', userId)) || '', 10);
 
+      // refreshDomTheme global anahtarı okur; per-user vurguyu da oraya yansıt.
+      if (storedAccent) {
+        localStorage.setItem('veilanon-accent', storedAccent);
+      }
+
       update(s => {
         const next = {
           ...s,
@@ -283,6 +288,9 @@ function createUiStore() {
         const next = { ...s, theme };
         localStorage.setItem('veilanon-theme', theme);
         if (activeUserId) localStorage.setItem(userBgKey('veilanon-theme'), theme);
+        // Tema değişiminde eski vurgu sıfırlanır; manuel vurgu sonraki tema değişimine dek geçerli olur.
+        localStorage.removeItem('veilanon-accent');
+        if (activeUserId) localStorage.removeItem(userBgKey('veilanon-accent'));
         refreshDomTheme(next);
         return next;
       });
@@ -293,6 +301,9 @@ function createUiStore() {
         const next = { ...s, presetThemeId };
         localStorage.setItem('veilanon-preset', presetThemeId);
         if (activeUserId) localStorage.setItem(userBgKey('veilanon-preset'), presetThemeId);
+        // Hazır tema değişiminde vurgu temayla uyumlanır; manuel vurgu sonraki değişime dek geçerli.
+        localStorage.removeItem('veilanon-accent');
+        if (activeUserId) localStorage.removeItem(userBgKey('veilanon-accent'));
         refreshDomTheme(next);
         return next;
       });

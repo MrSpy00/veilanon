@@ -330,6 +330,16 @@
     }
   }
 
+  function setVideoVolume(v: number) {
+    const clamped = Math.max(0, Math.min(1, v));
+    videoVolume = clamped;
+    if (videoEl) {
+      videoEl.volume = clamped;
+      videoEl.muted = clamped === 0;
+      videoMuted = clamped === 0;
+    }
+  }
+
   let fullscreenWrapEl = $state<HTMLDivElement | null>(null);
 
   // Native Fullscreen API yoksa veya reddedilirse `.fullscreen` sınıfı devreye girer.
@@ -539,9 +549,30 @@
             {formatDuration(videoCurrentTime)} / {formatDuration(videoDuration)}
           </span>
           <div class="veil-vc-spacer"></div>
-          <button type="button" class="veil-vc-btn" onclick={toggleVideoVolume} title={videoMuted ? 'Sesi aç' : 'Sessizleştir'}>
-            <Icon name={videoMuted ? 'volume-x' : 'volume'} size={15} />
-          </button>
+          <div class="veil-vc-volume">
+            <button
+              type="button"
+              class="veil-vc-btn"
+              onclick={toggleVideoVolume}
+              title={videoMuted || videoVolume === 0 ? 'Sesi aç' : 'Sessizleştir'}
+            >
+              <Icon name={videoMuted || videoVolume === 0 ? 'volume-x' : 'volume'} size={15} />
+            </button>
+            <div class="veil-vc-volume-slider-wrap" aria-hidden="true">
+              <input
+                type="range"
+                class="veil-vc-volume-slider"
+                min="0"
+                max="1"
+                step="0.01"
+                bind:value={videoVolume}
+                aria-label="Ses seviyesi"
+                aria-orientation="vertical"
+                oninput={() => setVideoVolume(videoVolume)}
+                onclick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
           <button type="button" class="veil-vc-btn" onclick={handleDownload} title="İndir" disabled={downloading}>
             <Icon name="download" size={15} />
           </button>
@@ -935,6 +966,55 @@
     flex-shrink: 0;
   }
   .veil-vc-spacer { flex: 1; }
+  .veil-vc-volume { position: relative; display: flex; align-items: center; }
+  .veil-vc-volume-slider-wrap {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    height: 96px;
+    width: 28px;
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    z-index: 5;
+  }
+  .veil-vc-volume:hover .veil-vc-volume-slider-wrap {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  .veil-vc-volume-slider {
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 20px;
+    height: 84px;
+    background: transparent;
+    accent-color: var(--veil-brand, #7c3aed);
+    cursor: pointer;
+  }
+  .veil-vc-volume-slider::-webkit-slider-runnable-track {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 2px;
+    width: 4px;
+  }
+  .veil-vc-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
 
   /* ── Voice Note / Audio Waveform Player ──────────────────────────────── */
   .veil-voice-note-card {
