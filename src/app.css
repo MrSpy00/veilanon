@@ -1307,7 +1307,7 @@ textarea,
   letter-spacing: -0.006em;
   color: var(--veil-text-primary);
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal;
   margin: 0;
   padding: 0;
 }

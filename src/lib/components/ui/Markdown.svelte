@@ -58,10 +58,15 @@
 
 <style>
   .veil-markdown {
-    white-space: pre-wrap;
+    white-space: normal;
     word-break: break-word;
     overflow-wrap: anywhere;
     line-height: 1.32;
+  }
+  .veil-markdown :global(br) {
+    display: block;
+    content: '';
+    margin: 0;
   }
   .veil-markdown :global(a) {
     color: var(--veil-brand);

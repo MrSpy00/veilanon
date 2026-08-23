@@ -121,13 +121,15 @@ function renderToken(token: Token): string {
 
 /**
  * Render markdown-ish content to SAFE HTML (all user text escaped).
- * Newlines are preserved with <br> to match the chat's pre-wrap feel.
+ * Single \n -> <br>, double \n\n -> paragraph gap, trailing/leading blank lines trimmed.
  */
 export function renderMarkdown(content: string): string {
   if (!content) return '';
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  let normalized = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!normalized) return '';
   const tokens = tokenize(normalized);
-  return tokens.map(renderToken).join('');
+  const html = tokens.map(renderToken).join('');
+  return html.replace(/\n/g, '<br>');
 }
 
 /**
