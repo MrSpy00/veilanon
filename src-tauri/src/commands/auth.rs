@@ -153,6 +153,19 @@ pub async fn create_identity(
     if input.passphrase.len() < 8 {
         return Err(VeilError::InvalidInput("Parola en az 8 karakter olmalıdır.".into()));
     }
+    if state.keystore.has_identity() {
+        let db_has: bool = {
+            let db = state.db.read().await;
+            db.query_row("SELECT COUNT(*) FROM local_identity", [], |r| r.get::<_, i64>(0))
+                .map(|c| c > 0)
+                .unwrap_or(false)
+        };
+        if db_has {
+            return Err(VeilError::InvalidInput(
+                "Bu cihazda zaten kayıtlı bir kimlik var. Yeni kimlik oluşturmak için önce Ayarlar > Cihazı Sıfırla ile mevcut kimliği silmelisiniz.".into(),
+            ));
+        }
+    }
 
     // Kullanıcı adı benzersizliği kontrolü (Supabase public.users)
     if config::configured("VEILANON_SUPABASE_URL") {
@@ -417,13 +430,82 @@ pub async fn login_with_credentials(
             }
         }
     } else {
-        if !state.keystore.has_identity() {
+        // Offline / Supabase yokken: kullanıcı adı + parola birlikte doğrulanmalı.
+        // Sadece has_identity yetmez; türetilen public key'in yerel kimlikle eşleşmesi şart.
+        let has_local = state.keystore.has_identity() || {
+            let db = state.db.read().await;
+            db.query_row("SELECT COUNT(*) FROM local_identity", [], |r| r.get::<_, i64>(0))
+                .map(|c| c > 0)
+                .unwrap_or(false)
+        };
+        if !has_local {
             record_failure(&state);
             return Err(VeilError::InvalidInput(
                 "Bu cihazda kayıtlı kimlik bulunamadı. Lütfen önce kimlik oluşturun.".into(),
             ));
         }
-        state.keystore.load_keys(&input.passphrase)?;
+        // Parola doğrulaması: keystore'daki master key'i çözmeyi dene
+        if let Err(_) = state.keystore.load_keys(&input.passphrase) {
+            // Fallback: deterministik türetim ile yerel public key eşleşiyor mu?
+            let db = state.db.read().await;
+            let stored: Option<(String, String)> = db
+                .query_row(
+                    "SELECT username, dh_public_key FROM local_identity LIMIT 1",
+                    [],
+                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                )
+                .ok()
+                .or_else(|| {
+                    db.query_row(
+                        "SELECT username, dh_public_key FROM user_profiles LIMIT 1",
+                        [],
+                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                    )
+                    .ok()
+                });
+            drop(db);
+            if let Some((stored_un, stored_pub)) = stored {
+                if stored_un.to_lowercase() != clean_username {
+                    record_failure(&state);
+                    return Err(VeilError::InvalidInput(
+                        "Kullanıcı adı veya parola hatalı. Lütfen bilgilerinizi kontrol edin veya yeni bir kimlik oluşturun.".into(),
+                    ));
+                }
+                if public.dh_public_key != stored_pub {
+                    record_failure(&state);
+                    return Err(VeilError::InvalidInput(
+                        "Kullanıcı adı veya parola hatalı. Lütfen bilgilerinizi kontrol edin veya yeni bir kimlik oluşturun.".into(),
+                    ));
+                }
+                // Public key eşleşti ama keystore çözülemedi: salt değişmiş olabilir.
+                // Bu durumda türetilen bundle'ı keystore'a yeniden kaydetmeyi dene
+                // (load_identity'deki fallback mantığı).
+            } else {
+                record_failure(&state);
+                return Err(VeilError::InvalidPassphrase);
+            }
+            // Keystore doğrudan çözülemedi ama pubkey eşleşti ise, parola doğru kabul edilir.
+            // Aşağıda save_keys ile yeni wrapping yapılacak, bu yüzden burada geçiyoruz.
+        } else {
+            // Keystore çözüldü; yine de kullanıcı adı eşleşmeli (yoksa rastgele kullanıcı adı ile giriş engellensin)
+            let db = state.db.read().await;
+            let stored_un: Option<String> = db
+                .query_row("SELECT username FROM local_identity LIMIT 1", [], |r| r.get(0))
+                .ok()
+                .or_else(|| {
+                    db.query_row("SELECT username FROM user_profiles LIMIT 1", [], |r| r.get(0))
+                        .ok()
+                });
+            drop(db);
+            if let Some(sun) = stored_un {
+                if sun.to_lowercase() != clean_username {
+                    record_failure(&state);
+                    return Err(VeilError::InvalidInput(
+                        "Kullanıcı adı veya parola hatalı. Lütfen bilgilerinizi kontrol edin veya yeni bir kimlik oluşturun.".into(),
+                    ));
+                }
+            }
+        }
     }
 
     reset_attempts(&state);

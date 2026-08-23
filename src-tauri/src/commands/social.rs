@@ -376,6 +376,12 @@ pub async fn friends_accept(user_id: String, state: State<'_, AppState>) -> Resu
                 "user_id,friend_id",
             )
             .await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "friend_request",
+            "action": "accepted",
+            "sender_id": identity.id.to_string(),
+            "target_id": friend_id.to_string(),
+        }));
     }
     let _ = state.app.emit("friends:changed", serde_json::json!({ "userId": friend_id.to_string() }));
     info!("Friend accepted: {}", friend_id);
@@ -409,6 +415,12 @@ pub async fn friends_reject(user_id: String, state: State<'_, AppState>) -> Resu
                 &format!("user_id=eq.{}&friend_id=eq.{}", friend_id, identity.id),
             )
             .await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "friend_request",
+            "action": "rejected",
+            "sender_id": identity.id.to_string(),
+            "target_id": friend_id.to_string(),
+        }));
     }
     let _ = state.app.emit("friends:changed", serde_json::json!({ "userId": friend_id.to_string() }));
     info!("Friend request rejected: {}", friend_id);
@@ -442,6 +454,12 @@ pub async fn friends_cancel(user_id: String, state: State<'_, AppState>) -> Resu
                 &format!("user_id=eq.{}&friend_id=eq.{}", friend_id, identity.id),
             )
             .await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "friend_request",
+            "action": "cancelled",
+            "sender_id": identity.id.to_string(),
+            "target_id": friend_id.to_string(),
+        }));
     }
     let _ = state.app.emit("friends:changed", serde_json::json!({ "userId": friend_id.to_string() }));
     info!("Friend request cancelled: {}", friend_id);
@@ -475,6 +493,12 @@ pub async fn friends_remove(user_id: String, state: State<'_, AppState>) -> Resu
                 &format!("user_id=eq.{}&friend_id=eq.{}", friend_id, identity.id),
             )
             .await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "friend_request",
+            "action": "removed",
+            "sender_id": identity.id.to_string(),
+            "target_id": friend_id.to_string(),
+        }));
     }
     let _ = state.app.emit("friends:changed", serde_json::json!({ "userId": friend_id.to_string() }));
     info!("Friend removed: {}", friend_id);

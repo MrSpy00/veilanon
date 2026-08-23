@@ -84,9 +84,11 @@
     const unlistenBroadcast = listen('veilanon:broadcast', (e: any) => {
       const p = e.payload;
       if (p?.type === 'friend_request') {
-        if (!p.target_id || p.target_id === auth.identity?.id) {
+        const isTarget = !p.target_id || p.target_id === auth.identity?.id;
+        const isSender = p.sender_id === auth.identity?.id;
+        if (isTarget || isSender) {
           debouncedFriendsLoad();
-          if (p.sender_username && p.action === 'incoming') {
+          if (isTarget && p.sender_username && p.action === 'incoming') {
             void toastStore.notifyFriendRequest({
               username: p.sender_username,
               displayName: p.sender_display_name || p.sender_username,
