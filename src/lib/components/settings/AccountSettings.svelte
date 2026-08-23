@@ -230,12 +230,12 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif')) {
+    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
       avatarBusy = true;
       try {
         const hash = await identityApi.setAvatar(selected);
         authStore.updateIdentity({ avatarHash: hash });
-        toastStore.success('Animasyonlu profil fotoğrafı güncellendi.');
+        toastStore.success('Profil fotoğrafı güncellendi.');
       } catch {
         toastStore.error('Profil fotoğrafı yüklenemedi.');
       } finally {
@@ -285,12 +285,14 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif')) {
+    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
       avatarBusy = true;
       try {
         const hash = await identityApi.setBanner(selected);
+        const dataUrl = await readLocalImageAsDataUrl(selected);
+        cacheBanner(hash, dataUrl);
         authStore.updateIdentity({ bannerHash: hash });
-        toastStore.success('Animasyonlu profil bannerı güncellendi.');
+        toastStore.success('Profil bannerı güncellendi.');
       } catch {
         toastStore.error('Banner yüklenemedi.');
       } finally {

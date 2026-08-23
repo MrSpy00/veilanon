@@ -7,6 +7,9 @@
   import { fileApi, messageApi, friendApi, dmApi, privacyToolsApi, type LinkPreviewResult } from '$lib/api/tauri';
   import { permissionsStore } from '$lib/stores/permissions';
   import { streamerMode, maskUserId } from '$lib/stores/streamerMode';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import { trustedDomainsStore } from '$lib/stores/trustedDomains';
+  import ExternalLinkModal from '../ui/ExternalLinkModal.svelte';
   import { save } from '@tauri-apps/plugin-dialog';
   import { onDestroy } from 'svelte';
   import Icon from '../ui/Icon.svelte';
@@ -351,13 +354,29 @@
   const URL_REGEX = /https?:\/\/[^\s<>"]+/g;
   const detectedUrls = $derived.by<string[]>(() => {
     if (!message.content) return [];
-    const matches = message.content.match(URL_REGEX);
+    // If the URL is wrapped in <...>, it is explicitly suppressed by the sender
+    const unsuppressed = message.content.replace(/<https?:\/\/[^\s>]+>/g, '');
+    const matches = unsuppressed.match(URL_REGEX);
     return matches ? ([...new Set(matches)] as string[]).slice(0, 1) : []; // Only first URL
   });
 
   let linkPreview = $state<LinkPreviewResult | null>(null);
   let linkPreviewLoading = $state(false);
   let linkPreviewError = $state(false);
+  let linkModalOpen = $state(false);
+  let selectedExternalUrl = $state('');
+
+  function openExternalLink(url: string) {
+    if (!url) return;
+    if (trustedDomainsStore.shouldDirectRedirect(url)) {
+      openUrl(url).catch(() => {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
+    } else {
+      selectedExternalUrl = url;
+      linkModalOpen = true;
+    }
+  }
 
   $effect(() => {
     const url: string | undefined = detectedUrls[0];
@@ -489,7 +508,15 @@
           <div class="veil-link-preview-skeleton"></div>
         </div>
       {:else if linkPreview && (linkPreview.title || linkPreview.description)}
-        <div class="veil-link-preview-card" role="complementary" aria-label="Bağlantı önizleme">
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div
+          class="veil-link-preview-card"
+          role="link"
+          tabindex="0"
+          aria-label="Bağlantı önizleme: {linkPreview.title || detectedUrls[0]}"
+          onclick={() => openExternalLink(detectedUrls[0])}
+        >
           {#if linkPreview.image}
             <img
               class="veil-link-preview-img"
@@ -582,6 +609,12 @@
 
 <!-- Global context menu for this message -->
 <ContextMenu open={menuOpen} x={menuX} y={menuY} items={menuItems} onClose={() => (menuOpen = false)} />
+
+<ExternalLinkModal
+  open={linkModalOpen}
+  url={selectedExternalUrl}
+  onClose={() => { linkModalOpen = false; selectedExternalUrl = ''; }}
+/>
 
 <style>
   .veil-message-avatar-btn {
@@ -717,15 +750,17 @@
     border-radius: var(--radius-lg);
     background: var(--veil-bg-elevated);
     overflow: hidden;
-    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    cursor: pointer;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
     display: flex;
     flex-direction: column;
     animation: veil-pop-in 0.18s ease-out;
   }
 
   .veil-link-preview-card:hover {
-    border-color: var(--veil-border);
+    border-color: var(--veil-brand);
     box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
   }
 
   .veil-link-preview-img {

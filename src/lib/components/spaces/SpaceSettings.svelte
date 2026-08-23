@@ -269,12 +269,12 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif')) {
+    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
       mediaBusy = true;
       try {
         await spaceApi.setIcon(spaceId, selected);
         await refreshSpaceAfterMedia();
-        toastStore.success('Animasyonlu topluluk ikonu güncellendi.');
+        toastStore.success('Topluluk ikonu güncellendi.');
       } catch {
         toastStore.error('İkon yüklenemedi.');
       } finally {
@@ -308,12 +308,16 @@
       filters: [{ name: 'Görseller', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
     });
     if (!selected || typeof selected !== 'string') return;
-    if (selected.toLowerCase().endsWith('.gif')) {
+    if (selected.toLowerCase().endsWith('.gif') || selected.toLowerCase().endsWith('.webp')) {
       mediaBusy = true;
       try {
-        await spaceApi.setBanner(spaceId, selected);
+        const hash = await spaceApi.setBanner(spaceId, selected);
+        if (hash) {
+          const dataUrl = await readLocalImageAsDataUrl(selected);
+          cacheBanner(hash, dataUrl);
+        }
         await refreshSpaceAfterMedia();
-        toastStore.success('Animasyonlu topluluk bannerı güncellendi.');
+        toastStore.success('Topluluk bannerı güncellendi.');
       } catch {
         toastStore.error('Banner yüklenemedi.');
       } finally {

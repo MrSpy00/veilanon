@@ -18,6 +18,7 @@
   let { attachment } = $props<{ attachment: Attachment }>();
 
   let dataUrl = $state<string | null>(null);
+  let blobUrl = $state<string | null>(null);
   let loading = $state(true);
   let error = $state(false);
   let lightboxOpen = $state(false);
@@ -60,6 +61,8 @@
     return 'file';
   });
 
+  const mediaSourceUrl = $derived(blobUrl || dataUrl);
+
   let calculatedWaveform = $state<number[] | null>(null);
 
   const waveformBars = $derived.by(() => {
@@ -86,6 +89,23 @@
     const ext = mime === 'image' ? 'png' : mime === 'video' ? 'mp4' : mime === 'audio' ? 'webm' : 'bin';
     return `dosya-${attachment.fileId.slice(0, 8)}.${ext}`;
   });
+
+  function createBlobFromDataUrl(url: string): Blob | null {
+    try {
+      const parts = url.split(',');
+      if (parts.length < 2) return null;
+      const match = parts[0].match(/:(.*?);/);
+      const mimeType = match ? match[1] : 'application/octet-stream';
+      const binary = atob(parts[1]);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Blob([bytes], { type: mimeType });
+    } catch {
+      return null;
+    }
+  }
 
   async function decodeAudioDurationAndPeaks(url: string) {
     try {
@@ -127,10 +147,17 @@
     let cancelled = false;
     fileApi.getDataUrl(attachment.fileId)
       .then((url) => {
-        if (!cancelled) {
+        if (!cancelled && url) {
           dataUrl = url;
           loading = false;
-          if (url && (url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/'))) {
+          // Create streamable Blob URL for audio and video tags in WebView2
+          if (url.startsWith('data:audio/') || url.startsWith('data:video/')) {
+            const blob = createBlobFromDataUrl(url);
+            if (blob) {
+              blobUrl = URL.createObjectURL(blob);
+            }
+          }
+          if (url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
             void decodeAudioDurationAndPeaks(url);
           }
         }
@@ -142,7 +169,13 @@
         }
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+    };
   });
 
   function toggleAudio() {
@@ -228,7 +261,7 @@
         onclick={() => (lightboxOpen = true)}
         title="Tam boyutta görüntüle"
       >
-        <img src={dataUrl} alt={displayFileName} class="veil-inline-image" loading="lazy" />
+        <img src={mediaSourceUrl} alt={displayFileName} class="veil-inline-image" loading="lazy" />
       </button>
       <button
         type="button"
@@ -242,7 +275,13 @@
   {:else if mime === 'video'}
     <div class="veil-video-wrap">
       <!-- svelte-ignore a11y_media_has_caption -->
-      <video src={dataUrl} controls class="veil-inline-video" preload="metadata"></video>
+      <video
+        src={mediaSourceUrl}
+        controls
+        playsinline
+        class="veil-inline-video"
+        preload="metadata"
+      ></video>
       <button
         type="button"
         class="veil-media-dl-btn"
@@ -257,7 +296,7 @@
     <div class="veil-voice-note-card" class:playing={isPlaying}>
       <audio
         bind:this={audioEl}
-        src={dataUrl}
+        src={mediaSourceUrl}
         preload="auto"
         onplay={() => (isPlaying = true)}
         onpause={() => (isPlaying = false)}
@@ -353,10 +392,10 @@
   {/if}
 </div>
 
-{#if lightboxOpen && dataUrl}
+{#if lightboxOpen && mediaSourceUrl}
   <LightboxModal
     open={lightboxOpen}
-    src={dataUrl}
+    src={mediaSourceUrl}
     alt={displayFileName}
     onClose={() => (lightboxOpen = false)}
   />
@@ -386,8 +425,10 @@
     max-height: 380px;
     border-radius: var(--radius-lg);
     overflow: hidden;
-    background: var(--veil-bg-surface);
-    border: 1px solid var(--veil-border-subtle);
+    background: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
   }
   .veil-image-btn {
     display: block;
@@ -403,6 +444,8 @@
     max-height: 380px;
     object-fit: contain;
     display: block;
+    border-radius: var(--radius-lg);
+    background: transparent !important;
   }
   .veil-media-dl-btn {
     position: absolute;
@@ -432,15 +475,19 @@
     position: relative;
     display: inline-block;
     max-width: 520px;
+    min-width: 280px;
+    min-height: 180px;
     border-radius: var(--radius-lg);
     overflow: hidden;
     background: #000;
     border: 1px solid var(--veil-border-subtle);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   }
   .veil-inline-video {
     width: 100%;
     max-height: 360px;
     display: block;
+    background: #000;
   }
 
   /* ── Dedicated Voice Message Waveform Player ── */

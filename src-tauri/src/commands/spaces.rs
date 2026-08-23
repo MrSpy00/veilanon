@@ -907,28 +907,40 @@ fn resolve_image_bytes(path_or_data: &str) -> Result<(Vec<u8>, String), VeilErro
         let (header, b64) = path_or_data
             .split_once(',')
             .ok_or_else(|| VeilError::InvalidInput("Geçersiz data URL".into()))?;
-        let ext = if header.contains("png") {
-            "png"
-        } else if header.contains("webp") {
-            "webp"
-        } else if header.contains("gif") {
-            "gif"
-        } else {
-            "jpg"
-        };
         let bytes = B64
             .decode(b64)
             .map_err(|_| VeilError::InvalidInput("Geçersiz base64 görsel verisi".into()))?;
+        let ext = if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") || header.contains("gif") {
+            "gif"
+        } else if (bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP") || header.contains("webp") {
+            "webp"
+        } else if bytes.starts_with(b"\xFF\xD8\xFF") || header.contains("jpeg") || header.contains("jpg") {
+            "jpg"
+        } else if bytes.starts_with(b"\x89PNG") || header.contains("png") {
+            "png"
+        } else {
+            "png"
+        };
         Ok((bytes, ext.to_string()))
     } else {
-        let ext = std::path::Path::new(path_or_data)
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp"))
-            .ok_or_else(|| VeilError::InvalidInput("Desteklenen formatlar: PNG, JPG, GIF, WEBP".into()))?;
         let bytes = std::fs::read(path_or_data)
             .map_err(|e| VeilError::FileError(e))?;
+        let ext = if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+            "gif".to_string()
+        } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+            "webp".to_string()
+        } else if bytes.starts_with(b"\xFF\xD8\xFF") {
+            "jpg".to_string()
+        } else if bytes.starts_with(b"\x89PNG") {
+            "png".to_string()
+        } else {
+            std::path::Path::new(path_or_data)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase())
+                .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp"))
+                .unwrap_or_else(|| "png".to_string())
+        };
         Ok((bytes, ext))
     }
 }

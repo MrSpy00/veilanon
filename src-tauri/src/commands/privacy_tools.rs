@@ -877,7 +877,41 @@ pub async fn fetch_link_preview(url: String) -> VeilResult<LinkPreviewResult> {
 
     let body = resp.text().await.map_err(VeilError::NetworkError)?;
     let sample = if body.len() > 256_000 { &body[..256_000] } else { &body };
-    let (title, description, image, site_name, favicon) = extract_html_meta(sample);
+    let (title, description, mut image, mut site_name, mut favicon) = extract_html_meta(sample);
+
+    if let Ok(base_url) = url::Url::parse(trimmed) {
+        if site_name.is_none() {
+            if let Some(host) = base_url.host_str() {
+                site_name = Some(host.trim_start_matches("www.").to_string());
+            }
+        }
+        if let Some(ref img_str) = image {
+            if !img_str.starts_with("http://") && !img_str.starts_with("https://") && !img_str.starts_with("data:") {
+                if let Ok(joined) = base_url.join(img_str) {
+                    image = Some(joined.to_string());
+                }
+            }
+        }
+        if let Some(ref fav_str) = favicon {
+            if !fav_str.starts_with("http://") && !fav_str.starts_with("https://") && !fav_str.starts_with("data:") {
+                if let Ok(joined) = base_url.join(fav_str) {
+                    favicon = Some(joined.to_string());
+                }
+            }
+        }
+        if image.is_none() {
+            if base_url.host_str() == Some("youtu.be") {
+                let id = base_url.path().trim_start_matches('/');
+                if !id.is_empty() {
+                    image = Some(format!("https://img.youtube.com/vi/{}/hqdefault.jpg", id));
+                }
+            } else if base_url.host_str().map(|h| h.contains("youtube.com")).unwrap_or(false) {
+                if let Some((_, id)) = base_url.query_pairs().find(|(k, _)| k == "v") {
+                    image = Some(format!("https://img.youtube.com/vi/{}/hqdefault.jpg", id));
+                }
+            }
+        }
+    }
 
     Ok(LinkPreviewResult {
         url: trimmed.into(),

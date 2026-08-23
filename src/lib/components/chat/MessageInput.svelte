@@ -4,7 +4,7 @@
   import { authStore } from '$lib/stores/auth';
   import { toastStore } from '$lib/stores/notifications';
   import { uiStore } from '$lib/stores/ui';
-  import { fileApi, messageApi, presenceApi, type GifResult } from '$lib/api/tauri';
+  import { fileApi, messageApi, presenceApi, privacyToolsApi, type GifResult, type LinkPreviewResult } from '$lib/api/tauri';
   import { permissionsStore } from '$lib/stores/permissions';
   import { formatTimeoutRemaining } from '$lib/utils/permissions';
   import { open, type DialogFilter } from '@tauri-apps/plugin-dialog';
@@ -30,6 +30,52 @@
   let uploadMenuOpen = $state(false);
   let pendingFiles = $state<Array<{ name: string; fileId: string; r2Key: string; sizeBytes: number; mimeTypeHint: string | null; contentKeyCiphertext?: string | null }>>([]);
   let uploading = $state(false);
+
+  // Link preview detection and sender toggle
+  const URL_REGEX = /https?:\/\/[^\s<>"]+/;
+  let linkPreview = $state<LinkPreviewResult | null>(null);
+  let linkPreviewLoading = $state(false);
+  let linkPreviewEnabled = $state(true);
+  let dismissedUrl = $state<string | null>(null);
+  let linkPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
+
+  const detectedUrl = $derived.by(() => {
+    const match = content.match(URL_REGEX);
+    return match ? match[0] : null;
+  });
+
+  $effect(() => {
+    const url = detectedUrl;
+    if (linkPreviewDebounce) clearTimeout(linkPreviewDebounce);
+    if (!url || url === dismissedUrl) {
+      linkPreview = null;
+      linkPreviewLoading = false;
+      return;
+    }
+    linkPreviewLoading = true;
+    linkPreviewDebounce = setTimeout(() => {
+      privacyToolsApi.fetchLinkPreview(url)
+        .then((res) => {
+          if (detectedUrl === url && res && res.isSafe !== false) {
+            linkPreview = res;
+          }
+        })
+        .catch(() => {
+          linkPreview = null;
+        })
+        .finally(() => {
+          linkPreviewLoading = false;
+        });
+    }, 350);
+  });
+
+  function dismissLinkPreview() {
+    if (detectedUrl) {
+      dismissedUrl = detectedUrl;
+    }
+    linkPreview = null;
+    linkPreviewEnabled = false;
+  }
 
   // Voice recording state
   let mediaRecorder = $state<MediaRecorder | null>(null);
@@ -155,8 +201,16 @@
     const prev = content;
     const files = pendingFiles;
     const replyTarget = ui.replyTo && ui.replyTo.channelId === channelId ? ui.replyTo : null;
+    let messageToSend = trimmed;
+    if (detectedUrl && !linkPreviewEnabled && !messageToSend.includes(`<${detectedUrl}>`)) {
+      messageToSend = messageToSend.replace(detectedUrl, `<${detectedUrl}>`);
+    }
+
     pendingFiles = [];
     content = '';
+    linkPreview = null;
+    dismissedUrl = null;
+    linkPreviewEnabled = true;
     syncDraft();
     resizeTextarea();
     textareaEl?.focus();
@@ -171,7 +225,7 @@
         mimeTypeHint: f.mimeTypeHint,
         fileName: f.name,
       }));
-      await messageStore.sendMessage(channelId, trimmed, replyTarget?.messageId, attachments);
+      await messageStore.sendMessage(channelId, messageToSend, replyTarget?.messageId, attachments);
       draftStore.clearDraft(channelId);
       uiStore.setReplyTo(null);
     } catch (err) {
@@ -646,6 +700,43 @@
     </div>
   {/if}
 
+  {#if detectedUrl && dismissedUrl !== detectedUrl && (linkPreview || linkPreviewLoading)}
+    <div class="veil-composer-link-preview" role="region" aria-label="Bağlantı önizleme çubuğu">
+      <div class="veil-clp-info">
+        {#if linkPreview?.image}
+          <img src={linkPreview.image} alt="" class="veil-clp-thumb" />
+        {:else}
+          <div class="veil-clp-icon">
+            <Icon name="link" size={14} />
+          </div>
+        {/if}
+        <div class="veil-clp-text">
+          <span class="veil-clp-title">{linkPreview?.title || detectedUrl}</span>
+          <span class="veil-clp-domain">{linkPreview?.siteName || 'Web Bağlantısı'}</span>
+        </div>
+      </div>
+      <div class="veil-clp-controls">
+        <label class="veil-clp-toggle" title="Önizlemeyi aç / kapat">
+          <input
+            type="checkbox"
+            checked={linkPreviewEnabled}
+            onchange={(e) => (linkPreviewEnabled = (e.currentTarget as HTMLInputElement).checked)}
+          />
+          <span class="veil-clp-toggle-label">{linkPreviewEnabled ? 'Önizleme Açık' : 'Önizleme Kapalı'}</span>
+        </label>
+        <button
+          type="button"
+          class="btn-icon veil-clp-close"
+          onclick={dismissLinkPreview}
+          title="Önizlemeyi kaldır"
+          aria-label="Önizlemeyi kaldır"
+        >
+          <Icon name="x" size={13} />
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <div class="veil-upload-wrap">
     <button
       class="btn-icon"
@@ -1074,5 +1165,114 @@
   }
   .veil-voice-stop-btn:hover {
     transform: scale(1.08);
+  }
+
+  /* ── Rich Link Preview Composer Bar ── */
+  .veil-composer-link-preview {
+    position: absolute;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(100% + 6px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--veil-bg-elevated) 95%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--veil-border);
+    border-left: 3px solid var(--veil-brand);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    animation: clp-slide-in 0.2s ease-out;
+  }
+
+  @keyframes clp-slide-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .veil-clp-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .veil-clp-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .veil-clp-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
+    background: var(--veil-brand-subtle);
+    color: var(--veil-brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .veil-clp-text {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .veil-clp-title {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--veil-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .veil-clp-domain {
+    font-size: 11px;
+    color: var(--veil-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .veil-clp-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .veil-clp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--veil-text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .veil-clp-toggle input[type="checkbox"] {
+    accent-color: var(--veil-brand);
+    cursor: pointer;
+  }
+
+  .veil-clp-close {
+    padding: 2px;
+    color: var(--veil-text-muted);
+  }
+
+  .veil-clp-close:hover {
+    color: var(--veil-text-primary);
   }
 </style>
