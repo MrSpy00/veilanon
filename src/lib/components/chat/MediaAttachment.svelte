@@ -347,27 +347,29 @@
   async function toggleFullscreen() {
     const wrap = fullscreenWrapEl;
     if (!wrap) return;
+
     if (document.fullscreenElement) {
-      if (typeof document.exitFullscreen === 'function') {
-        try {
-          await document.exitFullscreen();
-          return;
-        } catch { /* fallthrough */ }
-      }
+      try {
+        await document.exitFullscreen();
+      } catch { /* fallthrough */ }
       videoFullscreen = false;
       document.body.classList.remove('veil-fs-lock');
       return;
     }
+
     if (videoFullscreen) {
       videoFullscreen = false;
       document.body.classList.remove('veil-fs-lock');
       return;
     }
+
+    // Tam ekrana gir
     if (typeof wrap.requestFullscreen === 'function') {
       try {
         await wrap.requestFullscreen();
-        return; // onfullscreenchange state'i eşitler
-      } catch { /* fallthrough */ }
+        videoFullscreen = true;
+        return;
+      } catch { /* fallthrough to class-based */ }
     }
     videoFullscreen = true;
     document.body.classList.add('veil-fs-lock');
@@ -375,15 +377,19 @@
 
   $effect(() => {
     const onFsChange = () => {
-      if (document.fullscreenElement) {
-        videoFullscreen = true;
+      const isFs = !!document.fullscreenElement;
+      videoFullscreen = isFs;
+      if (isFs) {
+        document.body.classList.add('veil-fs-lock');
       } else {
-        videoFullscreen = false;
         document.body.classList.remove('veil-fs-lock');
       }
     };
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && videoFullscreen && !document.fullscreenElement) {
+      if (e.key === 'Escape' && videoFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
         videoFullscreen = false;
         document.body.classList.remove('veil-fs-lock');
       }
@@ -979,47 +985,47 @@
   .veil-vc-volume { position: relative; display: flex; align-items: center; }
   .veil-vc-vol-pop {
     position: absolute;
-    left: calc(100% + 16px);
+    left: calc(100% + 8px);
     top: 50%;
     bottom: auto;
-    transform: translateY(-50%) translateX(10px) scale(0.96);
+    transform: translateY(-50%) translateX(6px) scale(0.97);
     transform-origin: left center;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 13px 18px;
-    min-width: 192px;
-    max-width: 240px;
-    background: linear-gradient(145deg, rgba(20, 22, 36, 0.99) 0%, rgba(10, 12, 24, 0.99) 100%);
-    backdrop-filter: blur(24px) saturate(1.6);
-    -webkit-backdrop-filter: blur(24px) saturate(1.6);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 16px;
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65), 0 6px 16px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255, 255, 255, 0.11), inset 0 -1px 0 rgba(0,0,0,0.22);
+    gap: 10px;
+    padding: 8px 14px;
+    min-width: 155px;
+    max-width: 200px;
+    background: rgba(14, 16, 26, 0.94);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.26s ease 0.34s, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.34s;
-    z-index: 8;
+    transition: opacity 0.15s ease 0.12s, transform 0.15s cubic-bezier(0.22, 1, 0.36, 1) 0.12s;
+    z-index: 20;
   }
   .veil-vc-vol-pop::after {
     content: '';
     position: absolute;
-    left: -7px;
+    left: -5px;
     top: 50%;
     transform: translateY(-50%) rotate(45deg);
-    width: 12px;
-    height: 12px;
-    background: linear-gradient(135deg, rgba(18, 20, 32, 0.98) 50%, rgba(12, 14, 24, 0.99) 50%);
-    border-left: 1px solid rgba(255,255,255,0.1);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    border-radius: 0 0 0 3px;
+    width: 10px;
+    height: 10px;
+    background: rgba(14, 16, 26, 0.96);
+    border-left: 1px solid rgba(255,255,255,0.12);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0 0 0 2px;
   }
   .veil-vc-vol-pop::before {
     content: '';
     position: absolute;
-    left: -28px;
-    top: -10px;
-    bottom: -10px;
+    left: -24px;
+    top: -12px;
+    bottom: -12px;
     width: 28px;
   }
   .veil-vc-volume:hover .veil-vc-vol-pop,

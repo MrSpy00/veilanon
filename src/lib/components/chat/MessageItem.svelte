@@ -129,17 +129,26 @@
   }
 
   async function beginEdit() {
+    // message.content null ise boş string ile başlat
     editDraft = message.content ?? '';
     editing = true;
     await tick();
     editTextarea?.focus();
-    editTextarea?.select();
+    if (editDraft) {
+      editTextarea?.select();
+    } else {
+      const len = editTextarea?.value.length ?? 0;
+      editTextarea?.setSelectionRange(len, len);
+    }
   }
 
   async function saveEdit() {
     const next = editDraft.trim();
+    const originalContent = (message.content ?? '').trim();
     const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
-    if (next === (message.content ?? '')) {
+
+    // Hiçbir değişiklik yoksa iptal et
+    if (next === originalContent) {
       cancelEdit();
       return;
     }
@@ -152,8 +161,8 @@
       const edited = await messageApi.edit(message.id, next);
       toastStore.success('Mesaj düzenlendi.');
       messageStore.patchMessage(message.channelId, message.id, {
-        content: edited.content ?? next,
-        editedAt: edited.editedAt,
+        content: edited?.content !== undefined ? edited.content : next,
+        editedAt: edited?.editedAt ?? Math.floor(Date.now() / 1000),
       });
       editing = false;
     } catch {
@@ -529,18 +538,21 @@
             aria-label="Mesaj düzenleme"
             onkeydown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void saveEdit(); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveEdit(); }
             }}
           ></textarea>
           <div class="veil-message-edit-actions">
-            <span class="veil-message-edit-hint">Esc ile vazgeç · Ctrl+Enter ile kaydet</span>
+            <span class="veil-message-edit-hint">Esc ile vazgeç · Enter ile kaydet</span>
             <div class="veil-message-edit-btns">
               <button type="button" class="btn btn-ghost btn-sm" onclick={cancelEdit}>Vazgeç</button>
               <button
                 type="button"
                 class="btn btn-primary btn-sm"
                 onclick={saveEdit}
-                disabled={editDraft.trim() === (message.content ?? '').trim() || (!editDraft.trim() && !(Array.isArray(message.attachments) && message.attachments.length > 0))}
+                disabled={
+                  editDraft.trim() === (message.content ?? '').trim() ||
+                  (!editDraft.trim() && !(Array.isArray(message.attachments) && message.attachments.length > 0))
+                }
               >Kaydet</button>
             </div>
           </div>

@@ -15,7 +15,7 @@
   let search = $state('');
   const dms = $derived(
     (() => {
-      const q = search.trim().toLowerCase();
+      const q = search.trim().toLowerCase().replace(/^@/, '');
       const base = spaces.dmChannels;
       if (!q) return base;
       return base.filter(d => d.name.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));

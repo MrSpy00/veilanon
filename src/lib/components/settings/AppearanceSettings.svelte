@@ -56,6 +56,7 @@
 
   $effect(() => {
     const preset = ui.presetThemeId;
+    const currentTheme = ui.theme;
     const accentInStorage = typeof window !== 'undefined' ? localStorage.getItem('veilanon-accent') : null;
     if (!accentInStorage && accentColor !== null) {
       accentColor = null;
@@ -63,6 +64,7 @@
       hexError = null;
     }
     void preset;
+    void currentTheme;
   });
 
   function setAmoled(v: boolean) {

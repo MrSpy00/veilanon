@@ -48,7 +48,7 @@
 
   const filteredList = $derived(
     (() => {
-      const q = searchQuery.trim().toLowerCase();
+      const q = searchQuery.trim().toLowerCase().replace(/^@/, '');
       let base: FriendInfo[] = [];
       if (activeTab === 'online') base = onlineFriends;
       else if (activeTab === 'all') base = acceptedFriends;
