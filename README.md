@@ -11,8 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="#-türkçe"><img src="https://img.shields.io/badge/Dil-Türkçe-e11d48?style=for-the-badge" alt="Türkçe" /></a>
-  <a href="#-english"><img src="https://img.shields.io/badge/Language-English-3b82f6?style=for-the-badge" alt="English" /></a>
+  <a href="#turkce"><img src="brand/flags/flag_tr.svg" alt="Türkçe" width="22" height="15" valign="middle" /> <strong>Türkçe</strong></a>
+  &nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#english"><img src="brand/flags/flag_gb.svg" alt="English" width="22" height="15" valign="middle" /> <strong>English</strong></a>
 </p>
 
 <p align="center">
@@ -25,7 +26,8 @@
 
 ---
 
-# 🇹🇷 Türkçe
+<a name="turkce"></a>
+# <img src="brand/flags/flag_tr.svg" alt="Türkçe" width="28" height="19" valign="middle" /> Türkçe
 
 ## ⚡ Genel Bakış
 
@@ -216,7 +218,8 @@ veilanon her sürümde yedi temel ilkeye bağlı kalır:
 
 ---
 
-# 🇬🇧 English
+<a name="english"></a>
+# <img src="brand/flags/flag_gb.svg" alt="English" width="28" height="19" valign="middle" /> English
 
 ## ⚡ Overview
 
