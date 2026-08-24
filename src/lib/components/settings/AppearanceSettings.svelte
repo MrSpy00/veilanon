@@ -54,6 +54,17 @@
     }
   });
 
+  $effect(() => {
+    const preset = ui.presetThemeId;
+    const accentInStorage = typeof window !== 'undefined' ? localStorage.getItem('veilanon-accent') : null;
+    if (!accentInStorage && accentColor !== null) {
+      accentColor = null;
+      customHex = '';
+      hexError = null;
+    }
+    void preset;
+  });
+
   function setAmoled(v: boolean) {
     amoledMode = v;
     uiStore.setAmoledMode(v);

@@ -272,13 +272,14 @@
     const list = $messageStore.byChannel[channelId] ?? [];
     const myId = auth.identity?.id;
     const lastOwn = [...list].reverse().find(m => m.senderId === myId || m.isOwn || m.senderId === 'self');
-    if (!lastOwn || !lastOwn.content) return;
+    const hasAtt = !!(lastOwn && Array.isArray((lastOwn as any).attachments) && (lastOwn as any).attachments.length > 0);
+    if (!lastOwn || (!lastOwn.content && !hasAtt)) return;
     const next = await uiStore.promptInput('Mesajı düzenle:', {
       title: 'Son Mesajı Düzenle',
       confirmLabel: 'Kaydet',
-      defaultValue: lastOwn.content,
+      defaultValue: lastOwn.content ?? '',
     });
-    if (next === null || next.trim() === lastOwn.content) return;
+    if (next === null || next.trim() === (lastOwn.content ?? '')) return;
     try {
       const edited = await messageApi.edit(lastOwn.id, next.trim());
       messageStore.patchMessage(channelId, lastOwn.id, {

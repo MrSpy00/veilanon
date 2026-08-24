@@ -9,6 +9,7 @@
   import ContextMenu, { type ContextMenuItem } from '../ui/ContextMenu.svelte';
   import { copyText } from '$lib/utils/clipboard';
   import { spaceApi, type SpaceInfo } from '$lib/api/tauri';
+  import { friendsStore } from '$lib/stores/friends';
 
   interface ServerFolder {
     id: string;
@@ -23,6 +24,8 @@
 
   const activeSpace = $derived(spaces.find(s => s.id === ui.activeSpaceId) ?? null);
   const unreadDms = $derived($spaceStore.dmChannels.reduce((sum, dm) => sum + (dm.unreadCount || 0), 0));
+  const friendsState = $derived($friendsStore);
+  const pendingCount = $derived(friendsState.friends.filter(f => f.status === 'pending_incoming').length);
 
   let folders = $state<ServerFolder[]>([]);
   let dragOverFolderId = $state<string | null>(null);
@@ -281,6 +284,13 @@
     <AppLogo size={48} radius={20} alt="veilanon" />
   </button>
 
+  {#if pendingCount > 0}
+    <button class="veil-sidebar-friends-badge" title="{pendingCount} bekleyen arkadaşlık isteği" aria-label="{pendingCount} bekleyen istek" onclick={() => uiStore.navigate(null, null)}>
+      <Icon name="users" size={16} />
+      <span class="veil-sidebar-badge-count">{pendingCount > 99 ? '99+' : pendingCount}</span>
+    </button>
+  {/if}
+
   <div class="veil-sidebar-divider" role="separator"></div>
 
   <!-- Server Folders -->
@@ -361,3 +371,16 @@
 </nav>
 
 <ContextMenu open={menuOpen} x={menuX} y={menuY} items={menuItems} onClose={() => (menuOpen = false)} />
+
+<style>
+  .veil-sidebar-friends-badge {
+    position: relative; width: 48px; height: 48px; border-radius: 12px;
+    background: var(--veil-brand-subtle); color: var(--veil-brand); border: 1px solid var(--veil-brand-border);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .veil-sidebar-badge-count {
+    position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: var(--veil-danger); color: #fff; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>

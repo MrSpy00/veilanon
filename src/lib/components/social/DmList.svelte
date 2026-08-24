@@ -12,7 +12,15 @@
   const spaces = $derived($spaceStore);
   const ui = $derived($uiStore);
 
-  const dms = $derived(spaces.dmChannels);
+  let search = $state('');
+  const dms = $derived(
+    (() => {
+      const q = search.trim().toLowerCase();
+      const base = spaces.dmChannels;
+      if (!q) return base;
+      return base.filter(d => d.name.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
+    })()
+  );
 
   let menuOpen = $state(false);
   let menuX = $state(0);
@@ -78,6 +86,14 @@
   }
 </script>
 
+<div class="veil-dm-search">
+  <Icon name="search" size={13} />
+  <input class="veil-dm-search-input" bind:value={search} placeholder="Ara — DM veya grup adı" maxlength={40} aria-label="Direkt mesajlarda ara" />
+  {#if search}
+    <button class="btn-icon" style="width:20px;height:20px;" onclick={() => (search = '')} title="Temizle"><Icon name="x" size={12} /></button>
+  {/if}
+</div>
+
 <div class="veil-dm-list">
   {#if dms.length === 0}
     <div class="veil-dm-empty">
@@ -128,6 +144,15 @@
 {/if}
 
 <style>
+  .veil-dm-search {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--veil-bg-void); border: 1px solid var(--veil-border); border-radius: var(--radius-md);
+    padding: 6px 8px; color: var(--veil-text-muted); margin-bottom: 6px;
+  }
+  .veil-dm-search-input {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: var(--veil-text-primary); font-size: var(--text-sm);
+  }
   .veil-dm-list { display: flex; flex-direction: column; gap: 2px; }
   .veil-dm-empty {
     display: flex;

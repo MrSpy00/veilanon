@@ -878,20 +878,24 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* ── Inline mesaj düzenleme ─────────────────────────────────────────── */
   .veil-message-edit-box {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
     width: 100%;
-    animation: veil-pop-in 0.16s ease-out;
+    background: linear-gradient(180deg, var(--veil-bg-elevated), var(--veil-bg-surface));
+    border: 1px solid var(--veil-brand-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    box-shadow: 0 8px 24px hsl(220 20% 4% / 0.18), 0 1px 0 hsl(0 0% 100% / 0.04) inset;
+    animation: veil-pop-in 0.18s cubic-bezier(0.22,1,0.36,1);
   }
   .veil-message-edit-input {
     width: 100%;
     resize: vertical;
-    min-height: 48px;
+    min-height: 52px;
     background: var(--veil-bg-void);
-    border: 1px solid var(--veil-brand-border);
+    border: 1px solid var(--veil-border);
     border-radius: var(--radius-md);
     color: var(--veil-text-primary);
     font: inherit;
@@ -899,11 +903,12 @@
     line-height: var(--leading-relaxed);
     padding: var(--space-2) var(--space-3);
     outline: none;
-    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
   }
   .veil-message-edit-input:focus {
     border-color: var(--veil-brand);
-    box-shadow: 0 0 0 3px var(--veil-brand-subtle);
+    background: var(--veil-bg-base);
+    box-shadow: 0 0 0 3px var(--veil-brand-subtle), 0 2px 10px hsl(220 20% 4% / 0.12);
   }
   .veil-message-edit-actions {
     display: flex;
@@ -913,8 +918,9 @@
     flex-wrap: wrap;
   }
   .veil-message-edit-hint {
-    font-size: var(--text-xs);
+    font-size: 11px;
     color: var(--veil-text-muted);
+    letter-spacing: 0.01em;
   }
   .veil-message-edit-btns {
     display: flex;

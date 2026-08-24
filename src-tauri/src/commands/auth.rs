@@ -1371,18 +1371,19 @@ pub async fn bind_control_plane_handles(
                 }
             }
 
-            // Read banner_hash, bio, custom_status from local_identity to avoid
-            // erasing them on every login bind. Preserve remote values when local is empty.
-            let (local_banner, local_bio, local_custom_status) = {
+            // Read local profile fields to avoid erasing remote data on every login bind.
+            // Priority: local DB value wins when present, otherwise preserve remote.
+            // All nullable columns now use Option → null (not "") when truly empty.
+            let (local_avatar, local_banner, local_bio, local_custom_status) = {
                 let db = db_arc.read().await;
-                let row: Option<(Option<String>, Option<String>, Option<String>)> = db.query_row(
-                    "SELECT banner_hash, bio, custom_status FROM local_identity WHERE id = ?1",
+                let row: Option<(Option<String>, Option<String>, Option<String>, Option<String>)> = db.query_row(
+                    "SELECT avatar_hash, banner_hash, bio, custom_status FROM local_identity WHERE id = ?1",
                     rusqlite::params![identity.id.to_string()],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
                 ).ok();
-                row.unwrap_or((None, None, None))
+                row.unwrap_or((None, None, None, None))
             };
-            let (remote_avatar, remote_banner2) = {
+            let (remote_avatar, remote_banner2, remote_bio, remote_status) = {
                 let rows = network.api.select::<serde_json::Value>(
                     "users",
                     &format!("id=eq.{}", target_user_id),
@@ -1393,24 +1394,31 @@ pub async fn bind_control_plane_handles(
                     (
                         r.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
                         r.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                        r.get("bio").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                        r.get("custom_status").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
                     )
-                } else { (None, None) }
+                } else { (None, None, None, None) }
             };
-            let avatar_to_upsert = identity.avatar_hash.clone().or(remote_avatar).unwrap_or_default();
-            let banner_to_upsert = local_banner.clone().or(remote_banner2).unwrap_or_default();
+            // Local wins if set; otherwise remote; otherwise None → NULL (clears only when explicitly removed)
+            let avatar_opt: Option<String> = local_avatar.clone().or_else(|| identity.avatar_hash.clone()).or(remote_avatar);
+            let banner_opt: Option<String> = local_banner.clone().or(remote_banner2);
+            let bio_opt: Option<String> = local_bio.clone().or(remote_bio);
+            let status_opt: Option<String> = local_custom_status.clone().or(remote_status);
+            // Build users upsert payload with proper nulls (not "")
+            let mut user_payload = serde_json::json!({
+                "id": target_user_id,
+                "username": identity.username,
+                "display_name": identity.display_name,
+            });
+            if let Some(v) = avatar_opt { user_payload["avatar_hash"] = serde_json::json!(v); } else { user_payload["avatar_hash"] = serde_json::Value::Null; }
+            if let Some(v) = banner_opt { user_payload["banner_hash"] = serde_json::json!(v); } else { user_payload["banner_hash"] = serde_json::Value::Null; }
+            if let Some(v) = bio_opt { user_payload["bio"] = serde_json::json!(v); } else { user_payload["bio"] = serde_json::Value::Null; }
+            if let Some(v) = status_opt { user_payload["custom_status"] = serde_json::json!(v); } else { user_payload["custom_status"] = serde_json::Value::Null; }
             let _ = network
                 .api
                 .upsert(
                     "users",
-                    &serde_json::json!({
-                        "id": target_user_id,
-                        "username": identity.username,
-                        "display_name": identity.display_name,
-                        "avatar_hash": avatar_to_upsert,
-                        "banner_hash": banner_to_upsert,
-                        "bio": local_bio.as_deref().unwrap_or_default(),
-                        "custom_status": local_custom_status.as_deref().unwrap_or_default(),
-                    }),
+                    &user_payload,
                     "id",
                 )
                 .await;
