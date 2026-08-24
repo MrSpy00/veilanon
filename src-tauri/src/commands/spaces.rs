@@ -522,10 +522,10 @@ pub async fn spaces_list(state: State<'_, AppState>) -> Result<Vec<SpaceInfo>, V
                         if let (Some(id_str), Some(name)) = (s.get("id").and_then(|v| v.as_str()), s.get("name").and_then(|v| v.as_str())) {
                             if let Ok(id) = Uuid::parse_str(id_str) {
                                 fetched_ids.insert(id);
-                                let icon = s.get("icon_hash").and_then(|v| v.as_str());
-                                let link = s.get("custom_link").and_then(|v| v.as_str());
-                                let banner = s.get("banner_hash").and_then(|v| v.as_str());
-                                let desc = s.get("description").and_then(|v| v.as_str());
+                                let icon = s.get("icon_hash").and_then(|v| v.as_str()).filter(|v| !v.is_empty());
+                                let link = s.get("custom_link").and_then(|v| v.as_str()).filter(|v| !v.is_empty());
+                                let banner = s.get("banner_hash").and_then(|v| v.as_str()).filter(|v| !v.is_empty());
+                                let desc = s.get("description").and_then(|v| v.as_str()).filter(|v| !v.is_empty());
                                 let remote_owner_str = s.get("owner_id").and_then(|v| v.as_str()).unwrap_or("");
                                 let remote_owner_id = Uuid::parse_str(remote_owner_str).unwrap_or(user_id);
                                 let modified = state.spaces_modified.read().await;
@@ -982,14 +982,10 @@ pub async fn spaces_set_banner(
 
     if config::configured("VEILANON_SUPABASE_URL") {
         let network = state.network.read().await;
-        let _ = network
-            .api
-            .upload_blob(&format!("files/banners/{}", hash), bytes.clone())
-            .await;
-        let _ = network
-            .api
-            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
-            .await;
+        let _ = network.api.upload_blob(&format!("banners/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("avatars/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("files/banners/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("files/avatars/{}", hash), bytes.clone()).await;
     }
 
     best_effort_update(

@@ -275,25 +275,29 @@ impl Database {
         description: Option<&str>,
         custom_link: Option<&str>,
     ) -> VeilResult<()> {
+        let icon_val: Option<&str> = icon_hash.filter(|s| !s.is_empty());
+        let banner_val: Option<&str> = banner_hash.filter(|s| !s.is_empty());
+        let desc_val: Option<&str> = description.filter(|s| !s.is_empty());
+        let link_val: Option<&str> = custom_link.filter(|s| !s.is_empty());
         self.execute(
             r#"INSERT INTO spaces (id, name, icon_hash, owner_id, member_count, is_owner, banner_hash, description, custom_link)
                VALUES (?1, ?2, ?3, ?4, 1, 0, ?5, ?6, ?7)
                ON CONFLICT(id) DO UPDATE SET
                  name = excluded.name,
-                 icon_hash = coalesce(excluded.icon_hash, spaces.icon_hash),
+                 icon_hash = coalesce(nullif(excluded.icon_hash, ''), spaces.icon_hash),
                  owner_id = excluded.owner_id,
-                 banner_hash = coalesce(excluded.banner_hash, spaces.banner_hash),
-                 description = coalesce(excluded.description, spaces.description),
-                 custom_link = coalesce(excluded.custom_link, spaces.custom_link),
+                 banner_hash = coalesce(nullif(excluded.banner_hash, ''), spaces.banner_hash),
+                 description = coalesce(nullif(excluded.description, ''), spaces.description),
+                 custom_link = coalesce(nullif(excluded.custom_link, ''), spaces.custom_link),
                  updated_at = unixepoch()"#,
             params![
                 id.to_string(),
                 name,
-                icon_hash,
+                icon_val,
                 owner_id.to_string(),
-                banner_hash,
-                description,
-                custom_link,
+                banner_val,
+                desc_val,
+                link_val,
             ],
         )?;
         self.add_space_member(id, owner_id)?;

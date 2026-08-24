@@ -1898,10 +1898,8 @@ pub async fn set_avatar(path: String, state: State<'_, AppState>) -> Result<Stri
 
     if config::configured("VEILANON_SUPABASE_URL") {
         let network = state.network.read().await;
-        let _ = network
-            .api
-            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
-            .await;
+        let _ = network.api.upload_blob(&format!("avatars/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("files/avatars/{}", hash), bytes.clone()).await;
         let _ = network
             .api
             .upsert(
@@ -1961,14 +1959,10 @@ pub async fn set_banner(path: String, state: State<'_, AppState>) -> Result<Stri
 
     if config::configured("VEILANON_SUPABASE_URL") {
         let network = state.network.read().await;
-        let _ = network
-            .api
-            .upload_blob(&format!("files/banners/{}", hash), bytes.clone())
-            .await;
-        let _ = network
-            .api
-            .upload_blob(&format!("files/avatars/{}", hash), bytes.clone())
-            .await;
+        let _ = network.api.upload_blob(&format!("banners/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("avatars/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("files/banners/{}", hash), bytes.clone()).await;
+        let _ = network.api.upload_blob(&format!("files/avatars/{}", hash), bytes.clone()).await;
         let _ = network
             .api
             .upsert(
