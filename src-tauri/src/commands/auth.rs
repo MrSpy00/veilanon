@@ -332,6 +332,40 @@ pub async fn create_identity(
         let _ = db.save_supabase_refresh_token(&identity.id, &token);
     }
 
+    // Immediate Supabase `users` upsert — guarantees new registration is visible
+    // instantly to search/friends (bind_control_plane is async background).
+    if config::configured("VEILANON_SUPABASE_URL") {
+        let network = state.network.read().await;
+        let _ = network
+            .api
+            .upsert(
+                "users",
+                &serde_json::json!({
+                    "id": identity.id.to_string(),
+                    "username": identity.username,
+                    "display_name": identity.display_name,
+                    "avatar_hash": serde_json::Value::Null,
+                    "banner_hash": serde_json::Value::Null,
+                }),
+                "id",
+            )
+            .await;
+        let _ = network
+            .api
+            .upsert(
+                "devices",
+                &serde_json::json!({
+                    "id": identity.device_id.to_string(),
+                    "user_id": identity.id.to_string(),
+                    "public_key": identity.identity_key_public,
+                    "signing_public_key": identity.signing_key_public,
+                    "name": host_name(),
+                }),
+                "id",
+            )
+            .await;
+    }
+
     info!("Identity created for user: {}", identity.username);
 
     bind_control_plane(&state).await;
