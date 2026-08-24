@@ -987,18 +987,18 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
-    min-width: 184px;
-    max-width: 220px;
-    background: linear-gradient(145deg, rgba(18, 20, 32, 0.98) 0%, rgba(12, 14, 24, 0.99) 100%);
-    backdrop-filter: blur(22px) saturate(1.5);
-    -webkit-backdrop-filter: blur(22px) saturate(1.5);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 13px 18px;
+    min-width: 192px;
+    max-width: 240px;
+    background: linear-gradient(145deg, rgba(20, 22, 36, 0.99) 0%, rgba(10, 12, 24, 0.99) 100%);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 -1px 0 rgba(0,0,0,0.2);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65), 0 6px 16px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255, 255, 255, 0.11), inset 0 -1px 0 rgba(0,0,0,0.22);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.22s ease 0.18s, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.18s;
+    transition: opacity 0.26s ease 0.34s, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.34s;
     z-index: 8;
   }
   .veil-vc-vol-pop::after {
@@ -1017,10 +1017,10 @@
   .veil-vc-vol-pop::before {
     content: '';
     position: absolute;
-    left: -22px;
-    top: -8px;
-    bottom: -8px;
-    width: 22px;
+    left: -28px;
+    top: -10px;
+    bottom: -10px;
+    width: 28px;
   }
   .veil-vc-volume:hover .veil-vc-vol-pop,
   .veil-vc-vol-pop:hover,
@@ -1041,10 +1041,10 @@
     appearance: none;
     flex: 1;
     min-width: 0;
-    height: 6px;
+    height: 7px;
     border-radius: 999px;
-    background: linear-gradient(to right, var(--veil-brand, #7c3aed) 0%, var(--veil-brand, #7c3aed) var(--fill, 100%), rgba(255, 255, 255, 0.18) var(--fill, 100%));
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.06);
+    background: linear-gradient(to right, var(--veil-brand, #7c3aed) 0%, var(--veil-brand, #7c3aed) var(--fill, 100%), rgba(255, 255, 255, 0.2) var(--fill, 100%));
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255,255,255,0.07);
     cursor: pointer;
     outline: none;
   }

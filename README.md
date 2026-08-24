@@ -54,6 +54,7 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 | **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Standalone Universal Linux Binary |
 | **Linux** | `.deb` Package | [`veilanon_0.0.1_amd64.deb`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.deb) | Ubuntu / Debian Native Package |
 | **Linux** | `.rpm` Package | [`veilanon-0.0.1-1.x86_64.rpm`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon-0.0.1-1.x86_64.rpm) | Fedora / RHEL / openSUSE Native Package |
+| **Linux** | `.tar.gz` Archive | [`veilanon_0.0.1_amd64.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.tar.gz) | Generic Linux Archive (portable) |
 | **Checksums** | Manifest | [`SHA256SUMS.txt`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/SHA256SUMS.txt) | SHA-256 Cryptographic Hash Manifest |
 
 ---
