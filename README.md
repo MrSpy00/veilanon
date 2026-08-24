@@ -1,12 +1,18 @@
 # veilanon
 
 <p align="center">
-  <img src="https://veilanon.com/brand/veilanon-logo.svg" alt="veilanon Logo" width="108" height="108" />
+  <img src="https://veilanon.com/brand/veilanon-logo.svg" alt="veilanon Logo" width="112" height="112" />
 </p>
 
 <p align="center">
-  <strong>Privacy-First, High-Performance Open-Source Desktop Communication Platform.</strong><br>
-  <em>An uncompromising, end-to-end encrypted Discord alternative engineered for modern communities.</em>
+  <strong>Gizlilik Öncelikli, Yüksek Performanslı, Açık Kaynaklı Masaüstü İletişim Platformu</strong><br>
+  <strong>Privacy-First, High-Performance Open-Source Desktop Communication Platform</strong><br>
+  <em>Modern topluluklar için sıfır-bilgi (zero-knowledge) ve uçtan uca şifrelemeyle (E2EE) geliştirilmiş Discord alternatifi.</em>
+</p>
+
+<p align="center">
+  <a href="#-türkçe"><img src="https://img.shields.io/badge/Dil-Türkçe-e11d48?style=for-the-badge" alt="Türkçe" /></a>
+  <a href="#-english"><img src="https://img.shields.io/badge/Language-English-3b82f6?style=for-the-badge" alt="English" /></a>
 </p>
 
 <p align="center">
@@ -18,6 +24,199 @@
 </p>
 
 ---
+
+# 🇹🇷 Türkçe
+
+## ⚡ Genel Bakış
+
+**veilanon**, **Tauri 2**, **Rust** ve **Svelte 5 / SvelteKit** teknolojileri üzerine inşa edilmiş, gizlilik odaklı, çok platformlu bir masaüstü iletişim platformudur. Discord'un modern, akıcı ve zengin kullanıcı deneyimini, Signal seviyesinde sıfır-bilgi (zero-knowledge) matematiksel kriptografik güvencelerle birleştirir:
+
+- **Sıfır-Bilgi Mimarisi (Zero-Knowledge):** Mesaj metinleri, ekler, sesli ve görüntülü görüşme medyaları ağa iletilmeden önce doğrudan yerel cihazınızda şifrelenir.
+- **Kör Zarf Yönlendirme (Dumb Envelope Relaying):** Kontrol düzlemi / sunucular yalnızca opak şifreli zarfları yönlendirir; gönderdiğiniz veya söylediğiniz hiçbir veriyi göremez, çözemez ve depolayamaz.
+- **Donanımsal İzolasyonlu Yerel Güvenlik:** Yerel mesaj geçmişi ve anahtarlık veritabanı cihazda **AES-256-GCM** ve **Argon2id** anahtar türetimiyle şifrelenerek saklanır.
+
+[aegisSoft](https://www.aegissoft.com.tr/) tarafından geliştirilmektedir. Marka adı her zaman küçük harfle yazılır: `veilanon`.
+
+---
+
+## 🚀 v0.0.1 Sürüm Öne Çıkanları
+
+- **Kusursuz Mesaj Düzenleme:** Düzenleme ikonuna basıldığında açılan satır içi (inline) Discord tarzı editör ile ekli veya metin mesajlarının anlık yerel + sunucu senkronizasyonu.
+- **Gelişmiş Video Oynatıcı:** Akıcı ses slider'ı, sessize alma (mute) butonu ve hem native hem de CSS tabanlı tam ekran (fullscreen) modu.
+- **Kalıcı Banner ve Profil Senkronizasyonu:** Hesap ve sunucu banner'ları/avatarları uygulama yeniden başlatıldığında veya yeni cihazda oturum açıldığında silinmez; Supabase Realtime ile anlık senkronize kalır.
+- **Akıllı Tema ve Vurgu Rengi Senkronizasyonu:** Tema değiştiğinde vurgu rengi otomatik olarak yeni temanın varsayılanına döner; manuel yapılan renk seçimleri ise bir sonraki tema değişimine kadar güvenle korunur.
+- **Uçtan Uca Eşitleme (E2EE Sync):** Mesajlar, tepkiler, çevrim içi durumu (presence), arkadaşlıklar, DM'ler, grup sohbetleri, roller ve bildirim badge'leri tüm bağlı cihazlarda anlık tutarlıdır.
+
+---
+
+## 📦 Çok Platformlu Kurulum Paketleri (v0.0.1 İndirme)
+
+Tüm kurulum paketleri dijital olarak imzalanmış ve SHA-256 sağlama toplamları ile doğrulanmıştır. İşletim sisteminize uygun paketi doğrudan [GitHub Releases v0.0.1](https://github.com/MrSpy00/veilanon/releases/tag/v0.0.1) veya [veilanon.com](https://veilanon.com) adresinden indirebilirsiniz:
+
+| İşletim Sistemi | Paket Formatı | Doğrudan İndirme Bağlantısı | Açıklama |
+| :--- | :--- | :--- | :--- |
+| **Windows** | `.exe` Kurulum | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Tam Kurulum Sihirbazı (İmzalı) |
+| **Windows** | `.msi` Yükleyici | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX Kurumsal MSI Yükleyici Paketi |
+| **macOS** | `.dmg` İmajı | [`veilanon_0.0.1_aarch64.dmg`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.dmg) | Apple Silicon (M1/M2/M3/M4) Disk İmajı |
+| **macOS** | `.app.tar.gz` | [`veilanon_0.0.1_aarch64.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.app.tar.gz) | macOS Apple Silicon Uygulama Arşivi |
+| **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Bağımsız, Evrensel Taşınabilir Linux Paketi |
+| **Linux** | `.deb` Paketi | [`veilanon_0.0.1_amd64.deb`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.deb) | Ubuntu / Debian Yerel Kurulum Paketi |
+| **Linux** | `.rpm` Paketi | [`veilanon-0.0.1-1.x86_64.rpm`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon-0.0.1-1.x86_64.rpm) | Fedora / RHEL / openSUSE Yerel Paketi |
+| **Linux** | `.tar.gz` Arşivi | [`veilanon.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon.app.tar.gz) | Genel Linux / Taşınabilir Paket Arşivi |
+| **Doğrulama** | Sağlama Özeti | [`SHA256SUMS.txt`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/SHA256SUMS.txt) | SHA-256 Kriptografik Sağlama Özeti |
+
+---
+
+## ✨ Özellik Matrisi
+
+### 🔒 Kriptografi & Gizlilik Motoru
+- **Birebir Mesajlar (1:1 DM):** Her mesajda anahtar türeten (`HKDF-SHA256`) ve iletim gizliliği (forward secrecy) sunan **Double Ratchet** mimarisi.
+- **Grup Kanalları ve Alanlar:** Ağaç tabanlı anahtar uzlaşması ve KeyPackage / Welcome süreçleriyle Messaging Layer Security (**MLS**, RFC 9420).
+- **Yerel Depolama Şifrelemesi:** Uygulama katmanında **AES-256-GCM** ve **Argon2id** parola türetimli gömülü SQLite veritabanı.
+- **Şifreli Dosya Kasası:** Sunucunun dosya adlarını, boyutlarını veya içeriklerini asla göremediği istemci taraflı ChaCha20-Poly1305 parça şifreleme.
+- **Kaybolan Mesajlar:** 10 saniyeden 1 haftaya kadar görsel geri sayım sayacı, yerel ve uzak otomatik imha (tombstoning) mekanizması.
+
+### 🛡️ Genel Gizlilik & Güvenlik Araçları (Sıfır-Anahtar Merkezi)
+- **Tor & Relay Anonimlik Denetleyicisi:** Gerçek zamanlı Tor çıkış düğümü ve relay doğrulama.
+- **Çoklu DoH Kıyaslama:** Cloudflare, Google, Quad9, AdGuard ve Mullvad üzerinde 5 yönlü DNS gecikme ve sansür analizi.
+- **k-Anonimlik Sızıntı Kontrolü:** Parolayı hiçbir sunucuya göndermeden HaveIBeenPwned veritabanında SHA-1 önek taraması.
+- **URLhaus Tehdit Tarayıcısı:** Abuse.ch gerçek zamanlı tehdit akışı üzerinden zararlı yazılım ve oltalama URL kontrolü.
+- **Saat Sapma Analizi (Clock Skew):** Kriptografik tekrar saldırılarını engellemek için mikrosaniye düzeyinde NTP senkronizasyon kontrolü.
+- **Deterministik Gizlilik Avatarları:** Ağ isteği yapmadan tamamen çevrim dışı üretilen prosedürel profil ikonları.
+
+### 🎙️ Ses, Video & Ekran Paylaşımı
+- **LiveKit Seçici İletim Birimi (SFU):** Düşük gecikmeli HD ses, video ve 1080p 60 FPS ekran paylaşımı.
+- **MLS Medya Anahtar Türetimi:** E2EE ses kanalları kare şifreleme anahtarlarını doğrudan MLS grup sırlarından türetir.
+- **Donanım Yaşam Döngüsü Yönetimi:** Kamera kapatıldığında web kamerası sensörünün veya LED'inin açık kalmasını engelleyen WebRTC donanım yönetimi.
+- **Canlı Cihaz Değiştirme:** Mikrofon, hoparlör ve kamera arasında anlık geçiş, ses göstergesi ve Bas-Konuş (PTT) desteği.
+
+### 💬 Sosyal & Topluluk Deneyimi
+- **Alanlar, Kanallar ve İzinler:** Metin, ses, forum ve duyuru kanalları; detaylı rol ve yetkilendirme sistemi.
+- **Mesaj Düzenleme:** Satır içi Discord tarzı editör, Esc ile iptal, Enter ile kaydetme ve düzenlendi damgası senkronizasyonu.
+- **Özel Video Oynatıcı:** Zaman çizelgesinde sarma, hover ses slider'ı, sessize alma ve kararlı tam ekran geçişi.
+- **Derin Bağlantı Protokolü (`veilanon://`):** Davetler (`/invite/{kod}`), profiller (`/u/{kullanici}`), kanallar ve mesajlar için evrensel bağlantılar.
+- **Zengin Medya & Emojiler:** Tenor/Giphy GIF araması, emoji seçici, 3:1 banner kırpıcı ve animasyonlu durum rozetleri.
+
+---
+
+## 🏛️ Mimari Yapı
+
+veilanon; kullanıcı arayüzü, yerel Rust çekirdeği ve bulut adaptörleri arasında katı bir ayrım ile inşa edilmiştir:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Arayüz Katmanı (SvelteKit / Svelte 5 + Tailwind Değişkenleri)      │
+│  Kanallar, Roller, Video Izgarası, Ayarlar, Gizlilik Merkezi        │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ Tauri IPC (invoke/emit) — tip-güvenli
+                                │ JS katmanına ham anahtarlar ASLA sızmaz
+┌───────────────────────────────▼─────────────────────────────────────┐
+│  Yerel Çekirdek (Rust / src-tauri)                                  │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ │
+│  │ Kriptografi  │ │ Yerel DB     │ │ Çevrim Dışı  │ │ Adaptörler   │ │
+│  │ (OpenMLS,    │ │ (SQLite +    │ │ Kuyruk       │ │ (Supabase,   │ │
+│  │  Double      │ │  AES-256-GCM)│ │  (Otomatik   │ │  LiveKit,    │ │
+│  │  Ratchet)    │ │              │ │  Yeniden Dene│ │  R2 Storage) │ │
+│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ │
+└───────┬───────────────────┬───────────────────┬──────────────────────┘
+        │ Şifreli Zarflar   │ Şifreli Dosyalar  │ Sinyalizasyon & Token
+┌───────▼─────────┐ ┌───────▼─────────┐ ┌───────▼──────────────────────┐
+│ VERİ DÜZLEMİ    │ │ MEDYA DÜZLEMİ   │ │ KONTROL DÜZLEMİ              │
+│ Supabase        │ │ Cloudflare R2   │ │ Supabase Auth + Edge Funcs   │
+│ (PostgreSQL,    │ │ (Yalnızca Opak  │ │ (livekit-token, Realtime WS) │
+│  Yalnızca Çözüle│ │  Şifreli        │ │  + LiveKit Cloud SFU         │
+│  meyen Şifreli  │ │  Dosya          │ │                              │
+│  Zarflar)       │ │  Parçaları)     │ │                              │
+└─────────────────┘ └─────────────────┘ └──────────────────────────────┘
+```
+
+Teknik detaylar için belgeleri inceleyin:
+
+| Belge | Kapsam ve Açıklama |
+| :--- | :--- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Katmanlı tasarım, IPC izolasyonu ve adaptör mimarisi |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Tehdit modeli, saldırgan tanımları ve güvenlik güvenceleri |
+| [`docs/PRIVACY_SCOPE.md`](docs/PRIVACY_SCOPE.md) | Uçtan uca şifreleme ve metaveri görünürlük matrisi |
+| [`docs/CRYPTO_DECISIONS.md`](docs/CRYPTO_DECISIONS.md) | Tercih edilen kriptografik algoritmaların gerekçeleri |
+| [`docs/DATA_INVENTORY.md`](docs/DATA_INVENTORY.md) | Saklanan tüm alanların, şifrelemelerin ve saklama sürelerinin envanteri |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Tamamlanan aşamalar, sürüm geçmişi ve yol haritası |
+| [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md) | Supabase veritabanı tabloları, RLS ve migrasyon rehberi |
+| [`docs/BOT_API.md`](docs/BOT_API.md) | Bot manifestoları ve webhook entegrasyon kuralları |
+| [`docs/DISCORD_BRIDGE.md`](docs/DISCORD_BRIDGE.md) | Discord webhook köprüleme kuralları ve gizlilik etiketleri |
+| [`TEST_INFRA.md`](TEST_INFRA.md) | Otomatik E2E, Rust birim ve TypeScript test altyapısı |
+
+---
+
+## 🛠️ Geliştirme ve Derleme
+
+### Gereksinimler
+
+- [Rust](https://rustup.rs/) (kararlı 1.80+ toolchain)
+- [Node.js](https://nodejs.org/) 22+ ve `npm`
+- Platform SDK'ları:
+  - **Windows:** Microsoft Visual Studio C++ Build Tools & WebView2
+  - **macOS:** Xcode Command Line Tools
+  - **Linux:** `libwebkit2gtk-4.1-dev`, `build-essential`, `curl`, `wget`, `file`, `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`
+
+### Yerel Geliştirme Ortamını Çalıştırma
+
+```bash
+# 1. Projeyi klonlayın
+git clone https://github.com/MrSpy00/veilanon.git
+cd veilanon
+
+# 2. Ön yüz bağımlılıklarını kurun
+npm install
+
+# 3. Ortam değişkenlerini yapılandırın
+cp .env.example .env
+
+# 4. Geliştirici modunda başlatın
+npm run tauri:dev
+```
+
+### Testleri Çalıştırma
+
+```bash
+# SvelteKit & TypeScript tip denetimi (0 hata, 0 uyarı)
+npm run check
+
+# Uçtan uca (E2E) entegrasyon test paketi
+npm run test:e2e
+
+# Yerel Rust kriptografik birim testleri (113 test)
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Kurulum Paketlerini Derleme
+
+```bash
+# Ön yüz üretim derlemesi
+npm run build
+
+# Tauri yerel masaüstü kurulum paketlerini derleme
+npm run tauri:build
+```
+
+---
+
+## 📜 Gizlilik Taahhüdü
+
+veilanon her sürümde yedi temel ilkeye bağlı kalır:
+
+1. **İçeriğiniz yalnızca size aittir:** Mesajlarınız, ekleriniz ve ses/video medyanız cihazınızda şifrelenir. Sunucu yalnızca şifreli veri görür.
+2. **Sunucuda sıfır düz metin:** Veritabanında şifrelenmemiş içerik sütunu veya düz metin arama dizini bulunmaz.
+3. **Gizli telemetri veya izleme yoktur:** Kullanıcı davranışı izlenmez, analitik toplanmaz.
+4. **Varsayılan olarak en az metaveri:** Çevrim içi durumları gruplandırılır, okundu bilgisi ve yazıyor göstergesi isteğe bağlıdır, bağlantı önizlemeleri yalıtılmış ortamda taranır.
+5. **Veri taşınabilirliği:** Şifreli SQLite arşivinizi istediğiniz zaman dışa aktarabilir veya geri yükleyebilirsiniz.
+6. **Denetlenmiş kriptografi:** Özel kriptografi yazılmaz; yalnızca endüstri standardı, güvenilir kütüphaneler kullanılır (OpenMLS, AES-GCM, Argon2id, Dalek).
+7. **Dürüst bilgilendirme:** Nelerin şifrelendiği ve hangi metaverilerin görülebildiği açıkça belgelenir.
+
+<br><br>
+
+---
+
+# 🇬🇧 English
 
 ## ⚡ Overview
 
@@ -33,11 +232,11 @@ Developed by [aegisSoft](https://www.aegissoft.com.tr/). Brand name is strictly 
 
 ## 🚀 v0.0.1 Release Highlights
 
-- **Reliable message editing** — inline (Discord-style) editor on the edit icon, with instant local + server sync.
-- **Video playback polish** — hover volume slider, mute toggle, and rock-solid fullscreen on every platform.
-- **Banner & profile sync** — account/server banners and avatars no longer disappear on app restart, reinstall, or login; cross-device profile changes propagate in real time (Supabase `users` realtime + `user:updated` events).
-- **Theme-aware accent** — the accent color now follows the active theme and only a manual override changes it (until the next theme switch).
-- **End-to-end sync** — messages, reactions, presence, friendships, DMs, group DMs, roles and badges stay consistent across all connected devices with Supabase realtime + periodic reconciliation.
+- **Reliable Message Editing:** Inline (Discord-style) editor triggered by the edit icon, supporting caption edits on attachments and text messages with instant local and server synchronization.
+- **Refined Video Player:** Smooth hover volume slider, mute toggle, and rock-solid fullscreen mode (supporting both native fullscreen and CSS fallback).
+- **Persistent Banner & Profile Sync:** User and space banners/avatars remain intact upon application restarts or fresh logins, staying updated via Supabase Realtime across all devices.
+- **Theme-Aware Accent Color:** Switching a theme resets the accent to that theme's default brand color; manual accent overrides are honored until the next theme switch.
+- **End-to-End State Synchronization:** Messages, reactions, presence, friendships, DMs, group DMs, roles, and unread badges stay perfectly synchronized across all devices.
 
 ---
 
@@ -47,14 +246,14 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 
 | Platform | Format / Type | Direct Download Link | Description |
 | :--- | :--- | :--- | :--- |
-| **Windows** | `.exe` Setup | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Full Setup Wizard (Authenticode Signed) |
+| **Windows** | `.exe` Setup | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Full Setup Wizard (Signed) |
 | **Windows** | `.msi` Installer | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX Enterprise MSI Installer |
 | **macOS** | `.dmg` Package | [`veilanon_0.0.1_aarch64.dmg`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.dmg) | Apple Silicon (M1/M2/M3/M4) Disk Image |
 | **macOS** | `.app.tar.gz` | [`veilanon_0.0.1_aarch64.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.app.tar.gz) | macOS Apple Silicon Application Bundle Archive |
-| **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Standalone Universal Linux Binary |
+| **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Standalone Universal Portable Linux Binary |
 | **Linux** | `.deb` Package | [`veilanon_0.0.1_amd64.deb`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.deb) | Ubuntu / Debian Native Package |
 | **Linux** | `.rpm` Package | [`veilanon-0.0.1-1.x86_64.rpm`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon-0.0.1-1.x86_64.rpm) | Fedora / RHEL / openSUSE Native Package |
-| **Linux** | `.tar.gz` Archive | [`veilanon_0.0.1_amd64.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.tar.gz) | Generic Linux Archive (portable) |
+| **Linux** | `.tar.gz` Archive | [`veilanon.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon.app.tar.gz) | Generic Linux Portable Archive |
 | **Checksums** | Manifest | [`SHA256SUMS.txt`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/SHA256SUMS.txt) | SHA-256 Cryptographic Hash Manifest |
 
 ---
@@ -79,17 +278,16 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 ### 🎙️ Audio, Video & Screen Sharing
 - **LiveKit Selective Forwarding Unit (SFU):** Low-latency HD voice, video, and high-framerate screen sharing (1080p 60 FPS).
 - **MLS Media Key Derivation:** E2EE voice channels derive frame encryption keys directly from MLS group secrets.
-- **Lifecycle & Sensor Management:** Clean WebRTC hardware stream lifecycle management (`stopLocalTrackOnUnpublish: true`), preventing stuck webcam sensors or active LED indicators when closing camera.
+- **Lifecycle & Sensor Management:** Clean WebRTC hardware stream lifecycle management, preventing stuck webcam sensors or active LED indicators when closing camera.
 - **Live Device Switching:** Seamless runtime transition for microphones, speakers, and cameras with active volume meters and Push-to-Talk (PTT).
 
 ### 💬 Social & Community Experience
 - **Spaces, Channels & Permissions:** Text, voice, forum, and announcement channels with granular role-based access control.
-- **Message Editing:** Discord-style inline editing with a dedicated editor, Esc-to-cancel and Ctrl+Enter-to-save; edited marker synced across devices in real time.
-- **Video Player:** Custom player with progress scrubbing, hover volume slider, mute toggle and reliable fullscreen (native + CSS fallback).
+- **Message Editing:** Discord-style inline editing with a dedicated editor, Esc-to-cancel and Enter-to-save; edited marker synced across devices in real time.
+- **Video Player:** Custom player with progress scrubbing, hover volume slider, mute toggle, and reliable fullscreen (native + CSS fallback).
 - **Deep Linking Protocol (`veilanon://`):** Instant universal links for invites (`/invite/{code}`), profiles (`/u/{user}`), spaces, and messages.
 - **Rich Media & Emojis:** GIF search via Tenor / Giphy, customizable emoji picker, 3:1 banner cropper, and animated status badges.
 - **Theme-Aware Accent:** Switching a theme resets the accent to that theme's brand color; a manual accent override is honored until the next theme change.
-- **Moderation Tools:** Complete kick, ban, unban, and temporary timeout enforcement.
 
 ---
 
@@ -119,6 +317,7 @@ veilanon is structured with strict separation between UI, native Rust core, and 
 │ Supabase        │ │ Cloudflare R2   │ │ Supabase Auth + Edge Funcs   │
 │ (PostgreSQL,    │ │ (Opaque File    │ │ (livekit-token, Realtime WS) │
 │  Ciphertext Only│ │  Blobs Only)    │ │  + LiveKit Cloud SFU         │
+│  Envelopes)     │ │  Chunks)        │ │                              │
 └─────────────────┘ └─────────────────┘ └──────────────────────────────┘
 ```
 
@@ -162,7 +361,6 @@ npm install
 
 # 3. Configure environment variables
 cp .env.example .env
-# Fill in VEILANON_SUPABASE_URL and VEILANON_SUPABASE_ANON_KEY if testing cloud sync
 
 # 4. Launch Tauri 2 Desktop App in Development Mode
 npm run tauri:dev
@@ -174,10 +372,10 @@ npm run tauri:dev
 # SvelteKit & TypeScript diagnostics check (0 errors, 0 warnings)
 npm run check
 
-# Comprehensive E2E opaque-box test runner (173/173 tests)
+# Comprehensive E2E opaque-box test runner
 npm run test:e2e
 
-# Native Rust unit & cryptographic tests (82/82 tests)
+# Native Rust unit & cryptographic tests (113 tests)
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
@@ -189,9 +387,6 @@ npm run build
 
 # Tauri full native desktop binary compilation
 npm run tauri:build
-
-# Multi-platform packaging and signing utility (PowerShell)
-pwsh ./scripts/package-release.ps1 -Version "0.0.1"
 ```
 
 ---
