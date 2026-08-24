@@ -540,7 +540,7 @@
                 type="button"
                 class="btn btn-primary btn-sm"
                 onclick={saveEdit}
-                disabled={!editDraft.trim() || editDraft.trim() === message.content}
+                disabled={editDraft.trim() === (message.content ?? '').trim() || (!editDraft.trim() && !(Array.isArray(message.attachments) && message.attachments.length > 0))}
               >Kaydet</button>
             </div>
           </div>

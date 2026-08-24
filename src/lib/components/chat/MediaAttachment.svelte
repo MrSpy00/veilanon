@@ -42,6 +42,7 @@
   let videoFullscreen = $state(false);
   let videoShowControls = $state(false);
   let videoControlsTimer: ReturnType<typeof setTimeout> | null = null;
+  let videoVolumeHover = $state(false);
 
   function formatBytes(bytes: number): string {
     if (!bytes) return '0 B';
@@ -404,8 +405,12 @@
     videoShowControls = true;
     if (videoControlsTimer) clearTimeout(videoControlsTimer);
     videoControlsTimer = setTimeout(() => {
-      if (videoPlaying) videoShowControls = false;
-    }, 2500);
+      if (videoPlaying && !videoVolumeHover) videoShowControls = false;
+    }, 3500);
+  }
+  function keepControlsVisible() {
+    videoShowControls = true;
+    if (videoControlsTimer) clearTimeout(videoControlsTimer);
   }
 
   // ── Download ─────────────────────────────────────────────────────────────
@@ -549,7 +554,7 @@
             {formatDuration(videoCurrentTime)} / {formatDuration(videoDuration)}
           </span>
           <div class="veil-vc-spacer"></div>
-          <div class="veil-vc-volume">
+          <div class="veil-vc-volume" onmouseenter={() => { videoVolumeHover = true; keepControlsVisible(); }} onmouseleave={() => { videoVolumeHover = false; showVideoControls(); }}>
             <button
               type="button"
               class="veil-vc-btn"
@@ -558,8 +563,8 @@
             >
               <Icon name={videoMuted || videoVolume === 0 ? 'volume-x' : 'volume'} size={15} />
             </button>
-            <div class="veil-vc-vol-pop" role="group" aria-label="Ses seviyesi">
-              <span class="veil-vc-vol-icon" aria-hidden="true"><Icon name="volume-slider" size={12} /></span>
+            <div class="veil-vc-vol-pop" role="group" aria-label="Ses seviyesi" onmouseenter={() => { videoVolumeHover = true; keepControlsVisible(); }} onmouseleave={() => { videoVolumeHover = false; showVideoControls(); }}>
+              <span class="veil-vc-vol-icon" aria-hidden="true"><Icon name={videoMuted || videoVolume === 0 ? 'volume-x' : 'volume'} size={12} /></span>
               <input
                 type="range"
                 class="veil-vc-vol-slider"
@@ -575,7 +580,7 @@
                 oninput={(e) => setVideoVolume(parseFloat((e.currentTarget as HTMLInputElement).value))}
                 onclick={(e) => e.stopPropagation()}
               />
-              <span class="veil-vc-vol-pct">{Math.round(videoVolume * 100)}</span>
+              <span class="veil-vc-vol-pct">{Math.round(videoVolume * 100)}%</span>
             </div>
           </div>
           <button type="button" class="veil-vc-btn" onclick={handleDownload} title="İndir" disabled={downloading}>
@@ -974,39 +979,55 @@
   .veil-vc-volume { position: relative; display: flex; align-items: center; }
   .veil-vc-vol-pop {
     position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%) translateY(8px) scale(0.94);
-    transform-origin: bottom center;
+    left: calc(100% + 14px);
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%) translateX(8px) scale(0.96);
+    transform-origin: left center;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 12px;
-    min-width: 138px;
-    background: rgba(7, 9, 13, 0.92);
-    backdrop-filter: blur(16px) saturate(1.2);
-    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    gap: 10px;
+    padding: 10px 14px 10px 14px;
+    min-width: 168px;
+    max-width: 200px;
+    background: linear-gradient(135deg, rgba(16, 18, 28, 0.96) 0%, rgba(10, 12, 20, 0.98) 100%);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 14px;
-    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.20s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: 8;
   }
-  /* Köprü: pop ile buton arasındaki boşlukta hover kesilmesin */
+  .veil-vc-vol-pop::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, rgba(16, 18, 28, 0.96) 50%, rgba(10, 12, 20, 0.98) 50%);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0 0 0 2px;
+  }
+  /* Köprü: pop ile buton arasındaki boşlukta hover kesilmesin - yatay */
   .veil-vc-vol-pop::before {
     content: '';
     position: absolute;
-    bottom: -12px;
-    left: 0;
-    right: 0;
-    height: 14px;
+    left: -16px;
+    top: 0;
+    bottom: 0;
+    width: 16px;
   }
   .veil-vc-volume:hover .veil-vc-vol-pop,
-  .veil-vc-vol-pop:hover {
+  .veil-vc-vol-pop:hover,
+  .veil-vc-volume:focus-within .veil-vc-vol-pop {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(-50%) translateX(0) scale(1);
     pointer-events: auto;
   }
   .veil-vc-vol-icon {

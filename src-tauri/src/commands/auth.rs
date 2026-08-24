@@ -1372,7 +1372,7 @@ pub async fn bind_control_plane_handles(
             }
 
             // Read banner_hash, bio, custom_status from local_identity to avoid
-            // erasing them on every login bind.
+            // erasing them on every login bind. Preserve remote values when local is empty.
             let (local_banner, local_bio, local_custom_status) = {
                 let db = db_arc.read().await;
                 let row: Option<(Option<String>, Option<String>, Option<String>)> = db.query_row(
@@ -1382,6 +1382,22 @@ pub async fn bind_control_plane_handles(
                 ).ok();
                 row.unwrap_or((None, None, None))
             };
+            let (remote_avatar, remote_banner2) = {
+                let rows = network.api.select::<serde_json::Value>(
+                    "users",
+                    &format!("id=eq.{}", target_user_id),
+                    None,
+                    Some(1),
+                ).await.unwrap_or_default();
+                if let Some(r) = rows.first() {
+                    (
+                        r.get("avatar_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                        r.get("banner_hash").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                    )
+                } else { (None, None) }
+            };
+            let avatar_to_upsert = identity.avatar_hash.clone().or(remote_avatar).unwrap_or_default();
+            let banner_to_upsert = local_banner.clone().or(remote_banner2).unwrap_or_default();
             let _ = network
                 .api
                 .upsert(
@@ -1390,8 +1406,8 @@ pub async fn bind_control_plane_handles(
                         "id": target_user_id,
                         "username": identity.username,
                         "display_name": identity.display_name,
-                        "avatar_hash": identity.avatar_hash.clone().unwrap_or_default(),
-                        "banner_hash": local_banner.as_deref().unwrap_or_default(),
+                        "avatar_hash": avatar_to_upsert,
+                        "banner_hash": banner_to_upsert,
                         "bio": local_bio.as_deref().unwrap_or_default(),
                         "custom_status": local_custom_status.as_deref().unwrap_or_default(),
                     }),
