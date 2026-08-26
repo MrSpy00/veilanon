@@ -472,18 +472,23 @@
       <span>Dosya şifresi çözülüyor…</span>
     </div>
   {:else if error || !dataUrl || !attachment.fileId || attachment.sizeBytes === 0}
-    <!-- Download / file fallback card -->
-    <div class="veil-file-card">
+    <!-- Download / file fallback card with retry -->
+    <div class="veil-file-card" class:error-card={error}>
       <div class="veil-file-icon" style="background: color-mix(in srgb, {fileTypeConfig.color} 15%, transparent); color: {fileTypeConfig.color}; border: 1px solid color-mix(in srgb, {fileTypeConfig.color} 25%, transparent);">
         <Icon name={fileTypeConfig.icon} size={22} />
       </div>
       <div class="veil-file-info">
         <span class="veil-file-name" title={displayFileName}>{displayFileName}</span>
         <div class="veil-file-meta">
-          <span class="veil-file-type-badge" style="color: {fileTypeConfig.color};">{fileTypeConfig.label}</span>
+          <span class="veil-file-type-badge" style="color: {fileTypeConfig.color};">{error ? 'Yüklenemedi' : fileTypeConfig.label}</span>
           <span class="veil-file-size">{formatBytes(attachment.sizeBytes)}</span>
         </div>
       </div>
+      {#if error}
+        <button class="veil-file-dl-btn veil-retry-btn" onclick={() => void loadMedia(true)} title="Yeniden dene">
+          <Icon name="refresh-cw" size={14} />
+        </button>
+      {/if}
       <button class="veil-file-dl-btn" onclick={handleDownload} disabled={downloading} title="İndir">
         {#if downloading}
           <div class="veil-spinner" style="width:14px;height:14px;border-width:2px;"></div>

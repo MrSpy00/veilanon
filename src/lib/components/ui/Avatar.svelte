@@ -1,10 +1,21 @@
 <script lang="ts" module>
-  const avatarMemoryCache = new Map<string, string>();
+  const avatarMemoryCache = new Map<string, { url: string; at: number }>();
+  const AVATAR_TTL_MS = 5 * 60 * 1000;
 
   export function cacheAvatar(hash: string, dataUrl: string) {
     if (hash && dataUrl) {
-      avatarMemoryCache.set(hash.trim(), dataUrl);
+      avatarMemoryCache.set(hash.trim(), { url: dataUrl, at: Date.now() });
     }
+  }
+
+  function getCachedAvatar(hash: string): string | null {
+    const e = avatarMemoryCache.get(hash);
+    if (!e) return null;
+    if (Date.now() - e.at > AVATAR_TTL_MS) {
+      avatarMemoryCache.delete(hash);
+      return null;
+    }
+    return e.url;
   }
 </script>
 
@@ -57,7 +68,7 @@
       return;
     }
 
-    const cached = avatarMemoryCache.get(cleanHash);
+    const cached = getCachedAvatar(cleanHash);
     if (cached) {
       resolvedSrc = cached;
       resolveFailed = false;
@@ -65,9 +76,10 @@
     }
 
     let cancelled = false;
+    // Keep previous src until new one resolves to avoid flicker
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
       if (!cancelled && dataUrl) {
-        avatarMemoryCache.set(cleanHash, dataUrl);
+        cacheAvatar(cleanHash, dataUrl);
         resolvedSrc = dataUrl;
         resolveFailed = false;
       }
@@ -140,6 +152,11 @@
     height: 100%;
     object-fit: cover;
     border-radius: inherit;
+    animation: veil-avatar-fade 0.22s ease;
+  }
+  @keyframes veil-avatar-fade {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
   }
   .veil-avatar.speaking {
     box-shadow: 0 0 0 2px var(--veil-bg-channel, var(--veil-bg-base)), 0 0 0 4px var(--speaking-color, var(--veil-brand));

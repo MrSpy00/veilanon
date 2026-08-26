@@ -36,10 +36,10 @@ export interface ScreenShareQuality {
 }
 
 export const SCREEN_SHARE_PRESETS: ScreenShareQuality[] = [
-  { width: 1920, height: 1080, frameRate: 60, label: '1080p · 60 FPS (Yüksek Kalite / Akıcı - Önerilen)' },
-  { width: 1920, height: 1080, frameRate: 30, label: '1080p · 30 FPS (Full HD Standart)' },
+  { width: 1280, height: 720, frameRate: 30, label: '720p · 30 FPS (Dengeli - Önerilen)' },
   { width: 1280, height: 720, frameRate: 60, label: '720p · 60 FPS (Akıcı HD)' },
-  { width: 1280, height: 720, frameRate: 30, label: '720p · 30 FPS (Dengeli)' },
+  { width: 1920, height: 1080, frameRate: 30, label: '1080p · 30 FPS (Full HD Standart)' },
+  { width: 1920, height: 1080, frameRate: 60, label: '1080p · 60 FPS (Yüksek Kalite / Akıcı)' },
   { width: 854, height: 480, frameRate: 30, label: '480p · 30 FPS (Düşük Bant Genişliği)' },
   { width: 854, height: 480, frameRate: 15, label: '480p · 15 FPS (Tasarruf Modu)' },
 ];

@@ -173,13 +173,12 @@
   }
 
   onMount(async () => {
-    friendsStore.load();
+    void friendsStore.load();
     if (profile) {
       loading = true;
       try {
         full = await socialApi.getUserProfile(profile.userId);
       } catch {
-        // Profil önbellekte yoksa temel verilerle devam et.
       } finally {
         loading = false;
       }
@@ -187,6 +186,17 @@
       if (!isSelf) {
         void loadMutuals();
       }
+    }
+  });
+
+  $effect(() => {
+    const pid = profile?.userId;
+    if (pid) {
+      void friendsStore.load();
+      // Re-fetch full profile when switching between users without remount
+      void socialApi.getUserProfile(pid).then((p) => { full = p; }).catch(() => {});
+      void loadServerRoles();
+      if (!isSelf) void loadMutuals();
     }
   });
 

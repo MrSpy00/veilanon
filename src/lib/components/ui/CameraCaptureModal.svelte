@@ -59,50 +59,44 @@
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
 
+      // Wait for video element to be bound then attach stream with proper metadata gate
       await new Promise<void>((resolve) => {
-        let attempts = 0;
-        const checkAndAttach = () => {
-          attempts++;
-          if (videoEl) {
-            if (videoEl.srcObject !== s) {
-              videoEl.srcObject = s;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          loading = false;
+          resolve();
+        };
+        const attachWhenReady = () => {
+          if (!videoEl) {
+            setTimeout(attachWhenReady, 30);
+            return;
+          }
+          if (videoEl.srcObject !== s) videoEl.srcObject = s;
+          // Gate on loadedmetadata + videoWidth to avoid black frame
+          const onReady = async () => {
+            // Ensure videoWidth is populated (race on some WebView2 builds)
+            for (let i = 0; i < 40; i++) {
+              if (videoEl && videoEl.videoWidth > 0 && videoEl.readyState >= 1) break;
+              await new Promise(r => setTimeout(r, 25));
             }
-            videoEl.onloadedmetadata = () => {
-              if (videoEl && videoEl.videoWidth > 0) {
-                loading = false;
-                resolve();
-              }
-            };
-            videoEl.oncanplay = () => {
-              if (videoEl && videoEl.videoWidth > 0) {
-                loading = false;
-                resolve();
-              }
-            };
-            void videoEl.play().then(() => {
-              if (videoEl && videoEl.videoWidth > 0) {
-                loading = false;
-                resolve();
-              }
-            }).catch(() => {});
-
-            if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
-              loading = false;
-              resolve();
-            } else if (attempts < 60) {
-              setTimeout(checkAndAttach, 50);
-            } else {
-              loading = false;
-              resolve();
-            }
-          } else if (attempts < 40) {
-            setTimeout(checkAndAttach, 25);
+            if (videoEl) {
+              try { await videoEl.play(); } catch { /* autoplay blocked -> still show frame */ }
+              // Final check: must have dimensions
+              if (videoEl.videoWidth > 0) finish();
+              else setTimeout(finish, 200);
+            } else finish();
+          };
+          if (videoEl.readyState >= 1 && videoEl.videoWidth > 0) {
+            void onReady();
           } else {
-            loading = false;
-            resolve();
+            videoEl.onloadedmetadata = () => void onReady();
+            // Fallback timer in case event never fires
+            setTimeout(() => void onReady(), 1200);
           }
         };
-        checkAndAttach();
+        attachWhenReady();
       });
 
       await loadDevices();
@@ -114,21 +108,21 @@
     }
   }
 
-  // videoEl DOM bind watcher
+  // videoEl DOM bind watcher — only attaches stream, defers loading=false to onloadedmetadata
   $effect(() => {
     const vid = videoEl;
     const s = stream;
     if (vid && s && vid.srcObject !== s) {
       vid.srcObject = s;
-      vid.onloadedmetadata = () => {
+      vid.onloadedmetadata = async () => {
+        // Wait for dimensions before clearing loading overlay
+        for (let i = 0; i < 20; i++) {
+          if (vid.videoWidth > 0) break;
+          await new Promise(r => setTimeout(r, 20));
+        }
         if (vid.videoWidth > 0) loading = false;
       };
-      vid.oncanplay = () => {
-        if (vid.videoWidth > 0) loading = false;
-      };
-      void vid.play().then(() => {
-        if (vid.videoWidth > 0) loading = false;
-      }).catch(() => {});
+      // Don't call play() here — startCamera owns that to avoid race
     }
   });
 
@@ -143,7 +137,7 @@
   }
 
   function snapPhoto() {
-    if (!videoEl || videoEl.videoWidth === 0 || loading || errorMsg) return;
+    if (!videoEl || videoEl.videoWidth === 0 || videoEl.readyState < 1 || loading || errorMsg) return;
     isFlashing = true;
     setTimeout(() => {
       isFlashing = false;

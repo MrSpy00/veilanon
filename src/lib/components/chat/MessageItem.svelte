@@ -349,11 +349,29 @@
   const isDeleted = $derived(Boolean(message.deletedAt));
   const displayContent = $derived(isDeleted ? '[Mesaj silindi]' : (message.content ?? ''));
 
-  // ── Kaybolan Mesaj Geri Sayım Sayacı ────────────────────────────────────
+  // ── Kaybolan Mesaj Geri Sayım Sayacı (server-synced) ──────────────────
   let countdown = $state<number | null>(null);
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let isBurning = $state(false);
   let deleteScheduled = false;
+  let serverTimeOffsetSec = $state(0);
+  // NTP/clock skew offset: server - local (seconds). Fetched once per mount.
+  async function syncClockOffset() {
+    try {
+      const { privacyToolsApi } = await import('$lib/api/tauri');
+      const r = await privacyToolsApi.detectClockSkew();
+      if (r && typeof r.skewSeconds === 'number') {
+        // skew = local - server, so offset = -skew
+        serverTimeOffsetSec = -r.skewSeconds;
+      }
+    } catch { /* best effort */ }
+  }
+  // Opportunistically fetch offset once per component lifecycle
+  if (typeof window !== 'undefined') void syncClockOffset();
+
+  function serverNowSec(): number {
+    return Date.now() / 1000 + serverTimeOffsetSec;
+  }
 
   function startCountdown() {
     if (!message.disappearsAt) return;
@@ -364,7 +382,7 @@
     deleteScheduled = false;
 
     const update = () => {
-      const nowSec = Date.now() / 1000;
+      const nowSec = serverNowSec();
       const remaining = message.disappearsAt! - nowSec;
 
       if (remaining <= 0) {
@@ -376,6 +394,7 @@
         if (!isBurning && !deleteScheduled) {
           deleteScheduled = true;
           isBurning = true;
+          // Mutex: ensure only once per message; backend delete + local purge
           setTimeout(() => {
             void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
               messageStore.purgeExpiredLocal();
@@ -387,7 +406,7 @@
       }
     };
     update();
-    if (!deleteScheduled && (message.disappearsAt - Date.now() / 1000) > 0) {
+    if (!deleteScheduled && (message.disappearsAt - serverNowSec()) > 0) {
       countdownTimer = setInterval(update, 250);
     }
   }

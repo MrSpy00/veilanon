@@ -1,9 +1,10 @@
 <script lang="ts" module>
-  const bannerMemoryCache = new Map<string, string>();
+  const bannerMemoryCache = new Map<string, { url: string; at: number }>();
+  const BANNER_TTL_MS = 5 * 60 * 1000;
 
   export function cacheBanner(hash: string, dataUrl: string) {
     if (hash && dataUrl) {
-      bannerMemoryCache.set(hash.trim(), dataUrl);
+      bannerMemoryCache.set(hash.trim(), { url: dataUrl, at: Date.now() });
     }
   }
 
@@ -11,6 +12,16 @@
     if (hash) {
       bannerMemoryCache.delete(hash.trim());
     }
+  }
+
+  function getCachedBanner(hash: string): string | null {
+    const e = bannerMemoryCache.get(hash);
+    if (!e) return null;
+    if (Date.now() - e.at > BANNER_TTL_MS) {
+      bannerMemoryCache.delete(hash);
+      return null;
+    }
+    return e.url;
   }
 </script>
 
@@ -53,7 +64,7 @@
       return;
     }
 
-    const cached = bannerMemoryCache.get(cleanHash);
+    const cached = getCachedBanner(cleanHash);
     if (cached) {
       resolvedSrc = cached;
       isLoaded = true;
@@ -64,15 +75,15 @@
     // Keep current banner visible while fetching new one — no flicker gap
     let cancelled = false;
     hasError = false;
+    // Don't clear resolvedSrc until new one arrives — avoids white flash
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
       if (cancelled) return;
       if (dataUrl) {
-        bannerMemoryCache.set(cleanHash, dataUrl);
+        cacheBanner(cleanHash, dataUrl);
         resolvedSrc = dataUrl;
         isLoaded = true;
         hasError = false;
       } else {
-        // Keep previous image on empty response; mark transient error
         hasError = true;
       }
     }).catch(() => {
@@ -149,6 +160,13 @@
     display: block;
     opacity: 1;
     z-index: 2;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.28s ease;
+  }
+  .veil-banner-wrapper img.loaded {
+    animation: veil-banner-fade 0.28s ease;
+  }
+  @keyframes veil-banner-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 </style>
