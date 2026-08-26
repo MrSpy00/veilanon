@@ -52,42 +52,60 @@
     try {
       const constraints: MediaStreamConstraints = {
         video: selectedDeviceId
-          ? { deviceId: { exact: selectedDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-          : { width: { ideal: 1920 }, height: { ideal: 1080 } },
+          ? { deviceId: { ideal: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       };
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
-      // videoEl DOM mount and actual frame decoding check
+
       await new Promise<void>((resolve) => {
         let attempts = 0;
-        const attachStream = () => {
+        const checkAndAttach = () => {
           attempts++;
           if (videoEl) {
-            videoEl.srcObject = s;
-            const checkReady = () => {
-              if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
-                resolve();
-              } else if (attempts < 80) {
-                setTimeout(checkReady, 50);
-              } else {
+            if (videoEl.srcObject !== s) {
+              videoEl.srcObject = s;
+            }
+            videoEl.onloadedmetadata = () => {
+              if (videoEl && videoEl.videoWidth > 0) {
+                loading = false;
                 resolve();
               }
             };
-            videoEl.onloadeddata = checkReady;
-            videoEl.oncanplay = checkReady;
-            void videoEl.play().then(checkReady).catch(() => {});
-            checkReady();
-          } else if (attempts < 50) {
-            setTimeout(attachStream, 20);
+            videoEl.oncanplay = () => {
+              if (videoEl && videoEl.videoWidth > 0) {
+                loading = false;
+                resolve();
+              }
+            };
+            void videoEl.play().then(() => {
+              if (videoEl && videoEl.videoWidth > 0) {
+                loading = false;
+                resolve();
+              }
+            }).catch(() => {});
+
+            if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+              loading = false;
+              resolve();
+            } else if (attempts < 60) {
+              setTimeout(checkAndAttach, 50);
+            } else {
+              loading = false;
+              resolve();
+            }
+          } else if (attempts < 40) {
+            setTimeout(checkAndAttach, 25);
           } else {
+            loading = false;
             resolve();
           }
         };
-        attachStream();
+        checkAndAttach();
       });
+
       await loadDevices();
-      loading = false;
     } catch (err: unknown) {
       loading = false;
       const msg = err instanceof Error ? err.message : 'Kamera erişimi sağlanamadı.';
@@ -102,13 +120,17 @@
     const s = stream;
     if (vid && s && vid.srcObject !== s) {
       vid.srcObject = s;
-      vid.onloadeddata = () => {
+      vid.onloadedmetadata = () => {
         if (vid.videoWidth > 0) loading = false;
       };
-      void vid.play().catch(() => {});
+      vid.oncanplay = () => {
+        if (vid.videoWidth > 0) loading = false;
+      };
+      void vid.play().then(() => {
+        if (vid.videoWidth > 0) loading = false;
+      }).catch(() => {});
     }
   });
-
 
   function stopCamera() {
     if (stream) {
@@ -142,14 +164,18 @@
     stopCamera();
   }
 
+  let shutterTimerInterval: ReturnType<typeof setInterval> | null = null;
+
   function triggerShutter() {
     if (loading || errorMsg || countdownTimer > 0) return;
     if (countdownSeconds > 0) {
       countdownTimer = countdownSeconds;
-      const interval = setInterval(() => {
+      if (shutterTimerInterval) clearInterval(shutterTimerInterval);
+      shutterTimerInterval = setInterval(() => {
         countdownTimer -= 1;
         if (countdownTimer <= 0) {
-          clearInterval(interval);
+          if (shutterTimerInterval) clearInterval(shutterTimerInterval);
+          shutterTimerInterval = null;
           snapPhoto();
         }
       }, 1000);
@@ -161,6 +187,10 @@
   function retake() {
     capturedDataUrl = null;
     countdownTimer = 0;
+    if (shutterTimerInterval) {
+      clearInterval(shutterTimerInterval);
+      shutterTimerInterval = null;
+    }
     void startCamera();
   }
 
@@ -175,9 +205,16 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
-    } else if (e.key === 'Enter' && capturedDataUrl) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      confirmPhoto();
+      if (capturedDataUrl) {
+        confirmPhoto();
+      } else {
+        triggerShutter();
+      }
+    } else if (e.key === ' ' && !capturedDataUrl) {
+      e.preventDefault();
+      triggerShutter();
     }
   }
 
@@ -186,6 +223,7 @@
   });
 
   onDestroy(() => {
+    if (shutterTimerInterval) clearInterval(shutterTimerInterval);
     stopCamera();
   });
 </script>
@@ -312,24 +350,24 @@
         <div class="veil-cam-shutter-bar">
           <button
             type="button"
-            class="veil-shutter-btn"
+            class="veil-shutter-action-btn"
             onclick={triggerShutter}
             disabled={loading || !!errorMsg || countdownTimer > 0}
             aria-label="Fotoğraf Çek"
           >
             <div class="veil-shutter-inner">
-              <Icon name="camera" size={24} />
+              <Icon name="camera" size={20} />
             </div>
+            <span class="veil-shutter-label-text">
+              {#if countdownTimer > 0}
+                {countdownTimer}s sonra çekiliyor…
+              {:else if countdownSeconds > 0}
+                {countdownSeconds}s Zamanlayıcı ile Çek
+              {:else}
+                Fotoğrafı Çek
+              {/if}
+            </span>
           </button>
-          <span class="veil-shutter-label">
-            {#if countdownTimer > 0}
-              {countdownTimer} saniye sonra çekiliyor…
-            {:else if countdownSeconds > 0}
-              {countdownSeconds}s Zamanlayıcı ile Çek
-            {:else}
-              Fotoğrafı Çek
-            {/if}
-          </span>
         </div>
       {/if}
     </div>
@@ -352,29 +390,29 @@
 
   .veil-cam-modal {
     width: 100%;
-    max-width: 580px;
+    max-width: 600px;
     background: var(--veil-bg-elevated);
     border: 1px solid var(--veil-border);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-2xl);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   }
 
   .veil-cam-header {
+    padding: var(--space-3) var(--space-5);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-4) var(--space-5);
-    border-bottom: 1px solid var(--veil-border);
+    border-bottom: 1px solid var(--veil-border-subtle);
   }
 
   .veil-cam-title {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
     font-weight: 700;
     color: var(--veil-text-primary);
   }
@@ -382,12 +420,12 @@
   .veil-cam-viewport {
     position: relative;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 9;
     background: #000;
-    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
   }
 
   .veil-cam-viewport.is-flashing::after {
@@ -395,13 +433,11 @@
     position: absolute;
     inset: 0;
     background: #fff;
-    opacity: 0.9;
-    z-index: 100;
-    pointer-events: none;
-    animation: flash-anim 0.15s ease-out;
+    z-index: 10;
+    animation: veil-cam-flash 0.15s ease-out;
   }
 
-  @keyframes flash-anim {
+  @keyframes veil-cam-flash {
     from { opacity: 0.9; }
     to { opacity: 0; }
   }
@@ -411,7 +447,6 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    display: block;
   }
 
   .veil-cam-video.mirrored {
@@ -421,14 +456,14 @@
   .veil-cam-overlay-state {
     position: absolute;
     inset: 0;
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: var(--space-3);
-    background: rgba(0, 0, 0, 0.7);
-    color: var(--veil-text-secondary);
-    z-index: 10;
+    color: var(--veil-text-muted);
+    font-size: var(--text-sm);
   }
 
   .veil-cam-overlay-state.error {
@@ -448,23 +483,22 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 20;
-    pointer-events: none;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 5;
   }
 
   .veil-countdown-number {
-    font-size: 72px;
+    font-size: 84px;
     font-weight: 800;
     color: #fff;
-    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
-    animation: countdown-pop 1s infinite cubic-bezier(0.16, 1, 0.3, 1);
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.8);
+    animation: veil-cam-count-pulse 1s ease-in-out infinite;
   }
 
-  @keyframes countdown-pop {
-    0% { transform: scale(1.4); opacity: 0; }
-    30% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(0.9); opacity: 0.8; }
+  @keyframes veil-cam-count-pulse {
+    0% { transform: scale(1.2); opacity: 0.8; }
+    50% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.85); opacity: 0.6; }
   }
 
   .veil-cam-guide-box {
@@ -545,39 +579,51 @@
     padding-top: var(--space-2);
   }
 
-  .veil-shutter-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.4);
-    background: transparent;
-    padding: 3px;
-    cursor: pointer;
-    display: flex;
+  .veil-shutter-action-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: transform var(--t-fast), border-color var(--t-fast);
+    gap: var(--space-3);
+    padding: 10px 24px;
+    background: linear-gradient(135deg, var(--veil-brand) 0%, color-mix(in srgb, var(--veil-brand) 80%, black) 100%);
+    border: 1px solid color-mix(in srgb, var(--veil-brand) 40%, white);
+    border-radius: var(--radius-full);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    transition: transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
   }
 
-  .veil-shutter-btn:hover:not(:disabled) {
-    transform: scale(1.06);
-    border-color: #fff;
+  .veil-shutter-action-btn:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.55);
+    filter: brightness(1.08);
   }
 
-  .veil-shutter-btn:active:not(:disabled) {
-    transform: scale(0.95);
+  .veil-shutter-action-btn:active:not(:disabled) {
+    transform: translateY(1px) scale(0.98);
+  }
+
+  .veil-shutter-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
   }
 
   .veil-shutter-inner {
-    width: 100%;
-    height: 100%;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    background: var(--veil-brand);
-    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px var(--veil-brand-subtle);
+  }
+
+  .veil-shutter-label-text {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.02em;
   }
 
   .veil-cam-review-actions {

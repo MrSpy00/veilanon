@@ -145,7 +145,10 @@ function createSpaceStore() {
             ? s.spaces.map(sp => (sp.id === space.id ? space : sp))
             : [...s.spaces, space],
         }));
-        await this.loadChannels(space.id).catch(() => {});
+        await Promise.all([
+          this.loadChannels(space.id).catch(() => []),
+          this.loadSpaces().catch(() => {}),
+        ]);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('spaces:changed'));
         }
@@ -161,7 +164,7 @@ function createSpaceStore() {
           (s.customLink && cleanCode.includes(s.customLink.toLowerCase()))
         );
         if (found) {
-          await this.loadChannels(found.id).catch(() => {});
+          await this.loadChannels(found.id).catch(() => []);
           return found;
         }
         throw err;
@@ -177,7 +180,10 @@ function createSpaceStore() {
             ? s.spaces.map(sp => (sp.id === space.id ? space : sp))
             : [...s.spaces, space],
         }));
-        await this.loadChannels(space.id).catch(() => {});
+        await Promise.all([
+          this.loadChannels(space.id).catch(() => []),
+          this.loadSpaces().catch(() => {}),
+        ]);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('spaces:changed'));
         }

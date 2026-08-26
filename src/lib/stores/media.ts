@@ -407,15 +407,15 @@ function createMediaStore() {
             rtcpMuxPolicy: 'require' as RTCRtcpMuxPolicy,
           },
           publishDefaults: {
-            dtx: false,
+            dtx: true,
             red: true,
             simulcast: true,
             audioPreset: {
-              maxBitrate: 96_000,
+              maxBitrate: 48_000,
             },
             screenShareEncoding: {
-              maxBitrate: 6_000_000,
-              maxFramerate: 60,
+              maxBitrate: 3_500_000,
+              maxFramerate: 30,
             },
           },
           audioCaptureDefaults: {

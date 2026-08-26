@@ -213,52 +213,50 @@
     }
   }
 
-  onMount(() => {
-    let cancelled = false;
-
-    const loadMedia = async () => {
-      if (mime === 'file') {
-        loading = false;
-        return;
-      }
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (cancelled) return;
-        try {
-          const url = await fileApi.getDataUrl(
-            attachment.fileId,
-            attachment.r2Key,
-            attachment.contentKeyCiphertext,
-            attachment.mimeTypeHint,
-          );
-          if (!cancelled && url) {
-            dataUrl = url;
-            loading = false;
-            error = false;
-            const blob = createBlobFromDataUrl(url);
-            if (blob) {
-              blobUrl = URL.createObjectURL(blob);
-            }
-            if (mime === 'audio' || url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
-              void decodeAudioDurationAndPeaks(url);
-            }
-            return;
+  async function loadMedia(isRetry = false) {
+    if (mime === 'file') {
+      loading = false;
+      return;
+    }
+    if (isRetry) {
+      loading = true;
+      error = false;
+    }
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const url = await fileApi.getDataUrl(
+          attachment.fileId,
+          attachment.r2Key,
+          attachment.contentKeyCiphertext,
+          attachment.mimeTypeHint,
+        );
+        if (url) {
+          dataUrl = url;
+          loading = false;
+          error = false;
+          const blob = createBlobFromDataUrl(url);
+          if (blob) {
+            blobUrl = URL.createObjectURL(blob);
           }
-        } catch {
-          if (attempt < 2) {
-            await new Promise((r) => setTimeout(r, 450 * (attempt + 1)));
+          if (mime === 'audio' || url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
+            void decodeAudioDurationAndPeaks(url);
           }
+          return;
+        }
+      } catch {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
         }
       }
-      if (!cancelled) {
-        error = true;
-        loading = false;
-      }
-    };
+    }
+    error = true;
+    loading = false;
+  }
 
+  onMount(() => {
     void loadMedia();
 
     return () => {
-      cancelled = true;
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
         blobUrl = null;

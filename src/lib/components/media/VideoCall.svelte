@@ -95,7 +95,7 @@
     effectsStore.resetSession();
     syncParticipantsAndTracks();
 
-    const interval = setInterval(syncParticipantsAndTracks, 1000);
+    const interval = setInterval(syncParticipantsAndTracks, 200);
 
     const onFullscreenChange = () => {
       isFullscreen = !!document.fullscreenElement;

@@ -768,7 +768,11 @@ function createMessageStore() {
     },
 
     async deleteMessage(channelId: string, messageId: string) {
-      await invoke('delete_message', { messageId });
+      try {
+        await invoke('delete_message', { messageId });
+      } catch {
+        // Backend delete best effort; local purge will still proceed
+      }
       update(s => {
         const nextList = (s.byChannel[channelId] ?? []).filter((m: Message) => m.id !== messageId);
         saveChannelCache(channelId, nextList);

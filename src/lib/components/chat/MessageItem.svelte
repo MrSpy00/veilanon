@@ -380,14 +380,16 @@
             void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
               messageStore.purgeExpiredLocal();
             });
-          }, 380);
+          }, 350);
         }
       } else {
         countdown = Math.ceil(remaining);
       }
     };
     update();
-    countdownTimer = setInterval(update, 250);
+    if (!deleteScheduled && (message.disappearsAt - Date.now() / 1000) > 0) {
+      countdownTimer = setInterval(update, 250);
+    }
   }
 
   $effect(() => {

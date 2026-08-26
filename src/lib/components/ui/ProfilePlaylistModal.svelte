@@ -40,17 +40,35 @@
   ];
 
   function handleAddItem() {
-    const url = newUrl.trim();
-    if (!url) {
+    const raw = newUrl.trim();
+    if (!raw) {
       toastStore.warning('Lütfen bir medya bağlantısı girin.');
       return;
     }
+    const lines = raw.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 0);
+    if (lines.length > 1) {
+      let count = 0;
+      for (const u of lines) {
+        const itemTitle = `${activeTab === 'avatar' ? 'Avatar' : 'Banner'} #${currentItems.length + count + 1}`;
+        if (activeTab === 'avatar') {
+          profilePlaylistStore.addAvatarItem({ name: itemTitle, url: u });
+        } else {
+          profilePlaylistStore.addBannerItem({ name: itemTitle, url: u });
+        }
+        count++;
+      }
+      toastStore.success(`${count} adet medya listeye eklendi.`);
+      newName = '';
+      newUrl = '';
+      return;
+    }
+
     const name = newName.trim() || `${activeTab === 'avatar' ? 'Avatar' : 'Banner'} #${currentItems.length + 1}`;
 
     if (activeTab === 'avatar') {
-      profilePlaylistStore.addAvatarItem({ name, url });
+      profilePlaylistStore.addAvatarItem({ name, url: raw });
     } else {
-      profilePlaylistStore.addBannerItem({ name, url });
+      profilePlaylistStore.addBannerItem({ name, url: raw });
     }
 
     newName = '';
