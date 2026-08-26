@@ -104,6 +104,22 @@ export interface MessageState {
 const CACHE_KEY_PREFIX = 'veilanon_msg_cache_';
 const MAX_CACHED_MESSAGES_PER_CHANNEL = 100;
 
+// ── Server-time sync for disappearing messages ──
+let serverTimeOffsetSec = 0; // server - local, seconds
+function updateServerOffset(serverNowSec: number) {
+  const local = Date.now() / 1000;
+  const offset = serverNowSec - local;
+  // Smooth toward new offset (EWMA) to avoid jumps
+  if (serverTimeOffsetSec === 0) serverTimeOffsetSec = offset;
+  else serverTimeOffsetSec = serverTimeOffsetSec * 0.7 + offset * 0.3;
+  // Clamp absurd drift
+  if (Math.abs(serverTimeOffsetSec) > 3600) serverTimeOffsetSec = Math.max(-3600, Math.min(3600, offset));
+}
+export function getServerNowSec(): number {
+  return Date.now() / 1000 + serverTimeOffsetSec;
+}
+let purgeInFlight = false;
+
 function saveChannelCache(channelId: string, msgs: Message[]) {
   if (typeof window === 'undefined' || !channelId) return;
   try {
@@ -378,22 +394,28 @@ function createMessageStore() {
     },
 
     purgeExpiredLocal() {
-      const nowSec = Date.now() / 1000;
-      const expiryThreshold = nowSec;
-      update(s => {
-        let changed = false;
-        const newByChannel: Record<string, Message[]> = {};
-        for (const chId in s.byChannel) {
-          const filtered = s.byChannel[chId].filter(m => !m.disappearsAt || m.disappearsAt > expiryThreshold);
-          if (filtered.length !== s.byChannel[chId].length) {
-            changed = true;
-            saveChannelCache(chId, filtered);
+      if (purgeInFlight) return;
+      purgeInFlight = true;
+      try {
+        const nowSec = getServerNowSec();
+        const expiryThreshold = nowSec;
+        update(s => {
+          let changed = false;
+          const newByChannel: Record<string, Message[]> = {};
+          for (const chId in s.byChannel) {
+            const filtered = s.byChannel[chId].filter(m => !m.disappearsAt || m.disappearsAt > expiryThreshold);
+            if (filtered.length !== s.byChannel[chId].length) {
+              changed = true;
+              saveChannelCache(chId, filtered);
+            }
+            newByChannel[chId] = filtered;
           }
-          newByChannel[chId] = filtered;
-        }
-        if (!changed) return s;
-        return { ...s, byChannel: newByChannel };
-      });
+          if (!changed) return s;
+          return { ...s, byChannel: newByChannel };
+        });
+      } finally {
+        purgeInFlight = false;
+      }
     },
 
     /** Merge remote rows for a channel into the local store. */
@@ -401,6 +423,11 @@ function createMessageStore() {
       try {
         const fresh = await invoke<Message[]>('sync_messages', { channelId });
         if (!fresh.length) return;
+        // Update server offset from freshest server timestamp
+        if (fresh.length > 0) {
+          const latest = fresh.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+          if (latest.createdAt) updateServerOffset(latest.createdAt);
+        }
         const state = get({ subscribe });
         const existing = state.byChannel[channelId] ?? [];
         const known = new Map<string, Message>(existing.map((m: Message) => [m.id, m]));
@@ -417,7 +444,7 @@ function createMessageStore() {
         const merged = [...existing];
         const incomingForNotify: Message[] = [];
 
-        const nowSec = Math.floor(Date.now() / 1000);
+        const nowSec = Math.floor(getServerNowSec());
         for (const m of fresh) {
           if (m.disappearsAt && m.disappearsAt <= nowSec) {
             continue;

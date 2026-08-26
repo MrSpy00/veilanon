@@ -19,6 +19,7 @@
   import { COMMON_EMOJI, isEmoji } from '$lib/utils/emoji';
   import { copyText } from '$lib/utils/clipboard';
   import type { Message } from '$lib/stores/messages';
+  import { getServerNowSec } from '$lib/stores/messages';
   import { detectDomains } from '$lib/utils/domainDetector';
 
   interface Attachment {
@@ -360,7 +361,7 @@
   let deleteScheduled = false;
 
   function nowSec(): number {
-    return Date.now() / 1000;
+    return getServerNowSec();
   }
 
   function startCountdown() {

@@ -29,7 +29,10 @@
   const allList = $derived(friendsState.friends);
   const auth = $derived($authStore);
 
-  function isAccepted(s: string): boolean { return s === 'friends' || (s as any) === 'accepted'; }
+  function isAccepted(s: string | null | undefined): boolean {
+    const v = (s ?? '').toString().trim().toLowerCase();
+    return v === 'friends' || v === 'accepted' || v === 'friend' || v === 'approved';
+  }
   const onlineFriends = $derived(
     allList.filter(f => isAccepted(f.status) && f.onlineStatus !== 'offline' && f.onlineStatus !== 'invisible')
   );
