@@ -291,7 +291,7 @@ function createMediaStore() {
       } catch {
         // Probe is best-effort
       }
-    }, 1500);
+    }, 800);
   }
 
   function stopLatencyProbe() {
