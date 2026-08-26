@@ -51,6 +51,75 @@
 
 ---
 
+## 📸 Arayüz & Ekran Görüntüleri Galerisi
+
+veilanon uygulamasının gerçek arayüzünden alınmış yüksek çözünürlüklü ekran görüntüleri:
+
+<table align="center" width="100%">
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/03_community_channels_chat.png"><img src="screenshots/03_community_channels_chat.png" alt="Topluluk & Genel Sohbet Kanalı" width="100%" /></a>
+      <br>
+      <sub><b>💬 Topluluk & Genel Sohbet Kanalı</b><br>Zengin Markdown, kod sözdizimi renklendirmesi, reaksiyonlar ve sağ panel üye listesi.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/05_direct_messages_e2ee.png"><img src="screenshots/05_direct_messages_e2ee.png" alt="1:1 Uçtan Uca Şifreli DM" width="100%" /></a>
+      <br>
+      <sub><b>🔒 1:1 Uçtan Uca Şifreli Direkt Mesaj (DM)</b><br>Doğrulanmış kimlik parmak izi rozeti, anlık çevrim içi durumu ve hızlı ses/video butonları.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/07_settings_privacy_network.png"><img src="screenshots/07_settings_privacy_network.png" alt="Gizlilik & Ağ Ayarları" width="100%" /></a>
+      <br>
+      <sub><b>🛡️ Gizlilik & Ağ Kontrol Merkezi</b><br>Yerleşik Tor (.onion) yönlendirmesi, DoH DNS sızıntı testleri ve anti-leak koruması.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/08_settings_appearance_themes.png"><img src="screenshots/08_settings_appearance_themes.png" alt="Görünüm & Tema Stüdyosu" width="100%" /></a>
+      <br>
+      <sub><b>🎨 Görünüm & Tema Stüdyosu</b><br>25 hazır premium tema koleksiyonu, AMOLED saf siyah modu ve canlı CSS editörü.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/06_voice_video_room.png"><img src="screenshots/06_voice_video_room.png" alt="Ses & Video Görüşme Sahnesi" width="100%" /></a>
+      <br>
+      <sub><b>🎙️ E2EE Sesli & Görüntülü Görüşme Sahnesi</b><br>WebRTC LiveKit destekli düşük gecikmeli, uçtan uca şifreli ses ve kamera odaları.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/09_settings_security_keys.png"><img src="screenshots/09_settings_security_keys.png" alt="Güvenlik & Kripto Anahtar Kasası" width="100%" /></a>
+      <br>
+      <sub><b>🔑 Güvenlik & Kripto Anahtar Kasası</b><br>Cihaz kimlik anahtarları, parmak izi denetleyicisi, otomatik kilit ve veri yedekleme.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/01_onboarding_welcome.png"><img src="screenshots/01_onboarding_welcome.png" alt="Sıfır-Bilgi Karşılama Ekranı" width="100%" /></a>
+      <br>
+      <sub><b>⚡ Sıfır-Bilgi Karşılama & Kurulum</b><br>Hesapsız, tamamen anonim ve yerel kriptografik kimlik oluşturma.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/02_onboarding_create_identity.png"><img src="screenshots/02_onboarding_create_identity.png" alt="Yeni Kimlik Oluşturma" width="100%" /></a>
+      <br>
+      <sub><b>🔐 Anonim Kimlik Oluşturma</b><br>Argon2id parola türetimi ve cihaz tabanlı deterministik anahtar üretimi.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/04_kripto_lab_channel.png"><img src="screenshots/04_kripto_lab_channel.png" alt="Kriptografi & Güvenlik Laboratuvarı" width="100%" /></a>
+      <br>
+      <sub><b>🔬 Kriptografi & Güvenlik Laboratuvarı</b><br>Post-Quantum Kyber-1024 ve ChaCha20-Poly1305 anahtar rotasyonu tartışmaları.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/10_home_friends_overview.png"><img src="screenshots/10_home_friends_overview.png" alt="Ana Sayfa & Arkadaşlar Paneli" width="100%" /></a>
+      <br>
+      <sub><b>👥 Ana Sayfa & Arkadaşlar Paneli</b><br>Direkt mesajlar, aktif arkadaşlar listesi ve anlık çevrim içi varlık göstergesi.</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 📦 Çok Platformlu Kurulum Paketleri (v0.0.1 İndirme)
 
 Tüm kurulum paketleri dijital olarak imzalanmış ve SHA-256 sağlama toplamları ile doğrulanmıştır. İşletim sisteminize uygun paketi doğrudan [GitHub Releases v0.0.1](https://github.com/MrSpy00/veilanon/releases/tag/v0.0.1) veya [veilanon.com](https://veilanon.com) adresinden indirebilirsiniz:
@@ -240,6 +309,75 @@ Developed by [aegisSoft](https://www.aegissoft.com.tr/). Brand name is strictly 
 - **Persistent Banner & Profile Sync:** User and space banners/avatars remain intact upon application restarts or fresh logins, staying updated via Supabase Realtime across all devices.
 - **Theme-Aware Accent Color:** Switching a theme resets the accent to that theme's default brand color; manual accent overrides are honored until the next theme switch.
 - **End-to-End State Synchronization:** Messages, reactions, presence, friendships, DMs, group DMs, roles, and unread badges stay perfectly synchronized across all devices.
+
+---
+
+## 📸 UI & Screenshot Showcase
+
+Authentic high-resolution screenshots captured directly from the live veilanon application:
+
+<table align="center" width="100%">
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/03_community_channels_chat.png"><img src="screenshots/03_community_channels_chat.png" alt="Community & General Chat Channel" width="100%" /></a>
+      <br>
+      <sub><b>💬 Community & General Chat Channel</b><br>Rich Markdown, syntax-highlighted code blocks, reactions, and right-panel member roster.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/05_direct_messages_e2ee.png"><img src="screenshots/05_direct_messages_e2ee.png" alt="1:1 E2EE Direct Messages" width="100%" /></a>
+      <br>
+      <sub><b>🔒 1:1 End-to-End Encrypted Direct Messages (DM)</b><br>Verified identity fingerprint badge, real-time presence, and quick voice/video calling.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/07_settings_privacy_network.png"><img src="screenshots/07_settings_privacy_network.png" alt="Privacy & Network Settings" width="100%" /></a>
+      <br>
+      <sub><b>🛡️ Privacy & Network Hub</b><br>Built-in Tor (.onion) routing, DoH multi-resolver benchmark, and DNS leak prevention.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/08_settings_appearance_themes.png"><img src="screenshots/08_settings_appearance_themes.png" alt="Appearance & Theme Studio" width="100%" /></a>
+      <br>
+      <sub><b>🎨 Appearance & Theme Studio</b><br>25 curated premium theme presets, AMOLED pure black mode, and live CSS styling engine.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/06_voice_video_room.png"><img src="screenshots/06_voice_video_room.png" alt="Voice & Video Room Stage" width="100%" /></a>
+      <br>
+      <sub><b>🎙️ E2EE Voice & Video Stage</b><br>Low-latency WebRTC LiveKit-powered rooms with end-to-end media encryption.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/09_settings_security_keys.png"><img src="screenshots/09_settings_security_keys.png" alt="Security & Cryptographic Key Vault" width="100%" /></a>
+      <br>
+      <sub><b>🔑 Security & Cryptographic Key Vault</b><br>Device identity keys, fingerprint inspector, auto-unlock, and encrypted data backup.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/01_onboarding_welcome.png"><img src="screenshots/01_onboarding_welcome.png" alt="Zero-Knowledge Welcome Screen" width="100%" /></a>
+      <br>
+      <sub><b>⚡ Zero-Knowledge Welcome & Onboarding</b><br>Serverless, privacy-first identity creation and local keychain setup.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/02_onboarding_create_identity.png"><img src="screenshots/02_onboarding_create_identity.png" alt="Identity Creation" width="100%" /></a>
+      <br>
+      <sub><b>🔐 Anonymous Identity Creation</b><br>Argon2id passphrase derivation and device-bound deterministic key generation.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <a href="screenshots/04_kripto_lab_channel.png"><img src="screenshots/04_kripto_lab_channel.png" alt="Cryptography & Security Lab" width="100%" /></a>
+      <br>
+      <sub><b>🔬 Cryptography & Security Lab</b><br>Discussions on Post-Quantum Kyber-1024, ChaCha20-Poly1305, and noise protocols.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="screenshots/10_home_friends_overview.png"><img src="screenshots/10_home_friends_overview.png" alt="Home Dashboard & Friends" width="100%" /></a>
+      <br>
+      <sub><b>👥 Home Dashboard & Friends Hub</b><br>Direct messaging hub, active friends roster, and real-time presence indicators.</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
