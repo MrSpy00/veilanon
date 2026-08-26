@@ -80,18 +80,13 @@
     const norm = (s: string | undefined) => (s === 'accepted' ? 'friends' : s);
     const a = norm(lf);
     const b = norm(ff);
-    // Prefer authoritative positive status from either source.
-    // Priority: friends > blocked > pending_incoming > pending_outgoing > none
-    // Use server-provided full.friendStatus as primary when available
     if (b === 'friends' || a === 'friends') return 'friends';
     if (b === 'blocked' || a === 'blocked') return 'blocked';
     if (b === 'pending_incoming' || a === 'pending_incoming') return 'pending_incoming';
     if (b === 'pending_outgoing' || a === 'pending_outgoing') return 'pending_outgoing';
-    // Hala loading ise ve full henüz gelmediyse 'none' gösterme
     if ($friendsStore.loading && !full && !localFriend) {
       return 'loading' as any;
     }
-    // full.friendStatus varsa onu tercih et (sunucu side source of truth)
     if (ff && ff !== 'none') return ff as any;
     return (a ?? b ?? 'none') as any;
   });
@@ -195,9 +190,7 @@
   const unlistenFns: Array<() => void> = [];
 
   onMount(async () => {
-    // Arkadaş listesini önce yükle — profil durumu bundan bağımlı
-    // Paralel olarak hem arkadaşları hem profili yükle
-    const friendsPromise = friendsStore.load();
+    const friendsPromise = $friendsStore.friends.length > 0 ? Promise.resolve() : friendsStore.load();
     if (profile) {
       loading = true;
       const profilePromise = socialApi.getUserProfile(profile.userId).then((p) => {
@@ -205,6 +198,7 @@
       }).catch(() => {});
       await Promise.allSettled([friendsPromise, profilePromise]);
       loading = false;
+      loadedProfileId = profile.userId;
       void loadServerRoles();
       if (!isSelf) {
         void loadMutuals();
@@ -213,7 +207,6 @@
       await friendsPromise;
     }
 
-    // Broadcast eventlerini dinle: profil/banner/arkadaşlık güncellendiğinde yenile
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       try {
         const { listen } = await import('@tauri-apps/api/event');
@@ -223,7 +216,6 @@
           if (type === 'profile_updated' || type === 'avatar_updated' || type === 'banner_updated' || type === 'user_updated') {
             const targetUserId = (actual.user_id || actual.id) as string | undefined;
             if (profile && targetUserId === profile.userId) {
-              // Profil sahibi kendisiyse authStore'dan al, değilse API'den çek
               if (isSelf) {
                 void authStore.refreshRemoteProfile();
               } else {
@@ -246,10 +238,12 @@
     }
   });
 
+  let loadedProfileId = $state<string | null>(null);
+
   $effect(() => {
     const pid = profile?.userId;
-    if (pid) {
-      // Paralel yükle: hem arkadaşları hem profili
+    if (pid && pid !== loadedProfileId) {
+      loadedProfileId = pid;
       const fp = friendsStore.load();
       const pp = socialApi.getUserProfile(pid).then((p) => { full = p; }).catch(() => {});
       Promise.allSettled([fp, pp]).then(() => {
@@ -296,6 +290,7 @@
       await friendsStore.add(username);
       full = full ? { ...full, friendStatus: 'pending_outgoing' } : full;
       toastStore.success('Arkadaşlık isteği gönderildi.');
+      void friendsStore.load();
     } catch {
       toastStore.error('İstek gönderilemedi.');
     }

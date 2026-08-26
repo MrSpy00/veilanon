@@ -219,6 +219,7 @@
     max-height: 85vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .veil-modal-header-title-wrap {
     display: flex;
@@ -243,11 +244,12 @@
     gap: var(--space-4);
     overflow-y: auto;
     flex: 1;
-    min-height: 280px;
+    min-height: 200px;
   }
   .veil-scraper-input-row {
     display: flex;
     gap: var(--space-2);
+    flex-shrink: 0;
   }
   .veil-scraper-input-box {
     position: relative;
@@ -401,5 +403,9 @@
     padding: var(--space-8) var(--space-4);
     color: var(--veil-text-muted);
     font-size: var(--text-sm);
+  }
+
+  .veil-modal-footer {
+    flex-shrink: 0;
   }
 </style>

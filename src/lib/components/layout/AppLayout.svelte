@@ -118,6 +118,18 @@
   }
 
   const unlistens: Array<() => void> = [];
+  let friendsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let dmsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function debouncedFriendsLoad() {
+    if (friendsDebounceTimer) clearTimeout(friendsDebounceTimer);
+    friendsDebounceTimer = setTimeout(() => { void friendsStore.load(); }, 500);
+  }
+
+  function debouncedDmsLoad() {
+    if (dmsDebounceTimer) clearTimeout(dmsDebounceTimer);
+    dmsDebounceTimer = setTimeout(() => { void spaceStore.loadDms(); }, 500);
+  }
 
   onMount(() => {
     spaceStore.loadSpaces();
@@ -139,7 +151,7 @@
       if (ui.activeSpaceId) {
         void spaceStore.loadChannels(ui.activeSpaceId);
       }
-      void spaceStore.loadDms();
+      debouncedDmsLoad();
     }).then(u => unlistens.push(u));
 
     listen<{ id?: string; userId?: string; avatar_hash?: string | null; banner_hash?: string | null; display_name?: string; username?: string }>('user:updated', (e) => {
@@ -150,8 +162,8 @@
         void authStore.refreshRemoteProfile();
       }
       void spaceStore.loadSpaces();
-      void spaceStore.loadDms();
-      void friendsStore.load();
+      debouncedDmsLoad();
+      debouncedFriendsLoad();
     }).then(u => unlistens.push(u));
 
     listen('space:updated', () => {
@@ -168,21 +180,23 @@
       if (ui.activeSpaceId) {
         void spaceStore.loadChannels(ui.activeSpaceId);
       }
-      void spaceStore.loadDms();
+      debouncedDmsLoad();
     }).then(u => unlistens.push(u));
 
     listen('presence:changed', () => {
-      void spaceStore.loadDms();
-      void friendsStore.load();
+      debouncedDmsLoad();
+      debouncedFriendsLoad();
     }).then(u => unlistens.push(u));
 
     listen('friends:changed', () => {
-      void friendsStore.load();
-      void spaceStore.loadDms();
+      debouncedFriendsLoad();
+      debouncedDmsLoad();
     }).then(u => unlistens.push(u));
   });
 
   onDestroy(() => {
+    if (friendsDebounceTimer) clearTimeout(friendsDebounceTimer);
+    if (dmsDebounceTimer) clearTimeout(dmsDebounceTimer);
     for (const u of unlistens) {
       u();
     }

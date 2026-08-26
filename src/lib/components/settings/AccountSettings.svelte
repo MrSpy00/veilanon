@@ -883,6 +883,8 @@
     display: flex;
     gap: var(--space-2);
     z-index: 5;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .veil-banner-action-btn {
     background: rgba(15, 17, 23, 0.88);
@@ -921,6 +923,7 @@
     align-items: center;
     gap: var(--space-2);
     margin-bottom: var(--space-1);
+    flex-wrap: wrap;
   }
   .veil-profile-info { min-width: 0; }
   .veil-profile-name {

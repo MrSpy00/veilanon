@@ -25,13 +25,13 @@ function createFriendsStore() {
   }
 
   async function doLoad() {
-    const hadData = get({ subscribe }).friends.length > 0;
-    if (!hadData) update(s => ({ ...s, loading: true, error: null }));
-    else update(s => ({ ...s, error: null }));
+    const state = get({ subscribe });
+    const hadData = state.friends.length > 0;
+    if (!hadData && !state.error) update(s => ({ ...s, loading: true, error: null }));
     try {
       const friends = await Promise.race([
         friendApi.list(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))
       ]) as FriendInfo[];
       if (hasInitialized) {
         for (const f of friends) {
@@ -55,34 +55,46 @@ function createFriendsStore() {
   let presencePoll: ReturnType<typeof setInterval> | null = null;
   let loadVersion = 0;
   let pendingReload = false;
+  let isReloading = false;
+
   async function safeDoLoad() {
-    const v = ++loadVersion;
-    const state = get({ subscribe });
-    if (state.loading) {
+    if (isReloading) {
       pendingReload = true;
       return;
     }
-    await doLoad();
+    isReloading = true;
+    const v = ++loadVersion;
+    try {
+      await doLoad();
+    } finally {
+      isReloading = false;
+    }
     if (pendingReload && v === loadVersion) {
       pendingReload = false;
+      isReloading = true;
       const v2 = ++loadVersion;
-      await doLoad();
+      try {
+        await doLoad();
+      } finally {
+        isReloading = false;
+      }
       void v2;
     } else if (pendingReload && v !== loadVersion) {
       pendingReload = false;
       await safeDoLoad();
     }
   }
+
   function startPresencePoll() {
     if (presencePoll) return;
     if (typeof window === 'undefined') return;
-    presencePoll = setInterval(() => { void safeDoLoad(); }, 1500);
+    presencePoll = setInterval(() => { void safeDoLoad(); }, 5000);
     window.addEventListener('focus', () => { void safeDoLoad(); });
-    // Visible tab gets instant sync
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void safeDoLoad();
     });
   }
+
   function stopPresencePoll() {
     if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }
   }
