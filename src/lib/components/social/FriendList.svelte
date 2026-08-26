@@ -315,7 +315,7 @@
         onclick={() => (activeTab = 'all')}
       >
         <span>Tümü</span>
-        <span class="veil-tab-count">{acceptedFriends.length}</span>
+        <span class="veil-tab-count">{friendsState.loading && allList.length === 0 ? '…' : acceptedFriends.length}</span>
       </button>
 
       <button

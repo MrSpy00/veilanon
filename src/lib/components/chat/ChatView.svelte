@@ -260,9 +260,10 @@
           type="button"
           class="veil-chat-dm-peer"
           onclick={() => {
-            if (peerUserId) {
+            const targetId = peerUserId || currentChannel?.id;
+            if (targetId) {
               uiStore.openModal('user-profile', {
-                userId: peerUserId,
+                userId: targetId,
                 username: peerUsername || peerDisplayName,
                 displayName: peerDisplayName,
                 avatarHash: peerAvatarHash,
