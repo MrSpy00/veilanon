@@ -80,12 +80,18 @@
     const norm = (s: string | undefined) => (s === 'accepted' ? 'friends' : s);
     const a = norm(lf);
     const b = norm(ff);
-    // If either source says friends/blocked, prefer that authoritative value
-    if (a === 'friends' || b === 'friends') return 'friends';
-    if (a === 'blocked' || b === 'blocked') return 'blocked';
-    if (a === 'pending_incoming' || b === 'pending_incoming') return 'pending_incoming';
-    if (a === 'pending_outgoing' || b === 'pending_outgoing') return 'pending_outgoing';
-    return (a ?? b ?? 'none') as any;
+    // Prefer authoritative positive status from either source.
+    // Priority: friends > blocked > pending_incoming > pending_outgoing > none
+    // Use server-provided full.friendStatus as primary when available
+    if (b === 'friends' || a === 'friends') return 'friends';
+    if (b === 'blocked' || a === 'blocked') return 'blocked';
+    if (b === 'pending_incoming' || a === 'pending_incoming') return 'pending_incoming';
+    if (b === 'pending_outgoing' || a === 'pending_outgoing') return 'pending_outgoing';
+    // While friendsStore is still loading and we have no full, don't show "none" prematurely
+    if (!full && $friendsStore.loading && allSpaceRoles.length === 0 && !localFriend) {
+      return (b ?? 'none') as any;
+    }
+    return (b ?? a ?? 'none') as any;
   });
   const isSelf = $derived(!!profile && profile.userId === $authStore.identity?.id);
   const onlineStatus = $derived(

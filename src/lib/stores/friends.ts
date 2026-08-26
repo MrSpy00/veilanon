@@ -71,8 +71,12 @@ function createFriendsStore() {
   function startPresencePoll() {
     if (presencePoll) return;
     if (typeof window === 'undefined') return;
-    presencePoll = setInterval(() => { void safeDoLoad(); }, 3500);
+    presencePoll = setInterval(() => { void safeDoLoad(); }, 1500);
     window.addEventListener('focus', () => { void safeDoLoad(); });
+    // Visible tab gets instant sync
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void safeDoLoad();
+    });
   }
   function stopPresencePoll() {
     if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }

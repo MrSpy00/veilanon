@@ -349,30 +349,18 @@
   const isDeleted = $derived(Boolean(message.deletedAt));
   const displayContent = $derived(isDeleted ? '[Mesaj silindi]' : (message.content ?? ''));
 
-  // ── Kaybolan Mesaj Geri Sayım Sayacı (server-synced) ──────────────────
+  // ── Kaybolan Mesaj Geri Sayım Sayacı (server-synced, absolute) ─────
+  // disappearsAt is absolute server unix seconds. Both clients compute
+  // remaining = disappearsAt - Date.now()/1000 so both show identical countdown.
+  // No clock-skew correction — local skew <2s in practice, offset correction caused 3s divergence.
   const purgedMessageIds = (typeof window !== 'undefined' ? ((window as any).__veilPurgedIds ??= new Set<string>()) : new Set<string>());
   let countdown = $state<number | null>(null);
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let isBurning = $state(false);
   let deleteScheduled = false;
-  let serverTimeOffsetSec = $state(0);
 
-  // NTP/clock skew offset: server - local (seconds). Fetched once per mount.
-  async function syncClockOffset() {
-    try {
-      const { privacyToolsApi } = await import('$lib/api/tauri');
-      const r = await privacyToolsApi.detectClockSkew();
-      if (r && typeof r.skewSeconds === 'number') {
-        // skew = local - server, so offset = -skew
-        serverTimeOffsetSec = -r.skewSeconds;
-      }
-    } catch { /* best effort */ }
-  }
-  // Opportunistically fetch offset once per component lifecycle
-  if (typeof window !== 'undefined') void syncClockOffset();
-
-  function serverNowSec(): number {
-    return Date.now() / 1000 + serverTimeOffsetSec;
+  function nowSec(): number {
+    return Date.now() / 1000;
   }
 
   function startCountdown() {
@@ -388,18 +376,8 @@
     }
     deleteScheduled = false;
 
-    // Calibrate offset if message has createdAt and disappearsAt
-    if (message.createdAt && message.disappearsAt && message.disappearsAt > message.createdAt) {
-      const localNow = Date.now() / 1000;
-      // If server timestamp is in the future relative to local clock without offset, adjust offset
-      if (message.createdAt > localNow + serverTimeOffsetSec) {
-        serverTimeOffsetSec = message.createdAt - localNow;
-      }
-    }
-
     const update = () => {
-      const nowSec = serverNowSec();
-      const remaining = message.disappearsAt! - nowSec;
+      const remaining = message.disappearsAt! - nowSec();
 
       if (remaining <= 0) {
         countdown = 0;
@@ -411,7 +389,7 @@
           deleteScheduled = true;
           purgedMessageIds.add(message.id);
           isBurning = true;
-          // Immediate local purge and backend broadcast
+          // Immediate local purge + backend tombstone broadcast
           messageStore.purgeExpiredLocal();
           void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
             messageStore.purgeExpiredLocal();
@@ -422,8 +400,8 @@
       }
     };
     update();
-    if (!deleteScheduled && (message.disappearsAt - serverNowSec()) > 0) {
-      countdownTimer = setInterval(update, 100);
+    if (!deleteScheduled && (message.disappearsAt - nowSec()) > 0) {
+      countdownTimer = setInterval(update, 250);
     }
   }
 
