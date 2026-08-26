@@ -243,7 +243,7 @@
             </div>
 
             <div class="veil-playlist-form-group">
-              <label>Sıralama Modu</label>
+              <span class="veil-playlist-label-title">Sıralama Modu</span>
               <div class="veil-playlist-mode-pills">
                 <button
                   type="button"
@@ -513,7 +513,8 @@
     gap: 4px;
     flex: 1;
   }
-  .veil-playlist-form-group label {
+  .veil-playlist-form-group label,
+  .veil-playlist-label-title {
     font-size: 11px;
     font-weight: 600;
     color: var(--veil-text-muted);

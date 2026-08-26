@@ -58,24 +58,30 @@
       };
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
-      // videoEl henüz null olabilir (DOM mount gecikmeli), kısa bekle
-      await new Promise<void>(resolve => {
+      // videoEl DOM mount and actual frame decoding check
+      await new Promise<void>((resolve) => {
+        let attempts = 0;
         const attachStream = () => {
+          attempts++;
           if (videoEl) {
             videoEl.srcObject = s;
-            // loadedmetadata event'ini bekle — bu sayede video tamamen hazır
-            if (videoEl.readyState >= 1) {
-              resolve();
-            } else {
-              videoEl.onloadedmetadata = () => {
+            const checkReady = () => {
+              if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
                 resolve();
-                videoEl && void videoEl.play().catch(() => {});
-              };
-            }
-            void videoEl.play().catch(() => {});
+              } else if (attempts < 80) {
+                setTimeout(checkReady, 50);
+              } else {
+                resolve();
+              }
+            };
+            videoEl.onloadeddata = checkReady;
+            videoEl.oncanplay = checkReady;
+            void videoEl.play().then(checkReady).catch(() => {});
+            checkReady();
+          } else if (attempts < 50) {
+            setTimeout(attachStream, 20);
           } else {
-            // videoEl henüz mount edilmemiş, 10ms sonra tekrar dene
-            setTimeout(attachStream, 10);
+            resolve();
           }
         };
         attachStream();
@@ -90,20 +96,15 @@
     }
   }
 
-  // videoEl DOM'a bind edildiğinde bekleyen stream'i ekle
+  // videoEl DOM bind watcher
   $effect(() => {
     const vid = videoEl;
     const s = stream;
-    if (vid && s && !vid.srcObject) {
+    if (vid && s && vid.srcObject !== s) {
       vid.srcObject = s;
-      if (vid.readyState < 1) {
-        vid.onloadedmetadata = () => {
-          void vid.play().catch(() => {});
-          loading = false;
-        };
-      } else {
-        loading = false;
-      }
+      vid.onloadeddata = () => {
+        if (vid.videoWidth > 0) loading = false;
+      };
       void vid.play().catch(() => {});
     }
   });

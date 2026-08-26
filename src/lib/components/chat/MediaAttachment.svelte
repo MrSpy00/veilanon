@@ -217,6 +217,10 @@
     let cancelled = false;
 
     const loadMedia = async () => {
+      if (mime === 'file') {
+        loading = false;
+        return;
+      }
       for (let attempt = 0; attempt < 3; attempt++) {
         if (cancelled) return;
         try {
@@ -470,18 +474,24 @@
       <span>Dosya şifresi çözülüyor…</span>
     </div>
   {:else if error || !dataUrl || !attachment.fileId || attachment.sizeBytes === 0}
-    <!-- Error / download fallback card -->
+    <!-- Download / file fallback card -->
     <div class="veil-file-card">
-      <div class="veil-file-icon" style="color: {fileTypeConfig.color};">
-        <Icon name="lock" size={20} />
+      <div class="veil-file-icon" style="background: color-mix(in srgb, {fileTypeConfig.color} 15%, transparent); color: {fileTypeConfig.color}; border: 1px solid color-mix(in srgb, {fileTypeConfig.color} 25%, transparent);">
+        <Icon name={fileTypeConfig.icon} size={22} />
       </div>
       <div class="veil-file-info">
-        <span class="veil-file-name">{displayFileName}</span>
-        <span class="veil-file-size">{formatBytes(attachment.sizeBytes)}</span>
+        <span class="veil-file-name" title={displayFileName}>{displayFileName}</span>
+        <div class="veil-file-meta">
+          <span class="veil-file-type-badge" style="color: {fileTypeConfig.color};">{fileTypeConfig.label}</span>
+          <span class="veil-file-size">{formatBytes(attachment.sizeBytes)}</span>
+        </div>
       </div>
-      <button class="btn btn-secondary btn-sm" onclick={handleDownload} disabled={downloading}>
-        <Icon name="download" size={14} />
-        {downloading ? 'İndiriliyor…' : 'İndir'}
+      <button class="veil-file-dl-btn" onclick={handleDownload} disabled={downloading} title="İndir">
+        {#if downloading}
+          <div class="veil-spinner" style="width:14px;height:14px;border-width:2px;"></div>
+        {:else}
+          <Icon name="download" size={16} />
+        {/if}
       </button>
     </div>
   {:else if mime === 'image'}

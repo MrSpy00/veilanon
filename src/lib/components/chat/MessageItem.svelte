@@ -350,11 +350,6 @@
   const displayContent = $derived(isDeleted ? '[Mesaj silindi]' : (message.content ?? ''));
 
   // ── Kaybolan Mesaj Geri Sayım Sayacı ────────────────────────────────────
-  // Her iki tarafta da aynı süreyi göstermek için:
-  // - disappearsAt server-side absolute Unix timestamp (UTC saniye)
-  // - Her client bu değeri referans alarak kendi UTC saatinden hesaplar
-  // - Math.ceil() kullanarak 6.9s → 7s gösterir (daha senkronize görünüm)
-  // - 500ms interval ile daha sık güncelleme yapılır
   let countdown = $state<number | null>(null);
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let isBurning = $state(false);
@@ -369,8 +364,6 @@
     deleteScheduled = false;
 
     const update = () => {
-      // disappearsAt: server'dan gelen absolute Unix timestamp (saniye, UTC)
-      // Date.now() / 1000: local cihazın UTC saniyesi (float, daha hassas)
       const nowSec = Date.now() / 1000;
       const remaining = message.disappearsAt! - nowSec;
 
@@ -384,23 +377,30 @@
           deleteScheduled = true;
           isBurning = true;
           setTimeout(() => {
-            // Local store'dan kaldır (idempotent — her iki taraf da dener)
-            messageStore.purgeExpiredLocal();
-          }, 400);
+            void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
+              messageStore.purgeExpiredLocal();
+            });
+          }, 380);
         }
       } else {
-        // ceil kullan: 6.9s → 7s göster — her iki tarafta senkronize görünüm
         countdown = Math.ceil(remaining);
       }
     };
     update();
-    // 500ms interval: daha sık güncelle, 1 saniyelik kayma olmasın
-    countdownTimer = setInterval(update, 500);
+    countdownTimer = setInterval(update, 250);
   }
 
   $effect(() => {
     if (message.disappearsAt) {
       startCountdown();
+    } else {
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+      countdown = null;
+      isBurning = false;
+      deleteScheduled = false;
     }
     return () => {
       if (countdownTimer) clearInterval(countdownTimer);

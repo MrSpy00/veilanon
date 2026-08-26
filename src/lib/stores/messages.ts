@@ -378,12 +378,14 @@ function createMessageStore() {
     },
 
     purgeExpiredLocal() {
-      const nowSec = Date.now() / 1000; // float: daha hassas, countdown ile sync
+      const nowSec = Date.now() / 1000;
+      // 0.5s grace period so messages currently undergoing burn animation finish cleanly
+      const expiryThreshold = nowSec - 0.5;
       update(s => {
         let changed = false;
         const newByChannel: Record<string, Message[]> = {};
         for (const chId in s.byChannel) {
-          const filtered = s.byChannel[chId].filter(m => !m.disappearsAt || m.disappearsAt > nowSec);
+          const filtered = s.byChannel[chId].filter(m => !m.disappearsAt || m.disappearsAt > expiryThreshold);
           if (filtered.length !== s.byChannel[chId].length) {
             changed = true;
             saveChannelCache(chId, filtered);

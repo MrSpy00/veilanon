@@ -25,6 +25,7 @@
     username: string;
     displayName?: string;
     avatarHash?: string | null;
+    bannerHash?: string | null;
     onlineStatus?: string;
   }
 
@@ -63,9 +64,16 @@
   let showRolePicker = $state(false);
   let serverRoleLoading = $state(false);
 
-  const localFriend = $derived(
-    profile ? $friendsStore.friends.find(f => f.userId === profile.userId || (profile.username && f.username.toLowerCase() === profile.username.toLowerCase())) : null
-  );
+  const localFriend = $derived.by(() => {
+    if (!profile) return null;
+    const list = $friendsStore.friends;
+    return list.find(
+      f => (profile.userId && f.userId === profile.userId) ||
+           (full?.userId && f.userId === full.userId) ||
+           (profile.username && f.username.toLowerCase() === profile.username.toLowerCase()) ||
+           (full?.username && f.username.toLowerCase() === full.username.toLowerCase())
+    ) ?? null;
+  });
   const status = $derived(localFriend?.status ?? full?.friendStatus ?? 'none');
   const isSelf = $derived(!!profile && profile.userId === $authStore.identity?.id);
   const onlineStatus = $derived(
@@ -210,7 +218,7 @@
   const bannerHash = $derived(
     isSelf
       ? ($authStore.identity?.bannerHash ?? null)
-      : (full?.bannerHash ?? null)
+      : (full?.bannerHash ?? profile?.bannerHash ?? null)
   );
 
   async function addFriend() {

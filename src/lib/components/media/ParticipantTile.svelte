@@ -140,6 +140,17 @@
     return null;
   });
 
+  const bannerHash = $derived.by(() => {
+    if (isLocal) return auth.identity?.bannerHash ?? null;
+    try {
+      if (participant.metadata) {
+        const meta = JSON.parse(participant.metadata);
+        return meta.bannerHash || meta.banner_hash || null;
+      }
+    } catch { /* ignored */ }
+    return null;
+  });
+
   const speakingColor = $derived.by(() => {
     if (isLocal) {
       return 'var(--veil-accent, var(--veil-brand, #7c3aed))';
@@ -430,6 +441,7 @@
               username: participant.name ?? participant.identity,
               displayName: participant.name ?? participant.identity,
               avatarHash,
+              bannerHash,
             });
           },
         },

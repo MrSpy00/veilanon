@@ -943,14 +943,14 @@ function createMediaStore() {
     async startScreenShare(options?: ScreenShareOptions) {
       if (!room) return;
       try {
-        const width = options?.resolution?.width ?? 1920;
-        const height = options?.resolution?.height ?? 1080;
-        const frameRate = options?.frameRate ?? 60;
+        const width = options?.resolution?.width ?? 1280;
+        const height = options?.resolution?.height ?? 720;
+        const frameRate = options?.frameRate ?? 30;
         const audio = options?.audio ?? true;
 
         const maxBitrate = frameRate >= 60
           ? (width >= 1920 ? 6_000_000 : 3_500_000)
-          : (width >= 1920 ? 4_000_000 : 2_500_000);
+          : (width >= 1920 ? 3_500_000 : 2_000_000);
 
         // WebView2 getDisplayMedia yalnızca `audio` + `resolution` kısıtlarını
         // güvenilir destekler; systemAudio/selfBrowserSurface/surfaceSwitching

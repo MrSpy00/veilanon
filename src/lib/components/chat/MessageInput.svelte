@@ -1034,6 +1034,7 @@
                       class="veil-custom-num-input"
                       placeholder="Süre"
                       aria-label="Süre değeri"
+                      onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCustomDisappear(); } }}
                     />
                     <div class="veil-custom-unit-btns">
                       {#each [
