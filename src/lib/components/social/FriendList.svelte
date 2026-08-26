@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { friendsStore } from '$lib/stores/friends';
   import { spaceStore } from '$lib/stores/spaces';
   import { uiStore } from '$lib/stores/ui';
   import { authStore } from '$lib/stores/auth';
   import { dmApi } from '$lib/api/tauri';
   import { toastStore } from '$lib/stores/notifications';
+  import { listen } from '@tauri-apps/api/event';
   import Avatar from '../ui/Avatar.svelte';
   import Icon from '../ui/Icon.svelte';
   import ContextMenu from '../ui/ContextMenu.svelte';
@@ -66,30 +67,32 @@
     })()
   );
 
-  import { listen } from '@tauri-apps/api/event';
-
-  let friendReloadTimer: ReturnType<typeof setTimeout> | null = null;
+  let friendsLoadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   function debouncedFriendsLoad() {
-    if (friendReloadTimer) clearTimeout(friendReloadTimer);
-    friendReloadTimer = setTimeout(() => {
-      friendReloadTimer = null;
-      friendsStore.load();
-    }, 450);
+    if (friendsLoadDebounceTimer) clearTimeout(friendsLoadDebounceTimer);
+    friendsLoadDebounceTimer = setTimeout(() => {
+      void friendsStore.load();
+    }, 150);
   }
+
+  const unlistenFns: Array<() => void> = [];
 
   onMount(async () => {
     // Sayfa açıldığında arkadaş listesini yenile
     await friendsStore.load();
-    const unlistenFriends = listen('friends:changed', () => {
+    listen('friends:changed', () => {
       debouncedFriendsLoad();
-    });
-    const unlistenPresence = listen('presence:changed', () => {
+    }).then(u => unlistenFns.push(u));
+
+    listen('presence:changed', () => {
       debouncedFriendsLoad();
-    });
-    const unlistenUser = listen('user:updated', () => {
+    }).then(u => unlistenFns.push(u));
+
+    listen('user:updated', () => {
       debouncedFriendsLoad();
-    });
-    const unlistenBroadcast = listen('veilanon:broadcast', (e: any) => {
+    }).then(u => unlistenFns.push(u));
+
+    listen('veilanon:broadcast', (e: any) => {
       const p = e.payload;
       if (p?.type === 'friend_request') {
         const isTarget = !p.target_id || p.target_id === auth.identity?.id;
@@ -104,11 +107,14 @@
           }
         }
       }
-    });
-    // Cleanup: Promise'leri resolve et ve unsub'ları çağır
-    void Promise.all([unlistenFriends, unlistenPresence, unlistenUser, unlistenBroadcast]).then((unsubs) => {
-      for (const unsub of unsubs) unsub();
-    });
+    }).then(u => unlistenFns.push(u));
+  });
+
+  onDestroy(() => {
+    if (friendsLoadDebounceTimer) clearTimeout(friendsLoadDebounceTimer);
+    for (const u of unlistenFns) {
+      try { u(); } catch { /* ignore */ }
+    }
   });
 
   async function refresh() {

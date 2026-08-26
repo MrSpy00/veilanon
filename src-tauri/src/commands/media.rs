@@ -472,9 +472,34 @@ pub async fn request_voice_presence(
     Ok(())
 }
 
-/// Read a local image file and return it as a base64 data URL for inline preview.
+/// Read a local image file or download a remote image URL and return it as a base64 data URL for inline preview.
 #[tauri::command]
 pub async fn read_image_as_base64(path: String) -> Result<String, VeilError> {
+    if path.starts_with("http://") || path.starts_with("https://") {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(12))
+            .build()
+            .map_err(VeilError::NetworkError)?;
+        let resp = client.get(&path).send().await.map_err(VeilError::NetworkError)?;
+        let ct = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("image/jpeg")
+            .to_string();
+        let bytes = resp.bytes().await.map_err(VeilError::NetworkError)?.to_vec();
+        let mime = if bytes.starts_with(b"\x89PNG") || ct.contains("png") {
+            "image/png"
+        } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") || ct.contains("gif") {
+            "image/gif"
+        } else if (bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP") || ct.contains("webp") {
+            "image/webp"
+        } else {
+            "image/jpeg"
+        };
+        return Ok(format!("data:{mime};base64,{}", B64.encode(&bytes)));
+    }
+
     let ext = std::path::Path::new(&path)
         .extension()
         .and_then(|e| e.to_str())

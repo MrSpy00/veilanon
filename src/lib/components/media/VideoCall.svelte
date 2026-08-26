@@ -291,10 +291,6 @@
           <div class="veil-vc-empty-hint joined-hint" role="status">
             Ses kanalına bağlandın — diğer üyeler katıldığında burada görünür.
           </div>
-        {:else if !joinedHint && remotes.length === 0 && media.connectionState === 'connected'}
-          <div class="veil-vc-empty-hint faded" role="status">
-            Ses kanalına bağlandın — diğer üyeler katıldığında burada görünür.
-          </div>
         {/if}
       </div>
     {/if}

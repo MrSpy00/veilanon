@@ -615,25 +615,8 @@ pub async fn friends_list(state: State<'_, AppState>) -> Result<Vec<FriendInfo>,
                         }
                     }
                 }
-
-                if let Ok(local_rows) = db.list_friends(&identity.id) {
-                    for lr in local_rows {
-                        if let Ok(uid) = Uuid::parse_str(&lr.user_id.to_string()) {
-                            if !active_remote_pairs.contains(&uid) {
-                                let _ = db.remove_friend(&identity.id, &uid);
-                            }
-                        }
-                    }
-                }
-            } else {
-                let db = state.db.read().await;
-                if let Ok(local_rows) = db.list_friends(&identity.id) {
-                    for lr in local_rows {
-                        if let Ok(uid) = Uuid::parse_str(&lr.user_id.to_string()) {
-                            let _ = db.remove_friend(&identity.id, &uid);
-                        }
-                    }
-                }
+                // Upsert all remote relationships into local SQLite
+                // Do not wipe local friends cache to prevent transient offline/RLS clearing
             }
         }
     }

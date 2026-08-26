@@ -49,65 +49,47 @@
     stopCamera();
     loading = true;
     errorMsg = null;
+    capturedDataUrl = null;
+
     try {
       const constraints: MediaStreamConstraints = {
         video: selectedDeviceId
-          ? { deviceId: { ideal: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          ? {
+              deviceId: { ideal: selectedDeviceId },
+              width: { ideal: 1920, min: 640 },
+              height: { ideal: 1080, min: 480 },
+            }
+          : {
+              width: { ideal: 1920, min: 640 },
+              height: { ideal: 1080, min: 480 },
+            },
         audio: false,
       };
+
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
 
-      await new Promise<void>((resolve) => {
-        let done = false;
-        const markReady = () => {
-          if (done) return;
-          done = true;
+      if (videoEl) {
+        videoEl.srcObject = s;
+        videoEl.onloadedmetadata = () => {
+          if (videoEl) {
+            void videoEl.play().catch(() => {});
+            loading = false;
+          }
+        };
+        videoEl.oncanplay = () => {
           loading = false;
-          resolve();
         };
-
-        const attachAndListen = () => {
-          if (!videoEl) {
-            setTimeout(attachAndListen, 30);
-            return;
-          }
-          if (videoEl.srcObject !== s) {
-            videoEl.srcObject = s;
-          }
-          void videoEl.play().catch(() => {});
-
-          if (videoEl.videoWidth > 0 && videoEl.readyState >= 2) {
-            markReady();
-            return;
-          }
-
-          videoEl.onloadeddata = () => {
-            if (videoEl && videoEl.videoWidth > 0) markReady();
-          };
-          videoEl.onloadedmetadata = () => {
-            if (videoEl && videoEl.videoWidth > 0) markReady();
-          };
-          videoEl.oncanplay = () => {
-            if (videoEl && videoEl.videoWidth > 0) markReady();
-          };
-
-          setTimeout(() => {
-            if (!done) {
-              if (videoEl && videoEl.videoWidth > 0) {
-                markReady();
-              } else {
-                done = true;
-                loading = false;
-                resolve();
-              }
-            }
-          }, 2000);
+        videoEl.onplaying = () => {
+          loading = false;
         };
-
-        attachAndListen();
-      });
+        try {
+          await videoEl.play();
+        } catch { /* wait for metadata */ }
+        if (videoEl.videoWidth > 0) {
+          loading = false;
+        }
+      }
 
       await loadDevices();
     } catch (err: unknown) {
@@ -118,7 +100,7 @@
     }
   }
 
-  // videoEl DOM bind watcher — stream hazır olduğunda anlık bağlan
+  // videoEl DOM bind watcher — stream hazır olduğunda bağlan
   $effect(() => {
     const vid = videoEl;
     const s = stream;
@@ -126,23 +108,25 @@
       vid.srcObject = s;
       void vid.play().catch(() => {});
       vid.onloadeddata = () => {
-        if (vid.videoWidth > 0 && loading) loading = false;
+        if (vid.videoWidth > 0) loading = false;
       };
       vid.onloadedmetadata = () => {
-        if (vid.videoWidth > 0 && loading) loading = false;
+        if (vid.videoWidth > 0) loading = false;
       };
       vid.oncanplay = () => {
-        if (vid.videoWidth > 0 && loading) loading = false;
+        if (vid.videoWidth > 0) loading = false;
       };
     }
-    if (vid && s && vid.srcObject === s && vid.videoWidth > 0 && loading) {
+    if (vid && s && vid.srcObject === s && vid.videoWidth > 0) {
       loading = false;
     }
   });
 
   function stopCamera() {
     if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((t) => {
+        try { t.stop(); } catch { /* best effort */ }
+      });
       stream = null;
     }
     if (videoEl) {
@@ -151,23 +135,25 @@
   }
 
   function snapPhoto() {
-    if (!videoEl || videoEl.videoWidth === 0 || videoEl.readyState < 1 || loading || errorMsg) return;
+    if (!videoEl || videoEl.videoWidth === 0 || loading || errorMsg) return;
     isFlashing = true;
     setTimeout(() => {
       isFlashing = false;
     }, 150);
 
+    const vw = videoEl.videoWidth || 1280;
+    const vh = videoEl.videoHeight || 720;
     const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth || 1280;
-    canvas.height = videoEl.videoHeight || 720;
+    canvas.width = vw;
+    canvas.height = vh;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     if (isMirrored) {
-      ctx.translate(canvas.width, 0);
+      ctx.translate(vw, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(videoEl, 0, 0, vw, vh);
     capturedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
     stopCamera();
   }
@@ -175,7 +161,7 @@
   let shutterTimerInterval: ReturnType<typeof setInterval> | null = null;
 
   function triggerShutter() {
-    if (loading || errorMsg || countdownTimer > 0) return;
+    if (loading || errorMsg || countdownTimer > 0 || capturedDataUrl) return;
     if (countdownSeconds > 0) {
       countdownTimer = countdownSeconds;
       if (shutterTimerInterval) clearInterval(shutterTimerInterval);
@@ -217,12 +203,9 @@
       e.preventDefault();
       if (capturedDataUrl) {
         confirmPhoto();
-      } else {
+      } else if (!loading && !errorMsg) {
         triggerShutter();
       }
-    } else if (e.key === ' ' && !capturedDataUrl) {
-      e.preventDefault();
-      triggerShutter();
     }
   }
 

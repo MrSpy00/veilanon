@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { uiStore } from '$lib/stores/ui';
   import { authStore } from '$lib/stores/auth';
@@ -192,6 +192,8 @@
     }
   }
 
+  const unlistenFns: Array<() => void> = [];
+
   onMount(async () => {
     // Arkadaş listesini önce yükle — profil durumu bundan bağımlı
     // Paralel olarak hem arkadaşları hem profili yükle
@@ -215,7 +217,7 @@
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       try {
         const { listen } = await import('@tauri-apps/api/event');
-        const unsubPromise = listen<Record<string, unknown>>('veilanon:broadcast', (event) => {
+        listen<Record<string, unknown>>('veilanon:broadcast', (event) => {
           const actual = ((event.payload?.payload || event.payload) as Record<string, unknown>) || {};
           const type = actual.type as string;
           if (type === 'profile_updated' || type === 'avatar_updated' || type === 'banner_updated' || type === 'user_updated') {
@@ -233,10 +235,14 @@
           if (type === 'friend_accepted' || type === 'friend_removed' || type === 'friend_request') {
             void friendsStore.load();
           }
-        });
-        // Cleanup: unsubPromise'i handle et, onMount return type ile uyumlu olsun
-        void unsubPromise.then((unsub) => { unsub(); });
+        }).then(u => unlistenFns.push(u));
       } catch { /* ignore */ }
+    }
+  });
+
+  onDestroy(() => {
+    for (const u of unlistenFns) {
+      try { u(); } catch { /* ignore */ }
     }
   });
 

@@ -102,9 +102,10 @@
 
   const totalCount = $derived(allParticipants.length);
 
-  /** Look up broadcast effect for a participant identity. */
+  /** Look up broadcast effect for a participant identity or sid. */
   function lookupRemoteEffect(identity: string): EffectBroadcastPayload | null {
-    return remoteEffects.get(identity) ?? null;
+    if (!identity) return null;
+    return remoteEffects.get(identity) ?? remoteEffects.get(identity.toLowerCase()) ?? null;
   }
 
   // Active speaker for speaker/focus mode

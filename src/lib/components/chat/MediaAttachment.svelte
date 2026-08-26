@@ -479,7 +479,7 @@
       <div class="veil-spinner veil-spinner-sm"></div>
       <span>{currentAttempt > 1 ? `Dosya şifresi çözülüyor… (${currentAttempt}/6)` : 'Dosya şifresi çözülüyor…'}</span>
     </div>
-  {:else if error || !dataUrl || !attachment.fileId || attachment.sizeBytes === 0}
+  {:else if error || !dataUrl || !attachment.fileId}
     <!-- Download / file fallback card with retry -->
     <div class="veil-file-card" class:error-card={error}>
       <div class="veil-file-icon" style="background: color-mix(in srgb, {fileTypeConfig.color} 15%, transparent); color: {fileTypeConfig.color}; border: 1px solid color-mix(in srgb, {fileTypeConfig.color} 25%, transparent);">
@@ -1030,12 +1030,12 @@
   .veil-vc-volume { position: relative; display: flex; align-items: center; }
   .veil-vc-vol-pop {
     position: absolute;
-    left: calc(100% + 8px);
-    right: auto;
+    right: calc(100% + 8px);
+    left: auto;
     top: 50%;
     bottom: auto;
-    transform: translateY(-50%) translateX(-6px) scale(0.97);
-    transform-origin: left center;
+    transform: translateY(-50%) translateX(6px) scale(0.97);
+    transform-origin: right center;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1056,22 +1056,23 @@
   .veil-vc-vol-pop::after {
     content: '';
     position: absolute;
-    left: -5px;
-    right: auto;
+    right: -5px;
+    left: auto;
     top: 50%;
     transform: translateY(-50%) rotate(45deg);
     width: 10px;
     height: 10px;
     background: rgba(14, 16, 26, 0.96);
     border-top: 1px solid rgba(255,255,255,0.12);
-    border-left: 1px solid rgba(255,255,255,0.12);
-    border-radius: 2px 0 0 0;
+    border-right: 1px solid rgba(255,255,255,0.12);
+    border-left: none;
+    border-radius: 0 2px 0 0;
   }
   .veil-vc-vol-pop::before {
     content: '';
     position: absolute;
-    left: -24px;
-    right: auto;
+    right: -24px;
+    left: auto;
     top: -12px;
     bottom: -12px;
     width: 28px;
