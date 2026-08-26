@@ -398,8 +398,8 @@
         }
       } else {
         // Math.floor kullan: her iki client'ta da Math.floor(serverTime - Date.now()/1000)
-        // aynı sonucu verir, Math.ceil ise 1sn fark yaratabilir
-        countdown = Math.floor(remaining) + 1;
+        // aynı sonucu verir. +1 eklenmez — her iki client'ta da birebir aynı süre gösterilir.
+        countdown = Math.max(0, Math.ceil(remaining));
       }
     };
     update();

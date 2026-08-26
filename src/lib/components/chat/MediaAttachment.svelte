@@ -1030,12 +1030,12 @@
   .veil-vc-volume { position: relative; display: flex; align-items: center; }
   .veil-vc-vol-pop {
     position: absolute;
-    right: calc(100% + 8px);
-    left: auto;
+    left: calc(100% + 8px);
+    right: auto;
     top: 50%;
     bottom: auto;
-    transform: translateY(-50%) translateX(6px) scale(0.97);
-    transform-origin: right center;
+    transform: translateY(-50%) translateX(-6px) scale(0.97);
+    transform-origin: left center;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1056,22 +1056,22 @@
   .veil-vc-vol-pop::after {
     content: '';
     position: absolute;
-    right: -5px;
-    left: auto;
+    left: -5px;
+    right: auto;
     top: 50%;
     transform: translateY(-50%) rotate(45deg);
     width: 10px;
     height: 10px;
     background: rgba(14, 16, 26, 0.96);
     border-top: 1px solid rgba(255,255,255,0.12);
-    border-right: 1px solid rgba(255,255,255,0.12);
-    border-radius: 0 2px 0 0;
+    border-left: 1px solid rgba(255,255,255,0.12);
+    border-radius: 2px 0 0 0;
   }
   .veil-vc-vol-pop::before {
     content: '';
     position: absolute;
-    right: -24px;
-    left: auto;
+    left: -24px;
+    right: auto;
     top: -12px;
     bottom: -12px;
     width: 28px;

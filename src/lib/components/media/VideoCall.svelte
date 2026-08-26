@@ -73,7 +73,6 @@
   $effect(() => {
     const currentRoom = mediaStore.getRoom();
     if (currentRoom !== room) {
-      // Cleanup previous broadcast listeners
       broadcastCleanup?.();
       broadcastCleanup = null;
       remoteEffects = new Map();
@@ -81,15 +80,33 @@
       room = currentRoom;
       syncParticipantsAndTracks();
 
-      // Wire DataChannel broadcast for new room
       if (currentRoom) {
         startBroadcastLoop(currentRoom);
         const unsub = onEffectBroadcast(currentRoom, (payload) => {
           remoteEffects = new Map(remoteEffects).set(payload.userId, payload);
         });
+
+        const onParticipantChanged = () => {
+          syncParticipantsAndTracks();
+        };
+        currentRoom.on('participantConnected', onParticipantChanged);
+        currentRoom.on('participantDisconnected', onParticipantChanged);
+        currentRoom.on('activeSpeakersChanged', onParticipantChanged);
+        currentRoom.on('trackPublished', onParticipantChanged);
+        currentRoom.on('trackUnpublished', onParticipantChanged);
+        currentRoom.on('trackSubscribed', onParticipantChanged);
+        currentRoom.on('trackUnsubscribed', onParticipantChanged);
+
         broadcastCleanup = () => {
           unsub();
           stopBroadcastLoop();
+          currentRoom.off('participantConnected', onParticipantChanged);
+          currentRoom.off('participantDisconnected', onParticipantChanged);
+          currentRoom.off('activeSpeakersChanged', onParticipantChanged);
+          currentRoom.off('trackPublished', onParticipantChanged);
+          currentRoom.off('trackUnpublished', onParticipantChanged);
+          currentRoom.off('trackSubscribed', onParticipantChanged);
+          currentRoom.off('trackUnsubscribed', onParticipantChanged);
         };
       }
     }
@@ -99,12 +116,12 @@
     effectsStore.resetSession();
     syncParticipantsAndTracks();
 
-    // Katılım bildirimi: 3sn göster, sonra kaybol
+    // Katılım bildirimi: CSS animasyonu 3sn'de bitiyor, 3.5sn sonra state değiştir
     joinedHint = true;
     if (joinedHintTimer) clearTimeout(joinedHintTimer);
-    joinedHintTimer = setTimeout(() => { joinedHint = false; }, 3000);
+    joinedHintTimer = setTimeout(() => { joinedHint = false; }, 3500);
 
-    const interval = setInterval(syncParticipantsAndTracks, 200);
+    const interval = setInterval(syncParticipantsAndTracks, 500);
 
     const onFullscreenChange = () => {
       isFullscreen = !!document.fullscreenElement;

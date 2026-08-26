@@ -31,7 +31,7 @@ function createFriendsStore() {
     try {
       const friends = await Promise.race([
         friendApi.list(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
       ]) as FriendInfo[];
       if (hasInitialized) {
         for (const f of friends) {

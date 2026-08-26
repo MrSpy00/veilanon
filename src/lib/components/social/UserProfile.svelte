@@ -194,19 +194,21 @@
 
   onMount(async () => {
     // Arkadaş listesini önce yükle — profil durumu bundan bağımlı
-    await friendsStore.load();
+    // Paralel olarak hem arkadaşları hem profili yükle
+    const friendsPromise = friendsStore.load();
     if (profile) {
       loading = true;
-      try {
-        full = await socialApi.getUserProfile(profile.userId);
-      } catch {
-      } finally {
-        loading = false;
-      }
+      const profilePromise = socialApi.getUserProfile(profile.userId).then((p) => {
+        full = p;
+      }).catch(() => {});
+      await Promise.allSettled([friendsPromise, profilePromise]);
+      loading = false;
       void loadServerRoles();
       if (!isSelf) {
         void loadMutuals();
       }
+    } else {
+      await friendsPromise;
     }
 
     // Broadcast eventlerini dinle: profil/banner/arkadaşlık güncellendiğinde yenile
@@ -241,11 +243,13 @@
   $effect(() => {
     const pid = profile?.userId;
     if (pid) {
-      void friendsStore.load();
-      // Re-fetch full profile when switching between users without remount
-      void socialApi.getUserProfile(pid).then((p) => { full = p; }).catch(() => {});
-      void loadServerRoles();
-      if (!isSelf) void loadMutuals();
+      // Paralel yükle: hem arkadaşları hem profili
+      const fp = friendsStore.load();
+      const pp = socialApi.getUserProfile(pid).then((p) => { full = p; }).catch(() => {});
+      Promise.allSettled([fp, pp]).then(() => {
+        void loadServerRoles();
+        if (!isSelf) void loadMutuals();
+      });
     }
   });
 

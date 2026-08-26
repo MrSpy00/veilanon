@@ -105,14 +105,25 @@ const CACHE_KEY_PREFIX = 'veilanon_msg_cache_';
 const MAX_CACHED_MESSAGES_PER_CHANNEL = 100;
 
 // ── Server-time sync for disappearing messages ──
+// Both clients MUST compute the same remaining time. We use a weighted
+// moving average of the server-local offset, but clamp aggressively so
+// that two clients connected to the same server see identical countdowns.
 let serverTimeOffsetSec = 0; // server - local, seconds
+const offsetSamples: number[] = [];
+const MAX_OFFSET_SAMPLES = 8;
 function updateServerOffset(serverNowSec: number) {
   const local = Date.now() / 1000;
   const offset = serverNowSec - local;
-  if (Math.abs(offset) < 0.5) return;
-  if (serverTimeOffsetSec === 0) serverTimeOffsetSec = offset;
-  else serverTimeOffsetSec = serverTimeOffsetSec * 0.4 + offset * 0.6;
-  if (Math.abs(serverTimeOffsetSec) > 3600) serverTimeOffsetSec = Math.max(-3600, Math.min(3600, offset));
+  // Skip tiny offsets (< 200ms) to avoid jitter
+  if (Math.abs(offset) < 0.2) return;
+  // Collect samples for a more stable median estimate
+  offsetSamples.push(offset);
+  if (offsetSamples.length > MAX_OFFSET_SAMPLES) offsetSamples.shift();
+  // Use median of recent samples for stability
+  const sorted = [...offsetSamples].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  // Clamp to reasonable range (max 5s drift)
+  serverTimeOffsetSec = Math.max(-5, Math.min(5, median));
 }
 export function getServerNowSec(): number {
   return Date.now() / 1000 + serverTimeOffsetSec;
@@ -398,8 +409,6 @@ function createMessageStore() {
       try {
         const nowSec = getServerNowSec();
         const expiryThreshold = nowSec;
-        // purgedMessageIds set'i global olarak MessageItem tarafından kullanılır
-        // — countdown timer zaten deleteMessage çağırdıysa burada tekrar silmeyi atla
         const purgedIds: Set<string> = (typeof window !== 'undefined'
           ? ((window as any).__veilPurgedIds ??= new Set<string>())
           : new Set<string>());
@@ -407,15 +416,20 @@ function createMessageStore() {
           let changed = false;
           const newByChannel: Record<string, Message[]> = {};
           for (const chId in s.byChannel) {
+            const toDelete: string[] = [];
             const filtered = s.byChannel[chId].filter(m => {
               if (!m.disappearsAt || m.disappearsAt > expiryThreshold) return true;
-              // Zaten deleteMessage tarafından siliniyor — tekrar handle etme
               if (purgedIds.has(m.id)) return false;
+              purgedIds.add(m.id);
+              toDelete.push(m.id);
               return false;
             });
-            if (filtered.length !== s.byChannel[chId].length) {
+            if (toDelete.length > 0) {
               changed = true;
               saveChannelCache(chId, filtered);
+              for (const msgId of toDelete) {
+                void invoke('delete_message', { messageId: msgId }).catch(() => {});
+              }
             }
             newByChannel[chId] = filtered;
           }
@@ -432,10 +446,18 @@ function createMessageStore() {
       try {
         const fresh = await invoke<Message[]>('sync_messages', { channelId });
         if (!fresh.length) return;
-        // Update server offset from freshest server timestamp
+        // Update server offset from multiple timestamps for accuracy
         if (fresh.length > 0) {
+          // Use the latest message timestamp for offset calculation
           const latest = fresh.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
           if (latest.createdAt) updateServerOffset(latest.createdAt);
+          // Also use message creation timestamps from multiple messages for better sampling
+          if (fresh.length >= 3) {
+            const recent = fresh.slice(-3);
+            for (const m of recent) {
+              if (m.createdAt) updateServerOffset(m.createdAt);
+            }
+          }
         }
         const state = get({ subscribe });
         const existing = state.byChannel[channelId] ?? [];

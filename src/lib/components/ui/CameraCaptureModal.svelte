@@ -59,7 +59,6 @@
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
 
-      // Wait for video element to be bound and first frame rendered
       await new Promise<void>((resolve) => {
         let done = false;
         const markReady = () => {
@@ -84,12 +83,6 @@
             return;
           }
 
-          if ('requestVideoFrameCallback' in (videoEl as any)) {
-            (videoEl as any).requestVideoFrameCallback(() => {
-              markReady();
-            });
-          }
-
           videoEl.onloadeddata = () => {
             if (videoEl && videoEl.videoWidth > 0) markReady();
           };
@@ -100,10 +93,8 @@
             if (videoEl && videoEl.videoWidth > 0) markReady();
           };
 
-          // Safe fallback — yeterince uzun bekle, video element hazırlanana kadar
           setTimeout(() => {
             if (!done) {
-              // Son kontrol: videoEl hala hazır mı?
               if (videoEl && videoEl.videoWidth > 0) {
                 markReady();
               } else {
@@ -112,7 +103,7 @@
                 resolve();
               }
             }
-          }, 1200);
+          }, 2000);
         };
 
         attachAndListen();
@@ -143,6 +134,9 @@
       vid.oncanplay = () => {
         if (vid.videoWidth > 0 && loading) loading = false;
       };
+    }
+    if (vid && s && vid.srcObject === s && vid.videoWidth > 0 && loading) {
+      loading = false;
     }
   });
 
