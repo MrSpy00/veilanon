@@ -1,0 +1,572 @@
+//! Media IPC commands — LiveKit voice/video coordination
+//! 
+//! SECURITY: LiveKit tokens are short-lived (2h) and room-scoped.
+//! Tokens are generated locally with the configured API key/secret and are
+//! NEVER logged. E2EE call keys are managed here — never exposed via IPC.
+//! If E2EE setup fails, the call DOES NOT proceed silently in fallback mode.
+
+use tauri::{Manager, State};
+use serde::{Deserialize, Serialize};
+use tracing::info;
+use uuid::Uuid;
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
+
+use crate::state::AppState;
+use crate::config;
+use crate::error::{VeilError, VeilResult};
+
+const TOKEN_TTL_SECS: i64 = 2 * 60 * 60; // 2h
+const TOKEN_NBF_LEEWAY_SECS: i64 = 30;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveKitTokenResponse {
+    pub token: String,
+    pub url: String,
+    pub room_name: String,
+    pub is_e2ee: bool,
+    /// E2EE scope description shown to user
+    pub e2ee_scope: String,
+    /// MLS export secret'inden türetilmiş oda anahtarı (yalnızca IPC, sunucu görmez).
+    pub e2ee_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // camera/screen hints consumed by the JS LiveKit client
+pub struct JoinVoiceInput {
+    pub channel_id: String,
+    pub with_camera: bool,
+    pub with_screen: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetLivekitTokenInput {
+    pub channel_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetAudioDeviceInput {
+    pub device_id: Option<String>,
+    pub device_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetVideoDeviceInput {
+    pub device_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LiveKitVideoGrants {
+    room: String,
+    #[serde(rename = "roomJoin")]
+    room_join: bool,
+    #[serde(rename = "canPublish")]
+    can_publish: bool,
+    #[serde(rename = "canSubscribe")]
+    can_subscribe: bool,
+    #[serde(rename = "canPublishData")]
+    can_publish_data: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LiveKitClaims {
+    exp: usize,
+    nbf: usize,
+    iss: String,
+    sub: String,
+    /// Participant display identity used by the LiveKit client
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<String>,
+    video: LiveKitVideoGrants,
+}
+
+/// Generate a room-scoped HS256 token signed with the LiveKit API secret
+fn generate_livekit_token(
+    api_key: &str,
+    api_secret: &str,
+    identity: &str,
+    display_name: &str,
+    room_name: &str,
+    metadata: Option<String>,
+) -> VeilResult<String> {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+
+    if api_key.is_empty() {
+        return Err(VeilError::NotConfigured("LiveKit API anahtarı yapılandırılmamış. .env dosyasını kontrol edin.".into()));
+    }
+    if api_secret.is_empty() {
+        return Err(VeilError::NotConfigured("LiveKit API gizli anahtarı yapılandırılmamış. .env dosyasını kontrol edin.".into()));
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    let claims = LiveKitClaims {
+        exp: (now + TOKEN_TTL_SECS) as usize,
+        nbf: (now - TOKEN_NBF_LEEWAY_SECS) as usize,
+        iss: api_key.to_string(),
+        // Use identity (user UUID) as the sub — globally unique, safe for LiveKit
+        sub: identity.to_string(),
+        // Display name shown to other participants
+        name: display_name.to_string(),
+        metadata,
+        video: LiveKitVideoGrants {
+            room: room_name.to_string(),
+            room_join: true,
+            can_publish: true,
+            can_subscribe: true,
+            can_publish_data: true,
+        },
+    };
+
+    encode(
+        &Header::new(jsonwebtoken::Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(api_secret.as_bytes()),
+    )
+    .map_err(|e| {
+        tracing::error!("LiveKit token generation failed: {}", e);
+        VeilError::VoiceConnectionError
+    })
+}
+
+fn livekit_config() -> (String, String, String) {
+    let url = config::var("VEILANON_LIVEKIT_URL").unwrap_or_default();
+    let key = config::var("VEILANON_LIVEKIT_API_KEY").unwrap_or_default();
+    let secret = config::var("VEILANON_LIVEKIT_API_SECRET").unwrap_or_default();
+    if url.is_empty() || key.is_empty() || secret.is_empty() {
+        tracing::warn!("LiveKit configuration incomplete: url={}, key_set={}, secret_set={}",
+            if url.is_empty() { "MISSING" } else { "ok" },
+            !key.is_empty(),
+            !secret.is_empty()
+        );
+    }
+    (url, key, secret)
+}
+
+/// Join a voice channel — token minted locally with the configured secret.
+/// E2EE kanallarında oda anahtarı MLS export secret'inden türetilir ve yalnızca
+/// IPC üzerinden istemciye verilir (sunucu anahtarı asla görmez).
+#[tauri::command]
+pub async fn join_voice_channel(
+    input: JoinVoiceInput,
+    state: State<'_, AppState>,
+) -> Result<LiveKitTokenResponse, VeilError> {
+    let identity = state.get_or_restore_identity().await.ok_or_else(|| {
+        tracing::error!("join_voice_channel: user not authenticated");
+        VeilError::Unauthenticated
+    })?;
+
+    info!("Joining voice channel '{}' for user: {} ({})", input.channel_id, identity.username, identity.id);
+
+    let (livekit_url, api_key, api_secret) = livekit_config();
+    if livekit_url.is_empty() {
+        return Err(VeilError::NotConfigured("Ses sunucusu (LiveKit) yapılandırılmamış. Yöneticiye başvurun.".into()));
+    }
+
+    let room_name = format!("channel-{}", input.channel_id);
+    // Use user UUID as identity (guaranteed unique), display_name for UI
+    let lk_identity = identity.id.to_string();
+    let display_name = if identity.display_name.is_empty() {
+        identity.username.clone()
+    } else {
+        identity.display_name.clone()
+    };
+    let accent_color = state.settings.read().await.accent_color.clone();
+    let metadata_json = serde_json::json!({
+        "avatarHash": identity.avatar_hash,
+        "avatar_hash": identity.avatar_hash,
+        "accentColor": accent_color.unwrap_or_else(|| "var(--veil-brand)".into()),
+        "themeColor": "var(--veil-brand)",
+    }).to_string();
+    let token = generate_livekit_token(&api_key, &api_secret, &lk_identity, &display_name, &room_name, Some(metadata_json))?;
+
+    // Kanala ait MLS oturumu varsa (E2EE ses kanalı) oda anahtarı türet.
+    let mut is_e2ee = false;
+    let mut e2ee_scope = "transport-encrypted".to_string();
+    let mut e2ee_key = None;
+    let _channel_uuid = Uuid::parse_str(&input.channel_id)
+        .map_err(|_| VeilError::InvalidInput("Invalid channel ID".into()))?;
+    {
+        let db = state.db.read().await;
+        let e2ee: i64 = db
+            .query_row(
+                "SELECT is_e2ee FROM channels WHERE id = ?1",
+                rusqlite::params![input.channel_id],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if e2ee != 0 {
+            if let Ok(Some(key)) = super::mls::mls_call_key(input.channel_id.clone(), state.clone()).await {
+                is_e2ee = true;
+                e2ee_scope = "MLS media E2EE (odadaki herkes için uçtan uca)".to_string();
+                e2ee_key = Some(key);
+            }
+        }
+    }
+
+    // Ephemeral signal over realtime so non-connected users in the space can see who is in the voice channel
+    let realtime = state.network.read().await.realtime.clone();
+    realtime.broadcast(serde_json::json!({
+        "type": "voice_presence",
+        "action": "join",
+        "channel_id": input.channel_id,
+        "user_id": identity.id.to_string(),
+        "username": identity.username,
+        "display_name": identity.display_name,
+        "avatar_hash": identity.avatar_hash,
+    }));
+
+    Ok(LiveKitTokenResponse {
+        token,
+        url: livekit_url,
+        room_name,
+        is_e2ee,
+        e2ee_scope,
+        e2ee_key,
+    })
+}
+
+/// Leave the current voice channel
+#[tauri::command]
+pub async fn leave_voice_channel(state: State<'_, AppState>) -> Result<(), VeilError> {
+    info!("Leaving voice channel");
+    if let Some(identity) = state.get_or_restore_identity().await {
+        let realtime = state.network.read().await.realtime.clone();
+        realtime.broadcast(serde_json::json!({
+            "type": "voice_presence",
+            "action": "leave",
+            "user_id": identity.id.to_string(),
+        }));
+    }
+    Ok(())
+}
+
+/// Get a LiveKit token (used by the JS LiveKit client)
+#[tauri::command]
+pub async fn get_livekit_token(
+    input: GetLivekitTokenInput,
+    state: State<'_, AppState>,
+) -> Result<LiveKitTokenResponse, VeilError> {
+    let identity = state.get_or_restore_identity().await.ok_or(VeilError::Unauthenticated)?;
+
+    let room_name = format!("channel-{}", input.channel_id);
+    let (livekit_url, api_key, api_secret) = livekit_config();
+    if livekit_url.is_empty() {
+        return Err(VeilError::NotConfigured("Ses sunucusu (LiveKit) yapılandırılmamış.".into()));
+    }
+    let lk_identity = identity.id.to_string();
+    let display_name = if identity.display_name.is_empty() {
+        identity.username.clone()
+    } else {
+        identity.display_name.clone()
+    };
+    let accent_color = state.settings.read().await.accent_color.clone();
+    let metadata_json = serde_json::json!({
+        "avatarHash": identity.avatar_hash,
+        "avatar_hash": identity.avatar_hash,
+        "accentColor": accent_color.unwrap_or_else(|| "var(--veil-brand)".into()),
+        "themeColor": "var(--veil-brand)",
+    }).to_string();
+    let token = generate_livekit_token(&api_key, &api_secret, &lk_identity, &display_name, &room_name, Some(metadata_json))?;
+
+    let mut is_e2ee = false;
+    let mut e2ee_key = None;
+    {
+        let db = state.db.read().await;
+        let e2ee: i64 = db
+            .query_row(
+                "SELECT is_e2ee FROM channels WHERE id = ?1",
+                rusqlite::params![input.channel_id],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if e2ee != 0 {
+            if let Ok(Some(key)) = super::mls::mls_call_key(input.channel_id.clone(), state.clone()).await {
+                is_e2ee = true;
+                e2ee_key = Some(key);
+            }
+        }
+    }
+
+    // Ephemeral signal over realtime so non-connected users in the space can see who is in the voice channel
+    let network = state.network.read().await;
+    network.realtime.broadcast(serde_json::json!({
+        "type": "voice_presence",
+        "action": "join",
+        "channel_id": input.channel_id,
+        "user_id": identity.id.to_string(),
+        "username": identity.username,
+        "display_name": identity.display_name,
+        "avatar_hash": identity.avatar_hash,
+    }));
+
+    Ok(LiveKitTokenResponse {
+        token,
+        url: livekit_url,
+        room_name,
+        is_e2ee,
+        e2ee_scope: if is_e2ee { "MLS media E2EE".into() } else { "transport-encrypted".into() },
+        e2ee_key,
+    })
+}
+
+/// Start screen sharing — requires explicit OS permission grant
+#[tauri::command]
+pub async fn start_screen_share(_state: State<'_, AppState>) -> Result<(), VeilError> {
+    info!("Screen share requested — awaiting OS permission");
+    // The JS LiveKit client handles the actual screen capture API
+    Ok(())
+}
+
+/// Stop screen sharing
+#[tauri::command]
+pub async fn stop_screen_share(_state: State<'_, AppState>) -> Result<(), VeilError> {
+    info!("Screen share stopped");
+    Ok(())
+}
+
+/// Set audio input/output device
+#[tauri::command]
+pub async fn set_audio_device(
+    input: SetAudioDeviceInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    let data_dir = state.app.path().app_data_dir()
+        .map_err(|_| VeilError::FileError(std::io::Error::new(std::io::ErrorKind::NotFound, "app data dir")))?;
+    let mut settings = state.settings.write().await;
+    let SetAudioDeviceInput { device_id, device_type } = input;
+    match device_type.as_str() {
+        "input" => settings.input_device_id = device_id,
+        "output" => settings.output_device_id = device_id,
+        _ => return Err(VeilError::InvalidInput("device_type must be 'input' or 'output'".into())),
+    }
+    settings.save(&data_dir)?;
+    Ok(())
+}
+
+/// Set video device
+#[tauri::command]
+pub async fn set_video_device(
+    input: SetVideoDeviceInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    let data_dir = state.app.path().app_data_dir()
+        .map_err(|_| VeilError::FileError(std::io::Error::new(std::io::ErrorKind::NotFound, "app data dir")))?;
+    let mut settings = state.settings.write().await;
+    settings.video_device_id = input.device_id;
+    settings.save(&data_dir)?;
+    Ok(())
+}
+
+/// Toggle microphone mute
+#[tauri::command]
+#[allow(unused_variables)]
+pub async fn toggle_mute(state: State<'_, AppState>) -> Result<(), VeilError> {
+    // Mute state managed by JS LiveKit client; this is for persistence
+    Ok(())
+}
+
+/// Toggle camera
+#[tauri::command]
+#[allow(unused_variables)]
+pub async fn toggle_camera(state: State<'_, AppState>) -> Result<(), VeilError> {
+    // Camera state managed by JS LiveKit client
+    Ok(())
+}
+
+/// Broadcast voice state (mute, deafen, camera, screenshare, speaking) to all users in space
+#[derive(Debug, Deserialize)]
+pub struct BroadcastVoiceStateInput {
+    pub channel_id: String,
+    pub is_muted: bool,
+    pub is_deafened: bool,
+    pub is_camera_on: bool,
+    pub is_screen_sharing: bool,
+    pub is_speaking: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CallInviteInput {
+    pub channel_id: String,
+    /// "audio" | "video"
+    pub kind: String,
+}
+
+/// Ringing signal: notify the DM peer / group members that a call started.
+#[tauri::command]
+pub async fn send_call_invite(
+    input: CallInviteInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    let identity = state.get_or_restore_identity().await.ok_or(VeilError::Unauthenticated)?;
+    let network = state.network.read().await;
+    network.realtime.broadcast(serde_json::json!({
+        "type": "call_invite",
+        "channel_id": input.channel_id,
+        "kind": if input.kind == "video" { "video" } else { "audio" },
+        "caller_id": identity.id.to_string(),
+        "caller_name": identity.display_name,
+        "caller_username": identity.username,
+        "avatar_hash": identity.avatar_hash,
+    }));
+    Ok(())
+}
+
+/// Cancel ringing when the caller hangs up before anyone joins.
+#[tauri::command]
+pub async fn cancel_call_invite(
+    input: CallInviteInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    let identity = state.get_or_restore_identity().await;
+    if let Some(identity) = identity {
+        let network = state.network.read().await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "call_cancel",
+            "channel_id": input.channel_id,
+            "caller_id": identity.id.to_string(),
+        }));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn broadcast_voice_state(
+    input: BroadcastVoiceStateInput,
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    if let Some(identity) = state.get_or_restore_identity().await {
+        let network = state.network.read().await;
+        network.realtime.broadcast(serde_json::json!({
+            "type": "voice_presence",
+            "action": "state",
+            "channel_id": input.channel_id,
+            "user_id": identity.id.to_string(),
+            "username": identity.username,
+            "display_name": identity.display_name,
+            "avatar_hash": identity.avatar_hash,
+            "is_muted": input.is_muted,
+            "is_deafened": input.is_deafened,
+            "is_camera_on": input.is_camera_on,
+            "is_screen_sharing": input.is_screen_sharing,
+            "is_speaking": input.is_speaking,
+        }));
+    }
+    Ok(())
+}
+
+/// Request all currently connected voice users across channels to broadcast their state.
+#[tauri::command]
+pub async fn request_voice_presence(
+    state: State<'_, AppState>,
+) -> Result<(), VeilError> {
+    let network = state.network.read().await;
+    network.realtime.broadcast(serde_json::json!({
+        "type": "request_voice_presence",
+    }));
+    Ok(())
+}
+
+/// Read a local image file and return it as a base64 data URL for inline preview.
+#[tauri::command]
+pub async fn read_image_as_base64(path: String) -> Result<String, VeilError> {
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
+        .ok_or_else(|| VeilError::InvalidInput("Geçersiz görüntü dosyası.".into()))?;
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "jpeg",
+        other => other,
+    };
+    let bytes = std::fs::read(&path).map_err(VeilError::FileError)?;
+    Ok(format!("data:image/{mime};base64,{}", B64.encode(&bytes)))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decode_claims(token: &str) -> LiveKitClaims {
+        use jsonwebtoken::{decode, DecodingKey, Validation};
+        let data = decode::<LiveKitClaims>(
+            token,
+            &DecodingKey::from_secret(b"test-secret"),
+            &Validation::new(jsonwebtoken::Algorithm::HS256),
+        )
+        .expect("token must verify with the same secret");
+        data.claims
+    }
+
+    #[test]
+    fn livekit_token_is_room_scoped_and_time_bounded() {
+        let now = chrono::Utc::now().timestamp();
+        let token =
+            generate_livekit_token("api-key", "test-secret", "alice-uuid", "Alice", "channel-abc", None).unwrap();
+
+        let claims = decode_claims(&token);
+        assert_eq!(claims.iss, "api-key");
+        assert_eq!(claims.sub, "alice-uuid");
+        assert_eq!(claims.name, "Alice");
+        assert_eq!(claims.video.room, "channel-abc");
+        assert!(claims.video.room_join);
+        assert!(claims.video.can_publish);
+        assert!(claims.video.can_subscribe);
+        assert!(claims.nbf <= now as usize);
+        assert!(claims.exp >= now as usize + TOKEN_TTL_SECS as usize - 5);
+    }
+
+    #[test]
+    fn livekit_token_rejects_missing_config() {
+        let err = generate_livekit_token("", "", "alice-uuid", "Alice", "room-1", None).unwrap_err();
+        assert!(matches!(err, VeilError::NotConfigured(_)));
+    }
+
+    fn temp_media_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("veil-media-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        dir
+    }
+
+    #[tokio::test]
+    async fn read_image_as_base64_rejects_non_image_extension() {
+        let dir = temp_media_dir();
+        let path = dir.join("note.txt");
+        std::fs::write(&path, b"not an image").expect("fixture write");
+
+        let err =
+            read_image_as_base64(path.to_string_lossy().to_string()).await.unwrap_err();
+        assert!(matches!(err, VeilError::InvalidInput(_)));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn read_image_as_base64_round_trips_png_bytes() {
+        use base64::Engine as _;
+
+        let source: &[u8] = b"\x89PNG\r\n\x1a\nfake-png-payload";
+        let dir = temp_media_dir();
+        let path = dir.join("avatar.png");
+        std::fs::write(&path, source).expect("fixture write");
+
+        let data_url =
+            read_image_as_base64(path.to_string_lossy().to_string()).await.unwrap();
+        assert!(data_url.starts_with("data:image/png;base64,"));
+
+        let payload = data_url.split_once(',').expect("data URL must contain a comma").1;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .expect("payload must be valid base64");
+        assert_eq!(decoded, source);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

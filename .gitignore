@@ -1,0 +1,180 @@
+# ============================================================================
+# veilanon — Production .gitignore
+# Complete protection against secrets, environment files, build artifacts,
+# OS metadata, IDE configs, credentials, databases, and temporary state.
+# ============================================================================
+
+# ── Secrets, Credentials & Environment Files ───────────────────────────────
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+secrets/
+credentials/
+keys/
+*.secret
+*.token
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.gpg
+*.asc
+*.kdbx
+*.enc
+secrets.enc
+secrets.key
+
+# SSH / Private key material
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.ppk
+
+# Certificates
+*.cer
+*.crt
+*.der
+*.p7b
+*.p7c
+
+# ── Dependencies & Package Managers ─────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.*
+.yarn/
+.npm/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Build Outputs & Compilations ────────────────────────────────────────────
+build/
+/build
+dist/
+/package
+.svelte-kit/
+/.svelte-kit
+src-tauri/target/
+src-tauri/gen/schemas/
+target/
+release/
+ci-artifacts/
+
+# Binaries & Installers
+*.exe
+*.msi
+*.dll
+*.so
+*.dylib
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+*.tar.xz
+*.7z
+
+# Compiled object / debug files
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.o
+*.a
+*.lib
+*.rlib
+*.rmeta
+*.pyc
+__pycache__/
+*.pyo
+
+# ── Databases & Local State ─────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.db-journal
+
+# ── Logs & Diagnostic Dumps ─────────────────────────────────────────────────
+*.log
+logs/
+crash-reports/
+*.trace
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# ── Temp Files & Caches ─────────────────────────────────────────────────────
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+*.part
+*.bak
+*.old
+*.backup
+backup/
+*.orig
+*.rej
+.cache/
+.turbo/
+.eslintcache
+.prettiercache
+.stylelintcache
+*.tsbuildinfo
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# ── IDEs & Operating System Artifacts ───────────────────────────────────────
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# JetBrains / VSCode / Editors
+.idea/
+.vscode/
+.vs/
+.fleet/
+.zed/
+.cursor/
+.windsurf/
+.history/
+*.swp
+*.swo
+*~
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ── Backend / Tool Local State ──────────────────────────────────────────────
+.supabase/
+supabase/.temp/
+.omo/
+.agents/
+.claude/
+.gemini/
+.antigravity/
+scratch/
