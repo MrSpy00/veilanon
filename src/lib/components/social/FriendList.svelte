@@ -77,8 +77,9 @@
     }, 450);
   }
 
-  onMount(() => {
-    friendsStore.load();
+  onMount(async () => {
+    // Sayfa açıldığında arkadaş listesini yenile
+    await friendsStore.load();
     const unlistenFriends = listen('friends:changed', () => {
       debouncedFriendsLoad();
     });
@@ -104,12 +105,10 @@
         }
       }
     });
-    return () => {
-      unlistenFriends.then(fn => fn());
-      unlistenPresence.then(fn => fn());
-      unlistenUser.then(fn => fn());
-      unlistenBroadcast.then(fn => fn());
-    };
+    // Cleanup: Promise'leri resolve et ve unsub'ları çağır
+    void Promise.all([unlistenFriends, unlistenPresence, unlistenUser, unlistenBroadcast]).then((unsubs) => {
+      for (const unsub of unsubs) unsub();
+    });
   });
 
   async function refresh() {

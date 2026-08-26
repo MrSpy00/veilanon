@@ -219,6 +219,11 @@
     if (isRetry) {
       loading = true;
       error = false;
+      // Eski blob URL'yi temizle
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
     }
     const maxAttempts = 6;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -234,8 +239,11 @@
           dataUrl = url;
           loading = false;
           error = false;
+          // Blob URL oluştur — video/audio oynatma için gerekli
           const blob = createBlobFromDataUrl(url);
           if (blob) {
+            // Eski blob URL'yi temizle
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             blobUrl = URL.createObjectURL(blob);
           }
           if (mime === 'audio' || url.startsWith('data:audio/') || attachment.mimeTypeHint?.startsWith('audio/')) {
@@ -1026,7 +1034,7 @@
     left: auto;
     top: 50%;
     bottom: auto;
-    transform: translateY(-50%) translateX(-6px) scale(0.97);
+    transform: translateY(-50%) translateX(6px) scale(0.97);
     transform-origin: right center;
     display: flex;
     align-items: center;

@@ -71,7 +71,7 @@
 
         const attachAndListen = () => {
           if (!videoEl) {
-            setTimeout(attachAndListen, 20);
+            setTimeout(attachAndListen, 30);
             return;
           }
           if (videoEl.srcObject !== s) {
@@ -100,14 +100,19 @@
             if (videoEl && videoEl.videoWidth > 0) markReady();
           };
 
-          // Safe fallback
+          // Safe fallback — yeterince uzun bekle, video element hazırlanana kadar
           setTimeout(() => {
             if (!done) {
-              done = true;
-              loading = false;
-              resolve();
+              // Son kontrol: videoEl hala hazır mı?
+              if (videoEl && videoEl.videoWidth > 0) {
+                markReady();
+              } else {
+                done = true;
+                loading = false;
+                resolve();
+              }
             }
-          }, 600);
+          }, 1200);
         };
 
         attachAndListen();
@@ -122,7 +127,7 @@
     }
   }
 
-  // videoEl DOM bind watcher
+  // videoEl DOM bind watcher — stream hazır olduğunda anlık bağlan
   $effect(() => {
     const vid = videoEl;
     const s = stream;
@@ -130,7 +135,13 @@
       vid.srcObject = s;
       void vid.play().catch(() => {});
       vid.onloadeddata = () => {
-        if (vid.videoWidth > 0) loading = false;
+        if (vid.videoWidth > 0 && loading) loading = false;
+      };
+      vid.onloadedmetadata = () => {
+        if (vid.videoWidth > 0 && loading) loading = false;
+      };
+      vid.oncanplay = () => {
+        if (vid.videoWidth > 0 && loading) loading = false;
       };
     }
   });

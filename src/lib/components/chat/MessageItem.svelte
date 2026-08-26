@@ -386,18 +386,20 @@
           clearInterval(countdownTimer);
           countdownTimer = null;
         }
+        // Tek silme mekanizması: purgeExpiredLocal() veya deleteMessage() — ikisi birden çalışmaz
         if (!deleteScheduled && !purgedMessageIds.has(message.id)) {
           deleteScheduled = true;
           purgedMessageIds.add(message.id);
           isBurning = true;
-          // Immediate local purge + backend tombstone broadcast
-          messageStore.purgeExpiredLocal();
+          // Backend tombstone + local purge — çift silmeyi mutex ile önle
           void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
             messageStore.purgeExpiredLocal();
           });
         }
       } else {
-        countdown = Math.ceil(remaining);
+        // Math.floor kullan: her iki client'ta da Math.floor(serverTime - Date.now()/1000)
+        // aynı sonucu verir, Math.ceil ise 1sn fark yaratabilir
+        countdown = Math.floor(remaining) + 1;
       }
     };
     update();

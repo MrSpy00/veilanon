@@ -14,6 +14,13 @@
     }
   }
 
+  /** Belirli bir hash'in cache'de olup olmadığını kontrol et ve gerekirse yeniden çek. */
+  export function invalidateBanner(hash: string | null | undefined) {
+    if (hash) {
+      bannerMemoryCache.delete(hash.trim());
+    }
+  }
+
   export function clearAllBannerCache() {
     bannerMemoryCache.clear();
   }

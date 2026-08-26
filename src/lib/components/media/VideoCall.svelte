@@ -44,6 +44,10 @@
   let audioPopOpen = $state(false);
   let masterVolume = $state(100);
 
+  // Katılım bildirimi state
+  let joinedHint = $state(false);
+  let joinedHintTimer: ReturnType<typeof setTimeout> | null = null;
+
   // Remote participant effect broadcasts (identity → payload)
   let remoteEffects = $state<Map<string, EffectBroadcastPayload>>(new Map());
   let broadcastCleanup = $state<(() => void) | null>(null);
@@ -95,6 +99,11 @@
     effectsStore.resetSession();
     syncParticipantsAndTracks();
 
+    // Katılım bildirimi: 3sn göster, sonra kaybol
+    joinedHint = true;
+    if (joinedHintTimer) clearTimeout(joinedHintTimer);
+    joinedHintTimer = setTimeout(() => { joinedHint = false; }, 3000);
+
     const interval = setInterval(syncParticipantsAndTracks, 200);
 
     const onFullscreenChange = () => {
@@ -105,6 +114,7 @@
     return () => {
       clearInterval(interval);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
+      if (joinedHintTimer) clearTimeout(joinedHintTimer);
       broadcastCleanup?.();
       stopBroadcastLoop();
       effectsStore.resetSession();
@@ -260,8 +270,12 @@
           viewMode={viewMode === 'speaker' ? 'speaker' : 'grid'}
           {remoteEffects}
         />
-        {#if remotes.length === 0 && media.connectionState === 'connected'}
-          <div class="veil-vc-empty-hint" role="status">
+        {#if joinedHint && remotes.length === 0 && media.connectionState === 'connected'}
+          <div class="veil-vc-empty-hint joined-hint" role="status">
+            Ses kanalına bağlandın — diğer üyeler katıldığında burada görünür.
+          </div>
+        {:else if !joinedHint && remotes.length === 0 && media.connectionState === 'connected'}
+          <div class="veil-vc-empty-hint faded" role="status">
             Ses kanalına bağlandın — diğer üyeler katıldığında burada görünür.
           </div>
         {/if}
@@ -567,12 +581,26 @@
     text-align: center;
     pointer-events: none;
     z-index: 25;
-    animation: veil-hint-fadeout 0.7s cubic-bezier(0.16, 1, 0.3, 1) 3s forwards;
+  }
+
+  .veil-vc-empty-hint.joined-hint {
+    animation: veil-hint-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1), veil-hint-fadeout 0.7s cubic-bezier(0.16, 1, 0.3, 1) 2.3s forwards;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .veil-vc-empty-hint.faded {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  @keyframes veil-hint-enter {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 
   @keyframes veil-hint-fadeout {
-    0% { opacity: 1; transform: translate(-50%, 0); }
-    100% { opacity: 0; transform: translate(-50%, 8px); visibility: hidden; pointer-events: none; }
+    0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-8px); visibility: hidden; pointer-events: none; }
   }
 
   @keyframes veil-ring-pulse {

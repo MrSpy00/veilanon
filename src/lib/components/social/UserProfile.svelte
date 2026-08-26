@@ -11,7 +11,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { identityApi } from '$lib/api/tauri';
   import Avatar, { cacheAvatar } from '../ui/Avatar.svelte';
-  import BannerImage, { cacheBanner } from '../ui/BannerImage.svelte';
+  import BannerImage, { cacheBanner, removeBannerCache } from '../ui/BannerImage.svelte';
   import Icon from '../ui/Icon.svelte';
   import { copyText } from '$lib/utils/clipboard';
   import { readLocalImageAsDataUrl } from '$lib/utils/image-loader';
@@ -87,11 +87,13 @@
     if (b === 'blocked' || a === 'blocked') return 'blocked';
     if (b === 'pending_incoming' || a === 'pending_incoming') return 'pending_incoming';
     if (b === 'pending_outgoing' || a === 'pending_outgoing') return 'pending_outgoing';
-    // While friendsStore is still loading and we have no full, don't show "none" prematurely
-    if (!full && $friendsStore.loading && allSpaceRoles.length === 0 && !localFriend) {
-      return (b ?? 'none') as any;
+    // Hala loading ise ve full henüz gelmediyse 'none' gösterme
+    if ($friendsStore.loading && !full && !localFriend) {
+      return 'loading' as any;
     }
-    return (b ?? a ?? 'none') as any;
+    // full.friendStatus varsa onu tercih et (sunucu side source of truth)
+    if (ff && ff !== 'none') return ff as any;
+    return (a ?? b ?? 'none') as any;
   });
   const isSelf = $derived(!!profile && profile.userId === $authStore.identity?.id);
   const onlineStatus = $derived(
@@ -191,7 +193,8 @@
   }
 
   onMount(async () => {
-    void friendsStore.load();
+    // Arkadaş listesini önce yükle — profil durumu bundan bağımlı
+    await friendsStore.load();
     if (profile) {
       loading = true;
       try {
@@ -204,6 +207,34 @@
       if (!isSelf) {
         void loadMutuals();
       }
+    }
+
+    // Broadcast eventlerini dinle: profil/banner/arkadaşlık güncellendiğinde yenile
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const unsubPromise = listen<Record<string, unknown>>('veilanon:broadcast', (event) => {
+          const actual = ((event.payload?.payload || event.payload) as Record<string, unknown>) || {};
+          const type = actual.type as string;
+          if (type === 'profile_updated' || type === 'avatar_updated' || type === 'banner_updated' || type === 'user_updated') {
+            const targetUserId = (actual.user_id || actual.id) as string | undefined;
+            if (profile && targetUserId === profile.userId) {
+              // Profil sahibi kendisiyse authStore'dan al, değilse API'den çek
+              if (isSelf) {
+                void authStore.refreshRemoteProfile();
+              } else {
+                void socialApi.getUserProfile(profile.userId).then((p) => { full = p; }).catch(() => {});
+              }
+            }
+            void friendsStore.load();
+          }
+          if (type === 'friend_accepted' || type === 'friend_removed' || type === 'friend_request') {
+            void friendsStore.load();
+          }
+        });
+        // Cleanup: unsubPromise'i handle et, onMount return type ile uyumlu olsun
+        void unsubPromise.then((unsub) => { unsub(); });
+      } catch { /* ignore */ }
     }
   });
 
@@ -392,6 +423,9 @@
     bannerCropSrc = null;
     profileEditBusy = true;
     try {
+      // Eski banner hash'ini cache'den temizle
+      const oldHash = $authStore.identity?.bannerHash;
+      if (oldHash) removeBannerCache(oldHash);
       const hash = await identityApi.setBanner(croppedDataUrl);
       cacheBanner(hash, croppedDataUrl);
       authStore.updateIdentity({ bannerHash: hash });
@@ -493,6 +527,8 @@
             </button>
           {:else if status === 'blocked'}
             <button class="btn btn-secondary btn-sm" onclick={unblock}>Engeli Kaldır</button>
+          {:else if status === 'loading'}
+            <div class="veil-spinner veil-spinner-sm" style="margin: 4px;"></div>
           {:else}
             <button class="btn btn-primary btn-sm" onclick={addFriend}>
               <Icon name="plus" size={14} />

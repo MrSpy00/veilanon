@@ -1245,7 +1245,7 @@
     color: var(--veil-text-primary);
   }
 
-  .veil-upload-wrap { position: relative; flex-shrink: 0; }
+  .veil-upload-wrap { position: relative; flex-shrink: 0; align-self: flex-start; }
   .veil-upload-menu {
     position: absolute;
     bottom: calc(100% + 8px);

@@ -54,6 +54,7 @@
 
   let resolvedSrc = $state<string | null>(null);
   let resolveFailed = $state(false);
+  let isLoading = $state(false);
 
   const initials = $derived((name ?? 'veilanon').trim().slice(0, 2).toUpperCase() || 'V');
   const directSrc = $derived(
@@ -86,6 +87,7 @@
     }
 
     let cancelled = false;
+    isLoading = true;
     // Keep previous src until new one resolves to avoid flicker
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
       if (!cancelled && dataUrl) {
@@ -93,8 +95,12 @@
         resolvedSrc = dataUrl;
         resolveFailed = false;
       }
+      if (!cancelled) isLoading = false;
     }).catch(() => {
-      if (!cancelled) resolveFailed = true;
+      if (!cancelled) {
+        resolveFailed = true;
+        isLoading = false;
+      }
     });
     return () => { cancelled = true; };
   });
@@ -137,6 +143,8 @@
       {:else}
         <img class="veil-avatar-img" src={imgSrc} alt={name} />
       {/if}
+    {:else if isLoading}
+      <div class="veil-avatar-skeleton" aria-hidden="true"></div>
     {:else}
       {initials}
     {/if}
@@ -170,6 +178,18 @@
   }
   .veil-avatar.speaking {
     box-shadow: 0 0 0 2px var(--veil-bg-channel, var(--veil-bg-base)), 0 0 0 4px var(--speaking-color, var(--veil-brand));
+  }
+  .veil-avatar-skeleton {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--veil-bg-surface) 25%, var(--veil-bg-elevated) 50%, var(--veil-bg-surface) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
   .veil-sr-only {
     position: absolute;

@@ -398,11 +398,21 @@ function createMessageStore() {
       try {
         const nowSec = getServerNowSec();
         const expiryThreshold = nowSec;
+        // purgedMessageIds set'i global olarak MessageItem tarafından kullanılır
+        // — countdown timer zaten deleteMessage çağırdıysa burada tekrar silmeyi atla
+        const purgedIds: Set<string> = (typeof window !== 'undefined'
+          ? ((window as any).__veilPurgedIds ??= new Set<string>())
+          : new Set<string>());
         update(s => {
           let changed = false;
           const newByChannel: Record<string, Message[]> = {};
           for (const chId in s.byChannel) {
-            const filtered = s.byChannel[chId].filter(m => !m.disappearsAt || m.disappearsAt > expiryThreshold);
+            const filtered = s.byChannel[chId].filter(m => {
+              if (!m.disappearsAt || m.disappearsAt > expiryThreshold) return true;
+              // Zaten deleteMessage tarafından siliniyor — tekrar handle etme
+              if (purgedIds.has(m.id)) return false;
+              return false;
+            });
             if (filtered.length !== s.byChannel[chId].length) {
               changed = true;
               saveChannelCache(chId, filtered);

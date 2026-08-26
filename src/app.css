@@ -1409,6 +1409,7 @@ textarea,
 }
 .veil-message-box.multiline {
   align-items: flex-end;
+  flex-wrap: nowrap;
 }
 .veil-message-box:focus-within {
   border-color: var(--veil-brand);
