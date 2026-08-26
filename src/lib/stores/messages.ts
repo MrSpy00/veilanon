@@ -109,10 +109,9 @@ let serverTimeOffsetSec = 0; // server - local, seconds
 function updateServerOffset(serverNowSec: number) {
   const local = Date.now() / 1000;
   const offset = serverNowSec - local;
-  // Smooth toward new offset (EWMA) to avoid jumps
+  if (Math.abs(offset) < 0.5) return;
   if (serverTimeOffsetSec === 0) serverTimeOffsetSec = offset;
-  else serverTimeOffsetSec = serverTimeOffsetSec * 0.7 + offset * 0.3;
-  // Clamp absurd drift
+  else serverTimeOffsetSec = serverTimeOffsetSec * 0.4 + offset * 0.6;
   if (Math.abs(serverTimeOffsetSec) > 3600) serverTimeOffsetSec = Math.max(-3600, Math.min(3600, offset));
 }
 export function getServerNowSec(): number {
@@ -613,8 +612,8 @@ function createMessageStore() {
         reactions: [],
         attachments,
         editedAt: null,
-        createdAt: Date.now() / 1000,
-        disappearsAt: disappearSeconds ? (Date.now() / 1000) + disappearSeconds : null,
+        createdAt: getServerNowSec(),
+        disappearsAt: disappearSeconds ? getServerNowSec() + disappearSeconds : null,
         isOwn: true,
       };
 

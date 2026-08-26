@@ -29,7 +29,10 @@ function createFriendsStore() {
     if (!hadData) update(s => ({ ...s, loading: true, error: null }));
     else update(s => ({ ...s, error: null }));
     try {
-      const friends = await friendApi.list();
+      const friends = await Promise.race([
+        friendApi.list(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+      ]) as FriendInfo[];
       if (hasInitialized) {
         for (const f of friends) {
           if (f.status === 'pending_incoming' && !knownIncomingIds.has(f.userId)) {
@@ -43,7 +46,9 @@ function createFriendsStore() {
       }
       set({ friends, loading: false, error: null });
     } catch (err) {
-      update(s => ({ ...s, loading: false, error: String(err) }));
+      const msg = String(err);
+      if (msg.includes('timeout')) update(s => ({ ...s, loading: false, error: 'Zaman aşımı, yeniden deneniyor...' }));
+      else update(s => ({ ...s, loading: false, error: msg }));
     }
   }
 

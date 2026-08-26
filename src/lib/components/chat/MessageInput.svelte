@@ -1250,7 +1250,7 @@
     position: absolute;
     bottom: calc(100% + 8px);
     left: 0;
-    z-index: 60;
+    z-index: 9999;
     min-width: 180px;
     background: color-mix(in srgb, var(--veil-bg-raised) 94%, transparent);
     backdrop-filter: blur(16px);
@@ -1311,7 +1311,7 @@
     position: absolute;
     bottom: calc(100% + 8px);
     right: 0;
-    z-index: 60;
+    z-index: 9999;
     min-width: 220px;
     background: color-mix(in srgb, var(--veil-bg-raised) 97%, transparent);
     backdrop-filter: blur(20px);
