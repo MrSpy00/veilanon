@@ -72,7 +72,7 @@
     if (friendsLoadDebounceTimer) clearTimeout(friendsLoadDebounceTimer);
     friendsLoadDebounceTimer = setTimeout(() => {
       void friendsStore.load();
-    }, 500);
+    }, 1000);
   }
 
   const unlistenFns: Array<() => void> = [];

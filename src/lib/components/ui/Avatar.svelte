@@ -54,7 +54,6 @@
 
   let resolvedSrc = $state<string | null>(null);
   let resolveFailed = $state(false);
-  let isLoading = $state(false);
 
   const initials = $derived((name ?? 'veilanon').trim().slice(0, 2).toUpperCase() || 'V');
   const directSrc = $derived(
@@ -87,7 +86,6 @@
     }
 
     let cancelled = false;
-    isLoading = true;
     // Keep previous src until new one resolves to avoid flicker
     identityApi.getAvatar(cleanHash).then((dataUrl) => {
       if (!cancelled && dataUrl) {
@@ -95,11 +93,9 @@
         resolvedSrc = dataUrl;
         resolveFailed = false;
       }
-      if (!cancelled) isLoading = false;
     }).catch(() => {
       if (!cancelled) {
         resolveFailed = true;
-        isLoading = false;
       }
     });
     return () => { cancelled = true; };
@@ -143,8 +139,6 @@
       {:else}
         <img class="veil-avatar-img" src={imgSrc} alt={name} />
       {/if}
-    {:else if isLoading}
-      <div class="veil-avatar-skeleton" aria-hidden="true"></div>
     {:else}
       {initials}
     {/if}

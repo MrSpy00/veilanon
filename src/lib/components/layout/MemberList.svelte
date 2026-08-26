@@ -8,7 +8,7 @@
   import { spaceStore } from '$lib/stores/spaces';
   import { friendsStore } from '$lib/stores/friends';
   import { authStore } from '$lib/stores/auth';
-  import { memberApi, roleApi, dmApi, type MemberInfo, type RoleInfo } from '$lib/api/tauri';
+  import { memberApi, roleApi, dmApi, type MemberInfo, type RoleInfo, type PresenceStatus } from '$lib/api/tauri';
   import { toastStore } from '$lib/stores/notifications';
   import { permissionsStore } from '$lib/stores/permissions';
   import Avatar from '../ui/Avatar.svelte';
@@ -104,7 +104,7 @@
         const uid = p.user_id || p.userId;
         const status = p.status || 'online';
         if (uid) {
-          members = members.map((m) => (m.userId === uid ? { ...m, onlineStatus: status } : m));
+          batchPresenceUpdate(uid, status);
         } else {
           reloadMembers();
         }
@@ -149,9 +149,7 @@
         const payload = e.payload;
         if (!payload) return;
         if (payload.type === 'presence' && payload.user_id && payload.status) {
-          members = members.map((m) =>
-            m.userId === payload.user_id ? { ...m, onlineStatus: payload.status } : m
-          );
+          batchPresenceUpdate(payload.user_id, payload.status);
         } else if (
           payload.type === 'profile_updated' ||
           payload.type === 'avatar_updated' ||
@@ -185,6 +183,7 @@
   // Kendi satırını canlı kimlikle senkronla: ayarlardan görünen ad/avatar
   // değişince üye listesi de anında güncellenir.
   const me = $derived($authStore.identity);
+  const friendsList = $derived($friendsStore.friends);
 
   const activeMembers = $derived(members.filter(m => isMemberActive(m)));
   const offlineMembers = $derived(members.filter(m => !isMemberActive(m)));
@@ -219,6 +218,16 @@
   function myPresence(m: MemberInfo): 'online' | 'away' | 'dnd' | 'offline' | 'invisible' {
     if (m.userId === me?.id) return ui.presence;
     return m.onlineStatus === 'invisible' ? 'offline' : m.onlineStatus;
+  }
+
+  function getFriendStatus(userId: string): string {
+    const friend = friendsList.find(f => f.userId === userId);
+    return friend?.status ?? 'none';
+  }
+
+  function isFriend(userId: string): boolean {
+    const s = getFriendStatus(userId);
+    return s === 'friends' || s === 'accepted';
   }
 
   function openProfile(m: MemberInfo) {
@@ -316,10 +325,24 @@
         },
       );
     } else {
+      const friendStatus = getFriendStatus(m.userId);
+      const isAlreadyFriend = friendStatus === 'friends' || friendStatus === 'accepted';
+      const hasPendingRequest = friendStatus === 'pending_incoming' || friendStatus === 'pending_outgoing';
+
       items.push(
         { label: 'Profili Gör', icon: 'user', onClick: () => openProfile(m) },
         { label: 'Mesaj Gönder (DM)', icon: 'chat', onClick: () => void openDm(m) },
-        { label: 'Arkadaş Ekle', icon: 'plus', onClick: () => void addFriend(m) },
+      );
+
+      if (isAlreadyFriend) {
+        items.push({ label: 'Zaten Arkadaş', icon: 'check', disabled: true });
+      } else if (hasPendingRequest) {
+        items.push({ label: 'İstek Bekleniyor', icon: 'clock', disabled: true });
+      } else {
+        items.push({ label: 'Arkadaş Ekle', icon: 'plus', onClick: () => void addFriend(m) });
+      }
+
+      items.push(
         { label: '', separator: true },
         {
           label: 'Profil Bağlantısını Kopyala',
@@ -488,6 +511,8 @@
   });
 
   let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+  let presenceBatchTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingPresenceUpdates = new Map<string, string>();
 
   async function reloadMembersImmediate() {
     const id = targetId;
@@ -507,7 +532,22 @@
 
   function reloadMembers() {
     if (reloadTimer) clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(reloadMembersImmediate, 300);
+    reloadTimer = setTimeout(reloadMembersImmediate, 500);
+  }
+
+  function batchPresenceUpdate(userId: string, status: string) {
+    pendingPresenceUpdates.set(userId, status);
+    if (presenceBatchTimer) clearTimeout(presenceBatchTimer);
+    presenceBatchTimer = setTimeout(() => {
+      const updates = pendingPresenceUpdates;
+      pendingPresenceUpdates = new Map();
+      if (updates.size > 0) {
+        members = members.map((m) => {
+          const newStatus = updates.get(m.userId);
+          return newStatus ? { ...m, onlineStatus: newStatus as PresenceStatus } : m;
+        });
+      }
+    }, 150);
   }
 </script>
 

@@ -123,12 +123,12 @@
 
   function debouncedFriendsLoad() {
     if (friendsDebounceTimer) clearTimeout(friendsDebounceTimer);
-    friendsDebounceTimer = setTimeout(() => { void friendsStore.load(); }, 500);
+    friendsDebounceTimer = setTimeout(() => { void friendsStore.load(); }, 1000);
   }
 
   function debouncedDmsLoad() {
     if (dmsDebounceTimer) clearTimeout(dmsDebounceTimer);
-    dmsDebounceTimer = setTimeout(() => { void spaceStore.loadDms(); }, 500);
+    dmsDebounceTimer = setTimeout(() => { void spaceStore.loadDms(); }, 1000);
   }
 
   onMount(() => {

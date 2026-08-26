@@ -50,7 +50,6 @@
   } = $props();
 
   let resolvedSrc = $state<string | null>(null);
-  let isLoaded = $state<boolean>(false);
   let hasError = $state(false);
   let lastHash = $state<string | null>(null);
 
@@ -63,14 +62,12 @@
 
     if (!cleanHash) {
       resolvedSrc = null;
-      isLoaded = false;
       hasError = false;
       return;
     }
 
     if (cleanHash.startsWith('data:') || cleanHash.startsWith('http://') || cleanHash.startsWith('https://')) {
       resolvedSrc = cleanHash;
-      isLoaded = true;
       hasError = false;
       return;
     }
@@ -78,7 +75,6 @@
     const cached = getCachedBanner(cleanHash);
     if (cached) {
       resolvedSrc = cached;
-      isLoaded = true;
       hasError = false;
       return;
     }
@@ -87,39 +83,18 @@
     let cancelled = false;
     hasError = false;
 
-    const tryFetch = async () => {
-      try {
-        const dataUrl = await identityApi.getAvatar(cleanHash);
-        if (cancelled) return;
-        if (dataUrl) {
-          cacheBanner(cleanHash, dataUrl);
-          resolvedSrc = dataUrl;
-          isLoaded = true;
-          hasError = false;
-          return;
-        }
-      } catch { /* retry */ }
-      if (!cancelled) {
-        setTimeout(async () => {
-          if (cancelled) return;
-          try {
-            const retryUrl = await identityApi.getAvatar(cleanHash);
-            if (cancelled) return;
-            if (retryUrl) {
-              cacheBanner(cleanHash, retryUrl);
-              resolvedSrc = retryUrl;
-              isLoaded = true;
-              hasError = false;
-            } else {
-              hasError = true;
-            }
-          } catch {
-            if (!cancelled) hasError = true;
-          }
-        }, 600);
+    identityApi.getAvatar(cleanHash).then((dataUrl) => {
+      if (cancelled) return;
+      if (dataUrl) {
+        cacheBanner(cleanHash, dataUrl);
+        resolvedSrc = dataUrl;
+        hasError = false;
+      } else {
+        hasError = true;
       }
-    };
-    void tryFetch();
+    }).catch(() => {
+      if (!cancelled) hasError = true;
+    });
     return () => { cancelled = true; };
   });
 
@@ -152,7 +127,6 @@
         {alt}
         loading="eager"
         class="veil-banner-img loaded"
-        onload={() => { isLoaded = true; hasError = false; }}
         onerror={() => (hasError = true)}
       />
     {/if}
