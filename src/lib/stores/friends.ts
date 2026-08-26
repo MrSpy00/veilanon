@@ -71,7 +71,8 @@ function createFriendsStore() {
   function startPresencePoll() {
     if (presencePoll) return;
     if (typeof window === 'undefined') return;
-    presencePoll = setInterval(() => { void safeDoLoad(); }, 8000);
+    presencePoll = setInterval(() => { void safeDoLoad(); }, 3500);
+    window.addEventListener('focus', () => { void safeDoLoad(); });
   }
   function stopPresencePoll() {
     if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }

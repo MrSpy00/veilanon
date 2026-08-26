@@ -74,7 +74,19 @@
            (full?.username && f.username.toLowerCase() === full.username.toLowerCase())
     ) ?? null;
   });
-  const status = $derived(localFriend?.status ?? full?.friendStatus ?? 'none');
+  const status = $derived.by(() => {
+    const lf = localFriend?.status;
+    const ff = full?.friendStatus as string | undefined;
+    const norm = (s: string | undefined) => (s === 'accepted' ? 'friends' : s);
+    const a = norm(lf);
+    const b = norm(ff);
+    // If either source says friends/blocked, prefer that authoritative value
+    if (a === 'friends' || b === 'friends') return 'friends';
+    if (a === 'blocked' || b === 'blocked') return 'blocked';
+    if (a === 'pending_incoming' || b === 'pending_incoming') return 'pending_incoming';
+    if (a === 'pending_outgoing' || b === 'pending_outgoing') return 'pending_outgoing';
+    return (a ?? b ?? 'none') as any;
+  });
   const isSelf = $derived(!!profile && profile.userId === $authStore.identity?.id);
   const onlineStatus = $derived(
     (isSelf ? $uiStore.presence : (localFriend?.onlineStatus ?? full?.onlineStatus ?? profile?.onlineStatus ?? 'offline')) as 'online' | 'away' | 'dnd' | 'offline' | 'invisible'
@@ -228,7 +240,7 @@
   const bannerHash = $derived(
     isSelf
       ? ($authStore.identity?.bannerHash ?? null)
-      : (full?.bannerHash ?? profile?.bannerHash ?? null)
+      : (full?.bannerHash ?? profile?.bannerHash ?? (localFriend as any)?.bannerHash ?? null)
   );
 
   async function addFriend() {

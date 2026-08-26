@@ -17,9 +17,26 @@ export async function getLivekitToken(channelId: string): Promise<LivekitToken> 
   return voiceApi.getLivekitToken({ channelId });
 }
 
-/** Create a Room with veilanon defaults (no adaptive-stream hacks, honest codec config). */
+/** Create a Room with veilanon defaults (dynacast, adaptiveStream, low-latency audio). */
 export function createRoom(): Room {
-  return new Room();
+  return new Room({
+    dynacast: true,
+    adaptiveStream: true,
+    stopLocalTrackOnUnpublish: false,
+    audioCaptureDefaults: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+    publishDefaults: {
+      dtx: true,
+      red: true,
+      audioPreset: {
+        maxBitrate: 32_000,
+      },
+      videoCodec: 'vp8',
+    },
+  });
 }
 
 const connectOptions: RoomConnectOptions = {

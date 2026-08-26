@@ -74,13 +74,13 @@
     peerFriend?.username || peerMember?.username || ''
   );
   const peerAvatarHash = $derived(
-    peerFriend?.avatarHash || peerMember?.avatarHash || null
+    peerFriend?.avatarHash || peerMember?.avatarHash || (currentChannel as any)?.avatarHash || null
   );
   const peerPresence = $derived(
     (peerFriend?.onlineStatus || peerMember?.onlineStatus || 'offline') as any
   );
   const peerUserId = $derived(
-    peerFriend?.userId || peerMember?.userId || ''
+    peerFriend?.userId || peerMember?.userId || (currentChannel as any)?.peerId || ''
   );
 
   let loading = $state(false);

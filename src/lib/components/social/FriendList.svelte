@@ -29,11 +29,12 @@
   const allList = $derived(friendsState.friends);
   const auth = $derived($authStore);
 
+  function isAccepted(s: string): boolean { return s === 'friends' || (s as any) === 'accepted'; }
   const onlineFriends = $derived(
-    allList.filter(f => f.status === 'friends' && f.onlineStatus !== 'offline' && f.onlineStatus !== 'invisible')
+    allList.filter(f => isAccepted(f.status) && f.onlineStatus !== 'offline' && f.onlineStatus !== 'invisible')
   );
   const acceptedFriends = $derived(
-    allList.filter(f => f.status === 'friends')
+    allList.filter(f => isAccepted(f.status))
   );
   const incomingRequests = $derived(
     allList.filter(f => f.status === 'pending_incoming')

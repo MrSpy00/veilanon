@@ -11,8 +11,8 @@
     onClose?: () => void;
   } = $props();
 
-  let selectedResolution = $state<'1080p' | '720p' | '480p'>('720p');
-  let selectedFps = $state<60 | 45 | 30 | 15>(30);
+  let selectedResolution = $state<'1080p' | '720p' | '480p'>('1080p');
+  let selectedFps = $state<60 | 45 | 30 | 15>(60);
   let shareAudio = $state(true);
   let starting = $state(false);
 

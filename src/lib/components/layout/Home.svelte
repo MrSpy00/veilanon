@@ -172,10 +172,11 @@
     { id: 'spaces', label: 'Topluluklar & Keşfet', icon: 'compass' },
   ];
 
+  function _isAccepted(s: string): boolean { return s === 'friends' || (s as any) === 'accepted'; }
   const pending = $derived(
     friends.friends.filter(f => f.status === 'pending_incoming' || f.status === 'pending_outgoing')
   );
-  const accepted = $derived(friends.friends.filter(f => f.status === 'friends'));
+  const accepted = $derived(friends.friends.filter(f => _isAccepted(f.status)));
 </script>
 
 <div class="veil-home">

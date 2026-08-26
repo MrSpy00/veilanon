@@ -11,8 +11,19 @@
 
   const spaces = $derived($spaceStore);
   const ui = $derived($uiStore);
+  import { friendsStore } from '$lib/stores/friends';
+  const friends = $derived($friendsStore);
 
   let search = $state('');
+  function dmAvatarFallback(dm: { avatarHash?: string | null; peerId?: string | null; name: string }) {
+    if (dm.avatarHash) return dm.avatarHash;
+    if (dm.peerId) {
+      const f = friends.friends.find(x => x.userId === dm.peerId);
+      if (f?.avatarHash) return f.avatarHash;
+    }
+    return null;
+  }
+  function dmPeerId(dm: { peerId?: string | null; id: string }) { return (dm as any).peerId ?? null; }
   const dms = $derived(
     (() => {
       const q = search.trim().toLowerCase().replace(/^@/, '');
@@ -137,28 +148,50 @@
     </div>
   {:else}
     {#each dms as dm (dm.id)}
-      <button
+      <div
         class="veil-dm-row"
         class:active={ui.activeDmId === dm.id}
-        onclick={() => uiStore.navigateDm(dm.id)}
         oncontextmenu={(e) => openDmMenu(e, dm)}
+        role="group"
       >
-        <Avatar
-          name={dm.name}
-          hash={dm.avatarHash}
-          presence={dm.onlineStatus as 'online' | 'away' | 'dnd' | 'offline' | 'invisible' | null | undefined}
-          size="sm"
-        />
-        <div class="veil-dm-info">
-          <div class="veil-dm-name">{dm.name}</div>
-          {#if dm.unreadCount > 0}
-            <span class="veil-badge veil-dm-badge">{dm.unreadCount > 99 ? '99+' : dm.unreadCount}</span>
+        <button
+          class="veil-dm-avatar-btn"
+          onclick={(e) => {
+            e.stopPropagation();
+            const pid = dmPeerId(dm);
+            const av = dmAvatarFallback(dm);
+            if (pid) {
+              uiStore.openModal('user-profile', { userId: pid, username: dm.name, displayName: dm.name, avatarHash: av, onlineStatus: (dm as any).onlineStatus ?? 'offline' });
+            } else {
+              uiStore.openModal('user-profile', { userId: dm.id, username: dm.name, displayName: dm.name, avatarHash: av, onlineStatus: (dm as any).onlineStatus ?? 'offline' });
+            }
+          }}
+          title="Profili Gör"
+          aria-label="Profili gör"
+        >
+          <Avatar
+            name={dm.name}
+            hash={dmAvatarFallback(dm)}
+            presence={dm.onlineStatus as 'online' | 'away' | 'dnd' | 'offline' | 'invisible' | null | undefined}
+            size="sm"
+          />
+        </button>
+        <button
+          class="veil-dm-main"
+          onclick={() => uiStore.navigateDm(dm.id)}
+          aria-label="Sohbeti aç"
+        >
+          <div class="veil-dm-info">
+            <div class="veil-dm-name">{dm.name}</div>
+            {#if dm.unreadCount > 0}
+              <span class="veil-badge veil-dm-badge">{dm.unreadCount > 99 ? '99+' : dm.unreadCount}</span>
+            {/if}
+          </div>
+          {#if dm.isE2ee}
+            <Icon name="lock" size={12} />
           {/if}
-        </div>
-        {#if dm.isE2ee}
-          <Icon name="lock" size={12} />
-        {/if}
-      </button>
+        </button>
+      </div>
     {/each}
   {/if}
 </div>
@@ -213,13 +246,44 @@
     border: none;
     background: transparent;
     border-radius: var(--radius-md);
-    cursor: pointer;
     color: var(--veil-text-secondary);
     transition: background var(--t-fast), color var(--t-fast);
     text-align: left;
+    position: relative;
   }
   .veil-dm-row:hover { background: var(--veil-channel-hover); color: var(--veil-text-primary); }
   .veil-dm-row.active { background: var(--veil-channel-active); color: var(--veil-text-primary); font-weight: 500; }
+  .veil-dm-avatar-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    outline: none;
+    flex-shrink: 0;
+    transition: transform var(--t-fast);
+  }
+  .veil-dm-avatar-btn:hover {
+    transform: scale(1.08);
+  }
+  .veil-dm-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+  }
   .veil-dm-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
   .veil-dm-name { font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .veil-dm-badge { flex-shrink: 0; }

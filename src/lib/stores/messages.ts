@@ -379,8 +379,7 @@ function createMessageStore() {
 
     purgeExpiredLocal() {
       const nowSec = Date.now() / 1000;
-      // 0.5s grace period so messages currently undergoing burn animation finish cleanly
-      const expiryThreshold = nowSec - 0.5;
+      const expiryThreshold = nowSec;
       update(s => {
         let changed = false;
         const newByChannel: Record<string, Message[]> = {};

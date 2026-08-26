@@ -8,6 +8,16 @@
     }
   }
 
+  export function removeAvatarCache(hash: string | null | undefined) {
+    if (hash) {
+      avatarMemoryCache.delete(hash.trim());
+    }
+  }
+
+  export function clearAllAvatarCache() {
+    avatarMemoryCache.clear();
+  }
+
   function getCachedAvatar(hash: string): string | null {
     const e = avatarMemoryCache.get(hash);
     if (!e) return null;

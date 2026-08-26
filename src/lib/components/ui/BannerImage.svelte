@@ -14,6 +14,10 @@
     }
   }
 
+  export function clearAllBannerCache() {
+    bannerMemoryCache.clear();
+  }
+
   function getCachedBanner(hash: string): string | null {
     const e = bannerMemoryCache.get(hash);
     if (!e) return null;
@@ -75,22 +79,40 @@
     // Keep current banner visible while fetching new one — no flicker gap
     let cancelled = false;
     hasError = false;
-    // Don't clear resolvedSrc until new one arrives — avoids white flash
-    identityApi.getAvatar(cleanHash).then((dataUrl) => {
-      if (cancelled) return;
-      if (dataUrl) {
-        cacheBanner(cleanHash, dataUrl);
-        resolvedSrc = dataUrl;
-        isLoaded = true;
-        hasError = false;
-      } else {
-        hasError = true;
-      }
-    }).catch(() => {
+
+    const tryFetch = async () => {
+      try {
+        const dataUrl = await identityApi.getAvatar(cleanHash);
+        if (cancelled) return;
+        if (dataUrl) {
+          cacheBanner(cleanHash, dataUrl);
+          resolvedSrc = dataUrl;
+          isLoaded = true;
+          hasError = false;
+          return;
+        }
+      } catch { /* retry */ }
       if (!cancelled) {
-        hasError = true;
+        setTimeout(async () => {
+          if (cancelled) return;
+          try {
+            const retryUrl = await identityApi.getAvatar(cleanHash);
+            if (cancelled) return;
+            if (retryUrl) {
+              cacheBanner(cleanHash, retryUrl);
+              resolvedSrc = retryUrl;
+              isLoaded = true;
+              hasError = false;
+            } else {
+              hasError = true;
+            }
+          } catch {
+            if (!cancelled) hasError = true;
+          }
+        }, 600);
       }
-    });
+    };
+    void tryFetch();
     return () => { cancelled = true; };
   });
 

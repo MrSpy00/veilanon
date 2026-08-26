@@ -350,11 +350,13 @@
   const displayContent = $derived(isDeleted ? '[Mesaj silindi]' : (message.content ?? ''));
 
   // ── Kaybolan Mesaj Geri Sayım Sayacı (server-synced) ──────────────────
+  const purgedMessageIds = (typeof window !== 'undefined' ? ((window as any).__veilPurgedIds ??= new Set<string>()) : new Set<string>());
   let countdown = $state<number | null>(null);
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let isBurning = $state(false);
   let deleteScheduled = false;
   let serverTimeOffsetSec = $state(0);
+
   // NTP/clock skew offset: server - local (seconds). Fetched once per mount.
   async function syncClockOffset() {
     try {
@@ -375,11 +377,25 @@
 
   function startCountdown() {
     if (!message.disappearsAt) return;
+    if (purgedMessageIds.has(message.id)) {
+      countdown = 0;
+      isBurning = true;
+      return;
+    }
     if (countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
     deleteScheduled = false;
+
+    // Calibrate offset if message has createdAt and disappearsAt
+    if (message.createdAt && message.disappearsAt && message.disappearsAt > message.createdAt) {
+      const localNow = Date.now() / 1000;
+      // If server timestamp is in the future relative to local clock without offset, adjust offset
+      if (message.createdAt > localNow + serverTimeOffsetSec) {
+        serverTimeOffsetSec = message.createdAt - localNow;
+      }
+    }
 
     const update = () => {
       const nowSec = serverNowSec();
@@ -391,15 +407,15 @@
           clearInterval(countdownTimer);
           countdownTimer = null;
         }
-        if (!isBurning && !deleteScheduled) {
+        if (!deleteScheduled && !purgedMessageIds.has(message.id)) {
           deleteScheduled = true;
+          purgedMessageIds.add(message.id);
           isBurning = true;
-          // Mutex: ensure only once per message; backend delete + local purge
-          setTimeout(() => {
-            void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
-              messageStore.purgeExpiredLocal();
-            });
-          }, 350);
+          // Immediate local purge and backend broadcast
+          messageStore.purgeExpiredLocal();
+          void messageStore.deleteMessage(message.channelId, message.id).catch(() => {
+            messageStore.purgeExpiredLocal();
+          });
         }
       } else {
         countdown = Math.ceil(remaining);
@@ -407,7 +423,7 @@
     };
     update();
     if (!deleteScheduled && (message.disappearsAt - serverNowSec()) > 0) {
-      countdownTimer = setInterval(update, 250);
+      countdownTimer = setInterval(update, 100);
     }
   }
 
@@ -421,17 +437,19 @@
       }
       countdown = null;
       isBurning = false;
-      deleteScheduled = false;
     }
     return () => {
-      if (countdownTimer) clearInterval(countdownTimer);
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
     };
   });
 
   function formatCountdown(secs: number): string {
-    if (secs <= 0) return '0s';
-    if (secs < 60) return `${secs}s`;
-    if (secs < 3600) return `${Math.floor(secs / 60)}d ${secs % 60}s`;
+    if (secs <= 0) return '0sn';
+    if (secs < 60) return `${secs}sn`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}dk ${secs % 60}sn`;
     if (secs < 86400) return `${Math.floor(secs / 3600)}sa`;
     return `${Math.floor(secs / 86400)}g`;
   }

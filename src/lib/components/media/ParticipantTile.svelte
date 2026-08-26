@@ -695,9 +695,8 @@
   }
   .veil-vol-pop {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    bottom: calc(100% + 8px);
+    right: 8px;
     z-index: 100;
     background: var(--veil-bg-surface, #1e2230);
     border: 1px solid var(--veil-border, rgba(255, 255, 255, 0.12));
@@ -708,6 +707,7 @@
     flex-direction: column;
     gap: var(--space-2, 8px);
     width: 200px;
+    backdrop-filter: blur(16px);
   }
   .veil-vol-pop-title {
     font-size: var(--text-xs, 12px);

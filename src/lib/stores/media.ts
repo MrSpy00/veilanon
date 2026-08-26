@@ -36,10 +36,10 @@ export interface ScreenShareQuality {
 }
 
 export const SCREEN_SHARE_PRESETS: ScreenShareQuality[] = [
-  { width: 1280, height: 720, frameRate: 30, label: '720p · 30 FPS (Dengeli - Önerilen)' },
-  { width: 1280, height: 720, frameRate: 60, label: '720p · 60 FPS (Akıcı HD)' },
+  { width: 1920, height: 1080, frameRate: 60, label: '1080p · 60 FPS (Yüksek Kalite / Akıcı - Önerilen)' },
   { width: 1920, height: 1080, frameRate: 30, label: '1080p · 30 FPS (Full HD Standart)' },
-  { width: 1920, height: 1080, frameRate: 60, label: '1080p · 60 FPS (Yüksek Kalite / Akıcı)' },
+  { width: 1280, height: 720, frameRate: 60, label: '720p · 60 FPS (Akıcı HD)' },
+  { width: 1280, height: 720, frameRate: 30, label: '720p · 30 FPS (Dengeli)' },
   { width: 854, height: 480, frameRate: 30, label: '480p · 30 FPS (Düşük Bant Genişliği)' },
   { width: 854, height: 480, frameRate: 15, label: '480p · 15 FPS (Tasarruf Modu)' },
 ];
@@ -409,13 +409,13 @@ function createMediaStore() {
           publishDefaults: {
             dtx: true,
             red: true,
-            simulcast: true,
+            simulcast: false,
             audioPreset: {
-              maxBitrate: 48_000,
+              maxBitrate: 32_000,
             },
             screenShareEncoding: {
-              maxBitrate: 3_500_000,
-              maxFramerate: 30,
+              maxBitrate: 4_500_000,
+              maxFramerate: 60,
             },
           },
           audioCaptureDefaults: {
@@ -943,14 +943,14 @@ function createMediaStore() {
     async startScreenShare(options?: ScreenShareOptions) {
       if (!room) return;
       try {
-        const width = options?.resolution?.width ?? 1280;
-        const height = options?.resolution?.height ?? 720;
-        const frameRate = options?.frameRate ?? 30;
+        const width = options?.resolution?.width ?? 1920;
+        const height = options?.resolution?.height ?? 1080;
+        const frameRate = options?.frameRate ?? 60;
         const audio = options?.audio ?? true;
 
         const maxBitrate = frameRate >= 60
-          ? (width >= 1920 ? 6_000_000 : 3_500_000)
-          : (width >= 1920 ? 3_500_000 : 2_000_000);
+          ? (width >= 1920 ? 4_500_000 : 3_000_000)
+          : (width >= 1920 ? 3_000_000 : 1_800_000);
 
         // WebView2 getDisplayMedia yalnızca `audio` + `resolution` kısıtlarını
         // güvenilir destekler; systemAudio/selfBrowserSurface/surfaceSwitching
@@ -974,7 +974,7 @@ function createMediaStore() {
         const msTrack = pub?.videoTrack?.mediaStreamTrack;
         if (msTrack) {
           if ('contentHint' in msTrack) {
-            try { (msTrack as any).contentHint = 'motion'; } catch { /* best effort */ }
+            try { (msTrack as any).contentHint = 'detail'; } catch { /* best effort */ }
           }
           msTrack.onended = () => {
             void mediaStore.stopScreenShare();

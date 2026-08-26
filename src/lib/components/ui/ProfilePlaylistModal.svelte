@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { profilePlaylistStore, type PlaylistItem } from '$lib/stores/profilePlaylist';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Toggle from '$lib/components/ui/Toggle.svelte';
@@ -24,6 +25,12 @@
   let newUrl = $state('');
   let fileInputEl = $state<HTMLInputElement | null>(null);
   let mediaFileInputEl = $state<HTMLInputElement | null>(null);
+
+  // Scraper subpanel state
+  let scraperOpen = $state(false);
+  let scrapeUrl = $state('');
+  let isScraping = $state(false);
+  let scrapedCandidates = $state<Array<{ url: string; media_type: string; source: string; poster?: string | null }>>([]);
 
   const playlist = $derived($profilePlaylistStore);
   const currentItems = $derived(activeTab === 'avatar' ? playlist.avatarItems : playlist.bannerItems);
@@ -73,6 +80,59 @@
 
     newName = '';
     newUrl = '';
+  }
+
+  async function handleDirectScrape() {
+    let url = scrapeUrl.trim();
+    if (!url) {
+      toastStore.warning('Lütfen taranacak web sitesi veya medya adresi girin.');
+      return;
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+      scrapeUrl = url;
+    }
+    isScraping = true;
+    scrapedCandidates = [];
+    try {
+      const res = await invoke<{ success: boolean; media_urls?: Array<{ url: string; media_type: string; source: string; poster?: string | null }>; error?: string }>('scrape_url', { url });
+      if (res && res.success && res.media_urls && res.media_urls.length > 0) {
+        scrapedCandidates = res.media_urls;
+        toastStore.success(`${scrapedCandidates.length} adet medya bulundu!`);
+      } else {
+        toastStore.error(res?.error || 'Uygun medya bulunamadı.');
+      }
+    } catch (e) {
+      toastStore.error(`Tarama hatası: ${String(e).replace(/^Error:\s*/, '')}`);
+    } finally {
+      isScraping = false;
+    }
+  }
+
+  function addScrapedItem(cand: { url: string; media_type: string }) {
+    const itemTitle = `${activeTab === 'avatar' ? 'Avatar' : 'Banner'} #${currentItems.length + 1}`;
+    if (activeTab === 'avatar') {
+      profilePlaylistStore.addAvatarItem({ name: itemTitle, url: cand.url });
+    } else {
+      profilePlaylistStore.addBannerItem({ name: itemTitle, url: cand.url });
+    }
+  }
+
+  function addAllScraped() {
+    let count = 0;
+    for (const cand of scrapedCandidates) {
+      const itemTitle = `${activeTab === 'avatar' ? 'Avatar' : 'Banner'} #${currentItems.length + count + 1}`;
+      if (activeTab === 'avatar') {
+        profilePlaylistStore.addAvatarItem({ name: itemTitle, url: cand.url });
+      } else {
+        profilePlaylistStore.addBannerItem({ name: itemTitle, url: cand.url });
+      }
+      count++;
+    }
+    toastStore.success(`${count} adet medya listeye eklendi.`);
+    scraperOpen = false;
+    scrapedCandidates = [];
+    scrapeUrl = '';
   }
 
   function handlePickLocalMedia() {
@@ -322,17 +382,18 @@
             <Icon name="upload" size={13} />
             <span>Dosya Seç</span>
           </button>
-          {#if onAddViaScraper}
-            <button
-              class="btn btn-secondary btn-sm"
-              type="button"
-              onclick={() => onAddViaScraper(activeTab)}
-              title="Web Sayfasından Görsel/Video Tara"
-            >
-              <Icon name="globe" size={13} />
-              <span>Webden Tara</span>
-            </button>
-          {/if}
+          <button
+            class="btn btn-secondary btn-sm"
+            type="button"
+            onclick={() => {
+              if (onAddViaScraper) onAddViaScraper(activeTab);
+              else scraperOpen = !scraperOpen;
+            }}
+            title="Web Sayfasından Görsel/Video Tara"
+          >
+            <Icon name="globe" size={13} />
+            <span>Webden Tara</span>
+          </button>
           {#if onAddViaCamera}
             <button
               class="btn btn-secondary btn-sm"
@@ -350,6 +411,60 @@
           </button>
         </div>
       </form>
+
+      {#if scraperOpen}
+        <div class="veil-playlist-scraper-box">
+          <div class="veil-playlist-scraper-header">
+            <div class="veil-playlist-scraper-title">
+              <Icon name="globe" size={14} />
+              <span>Web Sayfasından Medya Tara ({activeTab === 'avatar' ? 'Avatar' : 'Banner'})</span>
+            </div>
+            <button class="btn-icon btn-xs" type="button" onclick={() => (scraperOpen = false)}>
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+          <div class="veil-playlist-scraper-input-row">
+            <input
+              type="url"
+              class="veil-input veil-input-sm"
+              placeholder="Web sayfası, Tenor, Giphy veya video bağlantısı girin..."
+              bind:value={scrapeUrl}
+              onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleDirectScrape(); } }}
+            />
+            <button class="btn btn-primary btn-sm" type="button" onclick={handleDirectScrape} disabled={isScraping || !scrapeUrl.trim()}>
+              <Icon name={isScraping ? 'refresh-cw' : 'search'} size={13} />
+              <span>{isScraping ? 'Taranıyor…' : 'Tara'}</span>
+            </button>
+          </div>
+          {#if scrapedCandidates.length > 0}
+            <div class="veil-playlist-scraped-header">
+              <span>Bulunan Medyalar ({scrapedCandidates.length})</span>
+              <button class="btn btn-secondary btn-xs" type="button" onclick={addAllScraped}>
+                <Icon name="plus" size={12} />
+                <span>Tümünü Listeye Ekle</span>
+              </button>
+            </div>
+            <div class="veil-playlist-scraped-grid">
+              {#each scrapedCandidates as cand}
+                {@const isV = cand.media_type.startsWith('video') || cand.url.includes('.mp4') || cand.url.includes('.webm')}
+                <div class="veil-playlist-cand-card">
+                  <div class="veil-playlist-cand-thumb">
+                    {#if isV}
+                      <video src={cand.url} muted loop playsinline></video>
+                    {:else}
+                      <img src={cand.url} alt="Aday görsel" />
+                    {/if}
+                  </div>
+                  <button class="btn btn-primary btn-xs veil-playlist-cand-add" type="button" onclick={() => addScrapedItem(cand)} title="Listeye Ekle">
+                    <Icon name="plus" size={12} />
+                    <span>Ekle</span>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Items Grid -->
       <div class="veil-playlist-items-section">
@@ -667,15 +782,68 @@
   .veil-playlist-del-btn:hover {
     color: var(--veil-danger);
   }
-  .veil-playlist-empty {
+  .veil-playlist-scraper-box {
+    background: var(--veil-bg-elevated);
+    border: 1px solid var(--veil-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
+    gap: var(--space-3);
+  }
+  .veil-playlist-scraper-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: var(--space-2);
-    padding: var(--space-6) var(--space-4);
-    color: var(--veil-text-muted);
+  }
+  .veil-playlist-scraper-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--veil-brand);
+  }
+  .veil-playlist-scraper-input-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .veil-playlist-scraped-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--veil-text-secondary);
+  }
+  .veil-playlist-scraped-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: var(--space-2);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .veil-playlist-cand-card {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--veil-bg-void);
+    border: 1px solid var(--veil-border-subtle);
+    display: flex;
+    flex-direction: column;
+  }
+  .veil-playlist-cand-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+  .veil-playlist-cand-thumb img,
+  .veil-playlist-cand-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .veil-playlist-cand-add {
+    margin: 4px;
   }
 </style>

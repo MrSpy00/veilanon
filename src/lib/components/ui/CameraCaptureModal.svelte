@@ -59,44 +59,58 @@
       const s = await navigator.mediaDevices.getUserMedia(constraints);
       stream = s;
 
-      // Wait for video element to be bound then attach stream with proper metadata gate
+      // Wait for video element to be bound and first frame rendered
       await new Promise<void>((resolve) => {
         let done = false;
-        const finish = () => {
+        const markReady = () => {
           if (done) return;
           done = true;
           loading = false;
           resolve();
         };
-        const attachWhenReady = () => {
+
+        const attachAndListen = () => {
           if (!videoEl) {
-            setTimeout(attachWhenReady, 30);
+            setTimeout(attachAndListen, 20);
             return;
           }
-          if (videoEl.srcObject !== s) videoEl.srcObject = s;
-          // Gate on loadedmetadata + videoWidth to avoid black frame
-          const onReady = async () => {
-            // Ensure videoWidth is populated (race on some WebView2 builds)
-            for (let i = 0; i < 40; i++) {
-              if (videoEl && videoEl.videoWidth > 0 && videoEl.readyState >= 1) break;
-              await new Promise(r => setTimeout(r, 25));
-            }
-            if (videoEl) {
-              try { await videoEl.play(); } catch { /* autoplay blocked -> still show frame */ }
-              // Final check: must have dimensions
-              if (videoEl.videoWidth > 0) finish();
-              else setTimeout(finish, 200);
-            } else finish();
-          };
-          if (videoEl.readyState >= 1 && videoEl.videoWidth > 0) {
-            void onReady();
-          } else {
-            videoEl.onloadedmetadata = () => void onReady();
-            // Fallback timer in case event never fires
-            setTimeout(() => void onReady(), 1200);
+          if (videoEl.srcObject !== s) {
+            videoEl.srcObject = s;
           }
+          void videoEl.play().catch(() => {});
+
+          if (videoEl.videoWidth > 0 && videoEl.readyState >= 2) {
+            markReady();
+            return;
+          }
+
+          if ('requestVideoFrameCallback' in (videoEl as any)) {
+            (videoEl as any).requestVideoFrameCallback(() => {
+              markReady();
+            });
+          }
+
+          videoEl.onloadeddata = () => {
+            if (videoEl && videoEl.videoWidth > 0) markReady();
+          };
+          videoEl.onloadedmetadata = () => {
+            if (videoEl && videoEl.videoWidth > 0) markReady();
+          };
+          videoEl.oncanplay = () => {
+            if (videoEl && videoEl.videoWidth > 0) markReady();
+          };
+
+          // Safe fallback
+          setTimeout(() => {
+            if (!done) {
+              done = true;
+              loading = false;
+              resolve();
+            }
+          }, 600);
         };
-        attachWhenReady();
+
+        attachAndListen();
       });
 
       await loadDevices();
@@ -108,21 +122,16 @@
     }
   }
 
-  // videoEl DOM bind watcher — only attaches stream, defers loading=false to onloadedmetadata
+  // videoEl DOM bind watcher
   $effect(() => {
     const vid = videoEl;
     const s = stream;
     if (vid && s && vid.srcObject !== s) {
       vid.srcObject = s;
-      vid.onloadedmetadata = async () => {
-        // Wait for dimensions before clearing loading overlay
-        for (let i = 0; i < 20; i++) {
-          if (vid.videoWidth > 0) break;
-          await new Promise(r => setTimeout(r, 20));
-        }
+      void vid.play().catch(() => {});
+      vid.onloadeddata = () => {
         if (vid.videoWidth > 0) loading = false;
       };
-      // Don't call play() here — startCamera owns that to avoid race
     }
   });
 

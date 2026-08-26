@@ -52,7 +52,8 @@
 
   function applyCustomDisappear() {
     let multiplier = 1;
-    if (customDisappearUnit === 'minutes') multiplier = 60;
+    if (customDisappearUnit === 'seconds') multiplier = 1;
+    else if (customDisappearUnit === 'minutes') multiplier = 60;
     else if (customDisappearUnit === 'hours') multiplier = 3600;
     else if (customDisappearUnit === 'days') multiplier = 86400;
     else if (customDisappearUnit === 'weeks') multiplier = 604800;
@@ -64,19 +65,25 @@
 
   const disappearBadgeText = $derived.by(() => {
     if (!disappearSeconds) return null;
-    if (disappearSeconds < 60) return `${disappearSeconds}s`;
+    if (disappearSeconds < 60) return `${disappearSeconds}sn`;
     if (disappearSeconds < 3600) {
       const m = Math.floor(disappearSeconds / 60);
       const s = disappearSeconds % 60;
-      return s > 0 ? `${m}d ${s}s` : `${m}d`;
+      return s > 0 ? `${m}dk ${s}sn` : `${m}dk`;
     }
     if (disappearSeconds < 86400) {
       const h = Math.floor(disappearSeconds / 3600);
       const m = Math.floor((disappearSeconds % 3600) / 60);
-      return m > 0 ? `${h}sa ${m}d` : `${h}sa`;
+      return m > 0 ? `${h}sa ${m}dk` : `${h}sa`;
     }
-    const d = Math.floor(disappearSeconds / 86400);
-    return `${d}g`;
+    if (disappearSeconds < 604800) {
+      const d = Math.floor(disappearSeconds / 86400);
+      const h = Math.floor((disappearSeconds % 86400) / 3600);
+      return h > 0 ? `${d}g ${h}sa` : `${d}g`;
+    }
+    const w = Math.floor(disappearSeconds / 604800);
+    const d = Math.floor((disappearSeconds % 604800) / 86400);
+    return d > 0 ? `${w}hf ${d}g` : `${w}hf`;
   });
 
   let textareaScrollHeight = $state(0);
@@ -1038,18 +1045,18 @@
                     />
                     <div class="veil-custom-unit-btns">
                       {#each [
-                        { val: 'seconds', label: 's' },
-                        { val: 'minutes', label: 'd' },
-                        { val: 'hours', label: 'sa' },
-                        { val: 'days', label: 'g' },
-                        { val: 'weeks', label: 'h' },
+                        { val: 'seconds', label: 'sn', title: 'Saniye' },
+                        { val: 'minutes', label: 'dk', title: 'Dakika' },
+                        { val: 'hours', label: 'sa', title: 'Saat' },
+                        { val: 'days', label: 'gün', title: 'Gün' },
+                        { val: 'weeks', label: 'hf', title: 'Hafta' },
                       ] as unit}
                         <button
                           type="button"
                           class="veil-unit-chip"
                           class:active={customDisappearUnit === unit.val}
                           onclick={() => (customDisappearUnit = unit.val as any)}
-                          title={{ seconds: 'Saniye', minutes: 'Dakika', hours: 'Saat', days: 'Gün', weeks: 'Hafta' }[unit.val]}
+                          title={unit.title}
                         >{unit.label}</button>
                       {/each}
                     </div>

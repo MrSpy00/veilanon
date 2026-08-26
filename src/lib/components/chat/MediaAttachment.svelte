@@ -213,16 +213,16 @@
     }
   }
 
+  let currentAttempt = $state(1);
+
   async function loadMedia(isRetry = false) {
-    if (mime === 'file') {
-      loading = false;
-      return;
-    }
     if (isRetry) {
       loading = true;
       error = false;
     }
-    for (let attempt = 0; attempt < 4; attempt++) {
+    const maxAttempts = 6;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      currentAttempt = attempt;
       try {
         const url = await fileApi.getDataUrl(
           attachment.fileId,
@@ -244,8 +244,8 @@
           return;
         }
       } catch {
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, Math.min(800, 200 * attempt)));
         }
       }
     }
@@ -469,7 +469,7 @@
   {#if loading}
     <div class="veil-media-skeleton">
       <div class="veil-spinner veil-spinner-sm"></div>
-      <span>Dosya şifresi çözülüyor…</span>
+      <span>{currentAttempt > 1 ? `Dosya şifresi çözülüyor… (${currentAttempt}/6)` : 'Dosya şifresi çözülüyor…'}</span>
     </div>
   {:else if error || !dataUrl || !attachment.fileId || attachment.sizeBytes === 0}
     <!-- Download / file fallback card with retry -->
