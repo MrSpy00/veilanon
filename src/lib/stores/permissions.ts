@@ -35,10 +35,22 @@ function createPermissionsStore() {
     loading: false,
   });
 
-  // Track active space / channel to refresh
-  uiStore.subscribe(async (ui) => {
+  // In-flight deduplication: only one fetch per space/channel combo at a time
+  let fetchInFlight: { key: string; promise: Promise<void> } | null = null;
+
+  // Track ONLY active space/channel changes — not every UI state update.
+  // This prevents hundreds of duplicate Supabase calls per minute.
+  let lastSpaceId: string | null = null;
+  let lastChannelId: string | null = null;
+
+  uiStore.subscribe((ui) => {
     const spaceId = ui.activeSpaceId;
     const channelId = ui.activeChannelId;
+
+    // Skip if neither space nor channel changed
+    if (spaceId === lastSpaceId && channelId === lastChannelId) return;
+    lastSpaceId = spaceId;
+    lastChannelId = channelId;
 
     if (!spaceId) {
       cache.set({
@@ -52,31 +64,41 @@ function createPermissionsStore() {
       return;
     }
 
+    // Deduplicate concurrent fetches for the same space+channel
+    const fetchKey = `${spaceId}:${channelId ?? ''}`;
+    if (fetchInFlight?.key === fetchKey) return;
+
     cache.update((c) => ({ ...c, spaceId, channelId, loading: true }));
 
-    try {
-      const [roles, members] = await Promise.all([
-        roleApi.list(spaceId).catch(() => []),
-        memberApi.list(spaceId).catch(() => []),
-      ]);
+    const promise = (async () => {
+      try {
+        const [roles, members] = await Promise.all([
+          roleApi.list(spaceId).catch(() => []),
+          memberApi.list(spaceId).catch(() => []),
+        ]);
 
-      let overrides: ChannelOverrideItem[] = [];
-      if (channelId) {
-        overrides = await channelApi.getOverrides(channelId).catch(() => []);
+        let overrides: ChannelOverrideItem[] = [];
+        if (channelId) {
+          overrides = await channelApi.getOverrides(channelId).catch(() => []);
+        }
+
+        cache.update((c) => ({
+          ...c,
+          spaceId,
+          channelId,
+          roles,
+          members,
+          channelOverrides: channelId ? { ...c.channelOverrides, [channelId]: overrides } : c.channelOverrides,
+          loading: false,
+        }));
+      } catch {
+        cache.update((c) => ({ ...c, loading: false }));
+      } finally {
+        if (fetchInFlight?.key === fetchKey) fetchInFlight = null;
       }
+    })();
 
-      cache.update((c) => ({
-        ...c,
-        spaceId,
-        channelId,
-        roles,
-        members,
-        channelOverrides: channelId ? { ...c.channelOverrides, [channelId]: overrides } : c.channelOverrides,
-        loading: false,
-      }));
-    } catch {
-      cache.update((c) => ({ ...c, loading: false }));
-    }
+    fetchInFlight = { key: fetchKey, promise };
   });
 
   const effective = derived(
@@ -128,29 +150,39 @@ function createPermissionsStore() {
       const cid = channelId ?? ui.activeChannelId;
       if (!sid) return;
 
-      try {
-        const [roles, members] = await Promise.all([
-          roleApi.list(sid).catch(() => []),
-          memberApi.list(sid).catch(() => []),
-        ]);
+      // Deduplicate concurrent refresh calls
+      const fetchKey = `refresh:${sid}:${cid ?? ''}`;
+      if (fetchInFlight?.key === fetchKey) return;
 
-        let overrides: ChannelOverrideItem[] = [];
-        if (cid) {
-          overrides = await channelApi.getOverrides(cid).catch(() => []);
+      const promise = (async () => {
+        try {
+          const [roles, members] = await Promise.all([
+            roleApi.list(sid).catch(() => []),
+            memberApi.list(sid).catch(() => []),
+          ]);
+
+          let overrides: ChannelOverrideItem[] = [];
+          if (cid) {
+            overrides = await channelApi.getOverrides(cid).catch(() => []);
+          }
+
+          cache.update((c) => ({
+            ...c,
+            spaceId: sid,
+            channelId: cid,
+            roles,
+            members,
+            channelOverrides: cid ? { ...c.channelOverrides, [cid]: overrides } : c.channelOverrides,
+            loading: false,
+          }));
+        } catch {
+          // ignore
+        } finally {
+          if (fetchInFlight?.key === fetchKey) fetchInFlight = null;
         }
+      })();
 
-        cache.update((c) => ({
-          ...c,
-          spaceId: sid,
-          channelId: cid,
-          roles,
-          members,
-          channelOverrides: cid ? { ...c.channelOverrides, [cid]: overrides } : c.channelOverrides,
-          loading: false,
-        }));
-      } catch {
-        // ignore
-      }
+      fetchInFlight = { key: fetchKey, promise };
     },
 
     getMemberHighestRole(member: MemberInfo | null | undefined, isOwner = false) {

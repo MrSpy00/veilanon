@@ -51,6 +51,9 @@ function createSpaceStore() {
   });
 
   let dmLoadInFlight = false;
+  // Dedup maps: prevent concurrent identical fetches to reduce Supabase egress
+  const spacesInFlight = new Map<string, Promise<Space[]>>();
+  const channelsInFlight = new Map<string, Promise<Channel[]>>();
 
   /** 1:1 DM adı gerçek değilse (boş / "Direkt Mesaj" / UUID / kendi nick) doğrudur. */
   function isDmPlaceholder(name: string | null | undefined, selfName: string): boolean {
@@ -77,23 +80,44 @@ function createSpaceStore() {
 
     // ── Loading ─────────────────────────────────────────────
     async loadSpaces() {
+      const key = 'all';
+      const existing = spacesInFlight.get(key);
+      if (existing) return existing;
+
       update(s => ({ ...s, loading: true }));
-      try {
-        const spaces = await spaceApi.list();
-        update(s => ({ ...s, spaces, loading: false }));
-      } catch {
-        update(s => ({ ...s, loading: false }));
-      }
+      const promise = spaceApi.list()
+        .then((spaces) => {
+          update(s => ({ ...s, spaces, loading: false }));
+          return spaces;
+        })
+        .catch(() => {
+          update(s => ({ ...s, loading: false }));
+          return [] as Space[];
+        })
+        .finally(() => {
+          spacesInFlight.delete(key);
+        });
+
+      spacesInFlight.set(key, promise);
+      return promise;
     },
 
     async loadChannels(spaceId: string) {
-      try {
-        const channels = await channelApi.list(spaceId);
-        this.setChannels(spaceId, channels);
-        return channels;
-      } catch {
-        return [];
-      }
+      const existing = channelsInFlight.get(spaceId);
+      if (existing) return existing;
+
+      const promise = channelApi.list(spaceId)
+        .then((channels) => {
+          this.setChannels(spaceId, channels);
+          return channels;
+        })
+        .catch(() => [] as Channel[])
+        .finally(() => {
+          channelsInFlight.delete(spaceId);
+        });
+
+      channelsInFlight.set(spaceId, promise);
+      return promise;
     },
 
     async loadDms() {
