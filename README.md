@@ -17,6 +17,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/MrSpy00/veilanon/actions/workflows/build.yml"><img src="https://github.com/MrSpy00/veilanon/actions/workflows/build.yml/badge.svg" alt="CI Build & Test" /></a>
+  <a href="https://github.com/MrSpy00/veilanon/actions/workflows/security-audit.yml"><img src="https://github.com/MrSpy00/veilanon/actions/workflows/security-audit.yml/badge.svg" alt="Security Audit" /></a>
   <a href="https://github.com/MrSpy00/veilanon/releases/tag/v0.0.1"><img src="https://img.shields.io/badge/release-v0.0.1-8b5cf6?style=flat-square&logo=github" alt="Release v0.0.1" /></a>
   <a href="https://veilanon.com"><img src="https://img.shields.io/badge/website-veilanon.com-6366f1?style=flat-square" alt="Website" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-10b981?style=flat-square" alt="License" /></a>
