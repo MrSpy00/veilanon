@@ -177,4 +177,5 @@ supabase/.temp/
 .claude/
 .gemini/
 .antigravity/
+.commandcode/
 scratch/

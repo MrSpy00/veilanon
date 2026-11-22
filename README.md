@@ -31,7 +31,7 @@
 
 ## ⚡ Genel Bakış
 
-**veilanon**, **Tauri 2**, **Rust** ve **Svelte 5 / SvelteKit** teknolojileri üzerine inşa edilmiş, gizlilik odaklı, çok platformlu bir masaüstü iletişim platformudur. Discord'un modern, akıcı ve zengin kullanıcı deneyimini, Signal seviyesinde sıfır-bilgi (zero-knowledge) matematiksel kriptografik güvencelerle birleştirir:
+**veilanon**, **Tauri 2**, **Rust** ve **Svelte 5 / SvelteKit** teknolojileri üzerine inşa edilmiş, gizlilik odaklı, çok platformlu bir masaüstü iletişim platformudur. Modern masaüstü sohbet deneyimini OpenMLS (RFC 9420) ve Double Ratchet tabanlı sıfır-bilgi (zero-knowledge) kriptografik mimariyle birleştirir:
 
 - **Sıfır-Bilgi Mimarisi (Zero-Knowledge):** Mesaj metinleri, ekler, sesli ve görüntülü görüşme medyaları ağa iletilmeden önce doğrudan yerel cihazınızda şifrelenir.
 - **Kör Zarf Yönlendirme (Dumb Envelope Relaying):** Kontrol düzlemi / sunucular yalnızca opak şifreli zarfları yönlendirir; gönderdiğiniz veya söylediğiniz hiçbir veriyi göremez, çözemez ve depolayamaz.
@@ -127,7 +127,7 @@ Tüm kurulum paketleri dijital olarak imzalanmış ve SHA-256 sağlama toplamlar
 | İşletim Sistemi | Paket Formatı | Doğrudan İndirme Bağlantısı | Açıklama |
 | :--- | :--- | :--- | :--- |
 | **Windows** | `.exe` Kurulum | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Tam Kurulum Sihirbazı (İmzalı) |
-| **Windows** | `.msi` Yükleyici | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX Kurumsal MSI Yükleyici Paketi |
+| **Windows** | `.msi` Yükleyici | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX MSI Yükleyici Paketi |
 | **macOS** | `.dmg` İmajı | [`veilanon_0.0.1_aarch64.dmg`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.dmg) | Apple Silicon (M1/M2/M3/M4) Disk İmajı |
 | **macOS** | `.app.tar.gz` | [`veilanon_0.0.1_aarch64.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.app.tar.gz) | macOS Apple Silicon Uygulama Arşivi |
 | **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Bağımsız, Evrensel Taşınabilir Linux Paketi |
@@ -292,7 +292,7 @@ veilanon her sürümde yedi temel ilkeye bağlı kalır:
 
 ## ⚡ Overview
 
-**veilanon** is a privacy-first, cross-platform desktop communication application built on **Tauri 2**, **Rust**, and **Svelte 5 / SvelteKit**. It combines the rich, modern, fluid user experience of Discord with the zero-knowledge mathematical guarantees of Signal-level cryptography:
+**veilanon** is a privacy-first, cross-platform desktop communication application built on **Tauri 2**, **Rust**, and **Svelte 5 / SvelteKit**. It combines a modern desktop chat experience with zero-knowledge cryptography built on OpenMLS (RFC 9420) and Double Ratchet:
 
 - **Zero-Knowledge Architecture:** Message bodies, attachments, and call media are encrypted directly on your local device before they ever touch the network.
 - **Dumb Envelope Relaying:** The control plane / server operates solely as an opaque ciphertext envelope router — it can never inspect or decrypt what you send or say.
@@ -388,7 +388,7 @@ All release packages are digitally signed and verified with SHA-256 checksum man
 | Platform | Format / Type | Direct Download Link | Description |
 | :--- | :--- | :--- | :--- |
 | **Windows** | `.exe` Setup | [`veilanon_0.0.1_x64-setup.exe`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64-setup.exe) | NSIS Full Setup Wizard (Signed) |
-| **Windows** | `.msi` Installer | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX Enterprise MSI Installer |
+| **Windows** | `.msi` Installer | [`veilanon_0.0.1_x64_en-US.msi`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_x64_en-US.msi) | WiX MSI Installer |
 | **macOS** | `.dmg` Package | [`veilanon_0.0.1_aarch64.dmg`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.dmg) | Apple Silicon (M1/M2/M3/M4) Disk Image |
 | **macOS** | `.app.tar.gz` | [`veilanon_0.0.1_aarch64.app.tar.gz`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_aarch64.app.tar.gz) | macOS Apple Silicon Application Bundle Archive |
 | **Linux** | `.AppImage` | [`veilanon_0.0.1_amd64.AppImage`](https://github.com/MrSpy00/veilanon/releases/download/v0.0.1/veilanon_0.0.1_amd64.AppImage) | Standalone Universal Portable Linux Binary |
